@@ -18,6 +18,9 @@ Gudang_Arsip_Excel/*.xlsx
 Handover_Reports/*.xlsx
 Sales_Reports/*.xlsx
 
+# Keep DB backups
+!DB_Backup/*.xlsx
+
 # IDE
 .vscode/
 .idea/
