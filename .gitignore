@@ -1,0 +1,27 @@
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Logs
+logs/
+
+# Excel output
+Gudang_Arsip_Excel/*.xlsx
+Handover_Reports/*.xlsx
+Sales_Reports/*.xlsx
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
