@@ -227,6 +227,12 @@ class Database:
             except sqlite3.OperationalError:
                 pass  # Column already exists
 
+            # Migration: add marketplace column to scan_aktif
+            try:
+                cursor.execute("ALTER TABLE scan_aktif ADD COLUMN marketplace TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS daftar_barang_besar (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -367,8 +373,8 @@ def get_stats(db: Database):
 
     stats["TOTAL_SCAN"] = sum(stats.values())
 
-    # Total resi dari penjualan (ada no_resi)
-    total_penjualan = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan WHERE no_resi != ''")
+    # Total resi unik dari penjualan (yang ada no_resi)
+    total_penjualan = db.fetch_one("SELECT COUNT(DISTINCT no_resi) as cnt FROM penjualan WHERE no_resi != '' AND no_resi IS NOT NULL")
     stats["TOTAL_SALES"] = total_penjualan["cnt"] if total_penjualan else 0
 
     # Belum discan = total penjualan - packed - cancel
@@ -548,7 +554,7 @@ def render_stats_cards(stats: dict):
     """Render statistics cards — diselaraskan dengan Scan Operasional."""
     cols = st.columns(5)
     with cols[0]:
-        st.metric("📦 Total Resi (Sales)", f"{stats.get('TOTAL_SALES', 0):,}")
+        st.metric("📦 Pesanan dgn Resi", f"{stats.get('TOTAL_SALES', 0):,}")
     with cols[1]:
         st.metric("✅ Packed", f"{stats.get('PACKED', 0):,}")
     with cols[2]:
@@ -2684,21 +2690,33 @@ def _render_marketplace_tab(db, marketplace, mp_key):
                     map_ket = st.selectbox("Keterangan", excel_cols, key=f"map_ket_{mp_key}",
                                            index=_auto_detect_sales_column(excel_cols, ket_keys))
 
-                # ── Manual Toko Input ──
+                # ── Toko Select (Dropdown dari Database) ──
+                toko_list = db.fetch_all("SELECT nama FROM toko ORDER BY nama")
+                toko_options = [t["nama"] for t in toko_list] if toko_list else []
+                toko_options_with_custom = toko_options + ["➕ Toko Baru (Ketik Manual)..."]
+                
                 col_t1, col_t2 = st.columns([2, 1])
                 with col_t1:
-                    toko_manual = st.text_input(
-                        "🏪 Nama Toko (Manual / Override)",
-                        placeholder="Ketik nama toko...",
-                        key=f"sales_toko_manual_{mp_key}",
+                    selected_toko_option = st.selectbox(
+                        "🏪 Nama Toko",
+                        toko_options_with_custom,
+                        key=f"sales_toko_select_{mp_key}",
                     )
                 with col_t2:
-                    if toko_manual.strip():
-                        existing_toko = db.fetch_one("SELECT id FROM toko WHERE nama = ?", (toko_manual.strip(),))
-                        if not existing_toko:
-                            st.caption("🆕 Toko baru — otomatis tersimpan")
-                        else:
-                            st.caption("✅ Toko sudah terdaftar")
+                    st.write("")
+                    if selected_toko_option == "➕ Toko Baru (Ketik Manual)...":
+                        st.caption("⬇️ Ketik nama toko baru di bawah")
+                    elif selected_toko_option:
+                        st.caption("✅ Dari daftar toko")
+                
+                if selected_toko_option == "➕ Toko Baru (Ketik Manual)...":
+                    toko_manual = st.text_input(
+                        "✏️ Nama Toko Baru",
+                        placeholder="Ketik nama toko baru...",
+                        key=f"sales_toko_manual_{mp_key}",
+                    )
+                else:
+                    toko_manual = selected_toko_option
 
                 # ── Preview ──
                 if map_order:
@@ -3183,6 +3201,576 @@ def render_sales_daily_report():
             st.success(f"✅ Laporan tersimpan: {filename}")
 
 
+def render_ai_supervisor():
+    """AI Supervisor — analisa & rekomendasi kinerja operasional."""
+    db = st.session_state.db
+    today_str = datetime.now().strftime("%d-%m-%Y")
+    today_date = datetime.now().strftime("%Y-%m-%d")
+
+    st.subheader("🤖 AI Supervisor — Analisa Kinerja Operasional")
+    st.caption("AI menganalisa seluruh pipeline: Pesanan Masuk → Packing → Handover → Selesai")
+
+    # ═══════════════════════════════════════════
+    # 📊 QUERY ALL METRICS
+    # ═══════════════════════════════════════════
+
+    # Total orders (unique no_pesanan)
+    total_orders = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan")
+    total_orders_cnt = total_orders["cnt"] if total_orders else 0
+
+    total_items = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan")
+    total_items_cnt = total_items["cnt"] if total_items else 0
+
+    # Orders with resi (unique no_resi)
+    with_resi = db.fetch_one("SELECT COUNT(DISTINCT no_resi) as cnt FROM penjualan WHERE no_resi != '' AND no_resi IS NOT NULL")
+    with_resi_cnt = with_resi["cnt"] if with_resi else 0
+
+    tanpa_resi = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan WHERE no_resi = '' OR no_resi IS NULL")
+    tanpa_resi_cnt = tanpa_resi["cnt"] if tanpa_resi else 0
+
+    # Scan stats
+    packed_cnt = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED'")
+    packed = packed_cnt["cnt"] if packed_cnt else 0
+
+    pending_cnt = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PENDING'")
+    pending = pending_cnt["cnt"] if pending_cnt else 0
+
+    cancel_cnt = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'CANCEL'")
+    cancel = cancel_cnt["cnt"] if cancel_cnt else 0
+
+    instant_cnt = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED' AND tipe_kiriman = 'INSTANT'")
+    instant = instant_cnt["cnt"] if instant_cnt else 0
+
+    reguler_packed = packed - instant
+
+    besar_cnt = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED' AND kategori = 'BESAR'")
+    besar = besar_cnt["cnt"] if besar_cnt else 0
+
+    # Handover ready (PACKED, not yet exported)
+    handover_ready_cnt = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED'")
+    handover_ready = handover_ready_cnt["cnt"] if handover_ready_cnt else 0
+
+    # Today's stats
+    today_scans = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE tanggal = ?", (today_str,))
+    today_scan_cnt = today_scans["cnt"] if today_scans else 0
+
+    today_packed = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE tanggal = ? AND status = 'PACKED'", (today_str,))
+    today_packed_cnt = today_packed["cnt"] if today_packed else 0
+
+    # Revenue
+    revenue = db.fetch_one(
+        "SELECT SUM(p.total_harga) as total FROM penjualan p "
+        "JOIN scan_aktif s ON p.no_resi = s.resi WHERE s.status = 'PACKED'"
+    )
+    revenue_packed = revenue["total"] if revenue and revenue["total"] else 0
+
+    total_revenue = db.fetch_one("SELECT SUM(total_harga) as total FROM penjualan")
+    total_rev = total_revenue["total"] if total_revenue and total_revenue["total"] else 0
+
+    # Per Marketplace
+    mp_stats = db.fetch_all(
+        "SELECT marketplace, COUNT(*) as total_orders, "
+        "SUM(CASE WHEN no_resi != '' AND no_resi IS NOT NULL THEN 1 ELSE 0 END) as with_resi, "
+        "SUM(total_harga) as revenue "
+        "FROM penjualan GROUP BY marketplace ORDER BY total_orders DESC"
+    )
+
+    # Per Toko
+    toko_perf = db.fetch_all(
+        "SELECT p.nama_toko, COUNT(DISTINCT p.no_pesanan) as total_orders, "
+        "COUNT(DISTINCT s.resi) as packed, "
+        "SUM(CASE WHEN s.status = 'PACKED' THEN p.total_harga ELSE 0 END) as packed_revenue "
+        "FROM penjualan p LEFT JOIN scan_aktif s ON p.no_resi = s.resi AND s.status = 'PACKED' "
+        "WHERE p.nama_toko != '' "
+        "GROUP BY p.nama_toko ORDER BY packed DESC"
+    )
+
+    # Per Ekspedisi (from scan_aktif)
+    ekspedisi_perf = db.fetch_all(
+        "SELECT ekspedisi, COUNT(*) as total, "
+        "SUM(CASE WHEN status = 'PACKED' THEN 1 ELSE 0 END) as packed, "
+        "SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) as pending, "
+        "SUM(CASE WHEN status = 'CANCEL' THEN 1 ELSE 0 END) as cancel "
+        "FROM scan_aktif WHERE ekspedisi != 'CANCEL' GROUP BY ekspedisi ORDER BY total DESC"
+    )
+
+    # SKU match rate
+    sku_match = db.fetch_one(
+        "SELECT COUNT(*) as cnt FROM penjualan WHERE sku_terdeteksi != '' AND sku_terdeteksi IS NOT NULL"
+    )
+    sku_matched_cnt = sku_match["cnt"] if sku_match else 0
+    sku_match_pct = (sku_matched_cnt / total_items_cnt * 100) if total_items_cnt > 0 else 0
+
+    # ── Instant / Prioritas Orders ──
+    instant_keywords = ['%instant%', '%same%day%', '%gosend%', '%grab%express%', '%prioritas%']
+    instant_where = " OR ".join([f"LOWER(kurir) LIKE '{kw}'" for kw in instant_keywords])
+    instant_orders = db.fetch_one(
+        f"SELECT COUNT(*) as cnt FROM penjualan WHERE ({instant_where}) AND no_resi != '' AND no_resi IS NOT NULL"
+    )
+    instant_total = instant_orders["cnt"] if instant_orders else 0
+
+    instant_not_packed = db.fetch_one(
+        f"SELECT COUNT(*) as cnt FROM penjualan WHERE ({instant_where}) "
+        f"AND no_resi != '' AND no_resi IS NOT NULL "
+        f"AND (status_pesanan != 'PACKED' AND status_pesanan != 'CANCEL')"
+    )
+    instant_waiting = instant_not_packed["cnt"] if instant_not_packed else 0
+
+    instant_packed = db.fetch_one(
+        f"SELECT COUNT(*) as cnt FROM penjualan WHERE ({instant_where}) "
+        f"AND status_pesanan = 'PACKED'"
+    )
+    instant_done = instant_packed["cnt"] if instant_packed else 0
+
+    # ═══════════════════════════════════════════
+    # 🧠 AI INSIGHT ENGINE
+    # ═══════════════════════════════════════════
+    insights = []
+    alerts = []
+    recommendations = []
+
+    # Pipeline health
+    if total_orders_cnt > 0:
+        packing_rate = (packed / with_resi_cnt * 100) if with_resi_cnt > 0 else 0
+        success_rate = (packed / total_orders_cnt * 100) if total_orders_cnt > 0 else 0
+
+        if packing_rate >= 90:
+            insights.append(("✅", "Efisiensi packing sangat baik", f"{packing_rate:.0f}% resi sudah dipacking — tim operasional bekerja optimal.", "good"))
+        elif packing_rate >= 60:
+            insights.append(("⚡", "Packing berjalan normal", f"{packing_rate:.0f}% sudah dipacking, masih ada {with_resi_cnt - packed} resi dalam antrian.", "normal"))
+        elif packing_rate > 0:
+            insights.append(("⚠️", "Packing perlu dipercepat", f"Hanya {packing_rate:.0f}% yang sudah dipacking. {with_resi_cnt - packed} resi belum tersentuh.", "warn"))
+        else:
+            insights.append(("🔴", "Belum ada aktivitas packing", "Tim belum mulai packing. Segera mulai scan resi di SCAN Operasional.", "critical"))
+
+        # Cancel rate
+        if total_orders_cnt > 0:
+            cancel_rate = (cancel / total_orders_cnt * 100)
+            if cancel_rate > 10:
+                alerts.append(("🔴", "Cancel Rate Tinggi", f"{cancel_rate:.0f}% pesanan dibatalkan — perlu investigasi penyebab cancel."))
+            elif cancel_rate > 5:
+                alerts.append(("⚠️", "Cancel Rate Meningkat", f"{cancel_rate:.0f}% cancel — pantau terus dan evaluasi stok/proses."))
+
+        # Orders without resi
+        if tanpa_resi_cnt > 0:
+            tanpa_pct = (tanpa_resi_cnt / total_orders_cnt * 100)
+            if tanpa_pct > 30:
+                alerts.append(("🔴", "Banyak Pesanan Tanpa Resi", f"{tanpa_resi_cnt} pesanan ({tanpa_pct:.0f}%) belum punya no resi. Segera update di Input Resi & Pesanan!"))
+            elif tanpa_pct > 10:
+                alerts.append(("⚠️", "Pesanan Perlu Resi", f"{tanpa_resi_cnt} pesanan ({tanpa_pct:.0f}%) belum punya no resi. Update sebelum packing."))
+
+        # Pending scans
+        if pending > 0:
+            if pending > 20:
+                alerts.append(("🔴", "Banyak Scan Pending", f"{pending} resi di-scan tapi tidak ada di data penjualan. Cek ulang data impor."))
+            else:
+                alerts.append(("⚠️", "Scan Pending Terdeteksi", f"{pending} resi pending — pastikan data penjualan sudah lengkap."))
+
+        # SKU matching
+        if sku_match_pct < 70:
+            alerts.append(("⚠️", "SKU Matching Rendah", f"Hanya {sku_match_pct:.0f}% produk cocok SKU. Perbaiki mapping SKU di Excel import."))
+
+        # Daily productivity
+        if today_scan_cnt > 0:
+            insights.append(("📊", f"Aktivitas Hari Ini", f"{today_packed_cnt} resi dipacking hari ini dari {today_scan_cnt} total scan. Tetap konsisten!", "good" if today_packed_cnt > 50 else "normal"))
+        else:
+            if total_orders_cnt > 0:
+                insights.append(("⏰", "Belum Ada Scan Hari Ini", "Operator belum mulai packing hari ini. Pastikan tim mulai bekerja.", "warn"))
+
+        # ── Instant / Prioritas ──
+        if instant_total > 0:
+            instant_unpacked_pct = (instant_waiting / instant_total * 100) if instant_total > 0 else 0
+            if instant_waiting > 0:
+                alerts.insert(0, ("🚀", "PRIORITAS! Pesanan Instant Menunggu", 
+                    f"{instant_waiting} dari {instant_total} pesanan instant/same-day BELUM dipacking! Dahulukan sebelum reguler."))
+                insights.append(("🚀", "Pesanan Instant Perlu Prioritas", 
+                    f"{instant_waiting} pesanan instant ({instant_unpacked_pct:.0f}%) masih menunggu — SLA pengiriman lebih ketat.", "warn"))
+            else:
+                instant_done_pct = (instant_done / instant_total * 100) if instant_total > 0 else 0
+                insights.append(("✅", "Semua Instant Terpacking", 
+                    f"{instant_done}/{instant_total} pesanan instant sudah selesai dipacking. Good job!", "good"))
+
+    # ═══════════════════════════════════════════
+    # 📋 RECOMMENDATIONS
+    # ═══════════════════════════════════════════
+    if instant_waiting > 0:
+        recommendations.insert(0, ("🚀", "DAHULUKAN INSTANT!", 
+            f"🚨 {instant_waiting} pesanan instant/same-day belum dipacking. SLA ketat — kerjakan SEKARANG sebelum reguler!"))
+    if tanpa_resi_cnt > 0:
+        recommendations.append(("📋", "Update No Resi", f"Prioritaskan update {tanpa_resi_cnt} pesanan tanpa resi di menu Input Resi & Pesanan."))
+    if pending > 0:
+        recommendations.append(("🔍", "Verifikasi Pending", f"Cek {pending} scan pending — pastikan data penjualan sesuai dengan resi fisik."))
+    if handover_ready > 0:
+        recommendations.append(("📤", "Siapkan Handover", f"{handover_ready} resi siap handover. Export laporan handover untuk kurir."))
+    if cancel > 10:
+        recommendations.append(("🛑", "Evaluasi Cancel", f"Cancel rate tinggi ({cancel} resi). Review proses quality control dan stok barang."))
+    if packed > 0 and with_resi_cnt > 0 and (with_resi_cnt - packed) > 0:
+        recommendations.append(("🎯", "Target Packing", f"Selesaikan {with_resi_cnt - packed} resi tersisa untuk capai 100% packing rate."))
+    if sku_match_pct < 85:
+        recommendations.append(("🏷️", "Perbaiki SKU", f"Tingkatkan SKU matching ({sku_match_pct:.0f}%) — update file Excel dengan kode SKU yang benar."))
+
+    # ═══════════════════════════════════════════
+    # 🎨 RENDER DASHBOARD
+    # ═══════════════════════════════════════════
+
+    # ── Health Score ──
+    if total_orders_cnt > 0:
+        # Bonus/penalty untuk instant: +5 kalau semua instant sudah packed, -10 kalau masih banyak nunggu
+        instant_bonus = 5 if (instant_total > 0 and instant_waiting == 0) else (-10 if instant_waiting > 5 else 0)
+        health_score = min(100, max(0, int(
+            (packed / max(total_orders_cnt, 1) * 40) +
+            (sku_match_pct * 0.3) +
+            (max(0, 100 - tanpa_resi_cnt / max(total_orders_cnt, 1) * 100) * 0.2) +
+            (max(0, 100 - cancel / max(total_orders_cnt, 1) * 100) * 0.1) +
+            instant_bonus
+        )))
+    else:
+        health_score = 0
+
+    if health_score >= 80:
+        health_color = "#30D158"
+        health_emoji = "💚"
+        health_label = "Sehat"
+    elif health_score >= 50:
+        health_color = "#FF9F0A"
+        health_emoji = "💛"
+        health_label = "Perlu Perhatian"
+    else:
+        health_color = "#FF453A"
+        health_emoji = "❤️"
+        health_label = "Kritis"
+
+    # Health Score Card
+    st.markdown(f"""
+    <div style="background: {health_color}22; border: 2px solid {health_color}; border-radius: 16px; padding: 20px; margin-bottom: 20px; text-align: center;">
+        <h2 style="margin: 0; color: {health_color};">{health_emoji} Skor Kesehatan Operasional: {health_score}/100</h2>
+        <p style="margin: 5px 0 0 0; color: #AEAEB2; font-size: 14px;">Status: <strong style="color: {health_color};">{health_label}</strong> — diperbarui {datetime.now().strftime('%H:%M')}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Pipeline Flow ──
+    st.markdown("### 🔄 Pipeline Operasional")
+    col_p1, col_p2, col_p3, col_p4, col_p5, col_p6 = st.columns(6)
+    with col_p1:
+        st.metric("📥 Pesanan", total_orders_cnt, help="Total pesanan masuk")
+    with col_p2:
+        st.metric("🏷️ Ada Resi", with_resi_cnt, f"{tanpa_resi_cnt} tanpa", help="Pesanan yang sudah punya no resi")
+    with col_p3:
+        st.metric("✅ Packed", packed, f"{'+'+str(instant) if instant else ''} instant" if instant else "", help="Resi sudah dipacking")
+    with col_p4:
+        st.metric("⏳ Pending", pending, help="Scan tidak dikenal")
+    with col_p5:
+        st.metric("❌ Cancel", cancel, help="Pesanan dibatalkan")
+    with col_p6:
+        st.metric("📤 Siap Handover", handover_ready, help="Siap diserahkan ke kurir")
+
+    # Progress bar untuk packing progress
+    if with_resi_cnt > 0:
+        progress_pct = min(1.0, packed / with_resi_cnt)
+        st.progress(progress_pct, text=f"Progress Packing: {packed}/{with_resi_cnt} resi ({progress_pct*100:.0f}%)")
+
+    # ── Instant Priority Callout ──
+    if instant_waiting > 0:
+        instant_pct = (instant_waiting / instant_total * 100) if instant_total > 0 else 0
+        st.markdown(f"""
+        <div style="background: #FF453A22; border: 2px solid #FF453A; border-radius: 12px; padding: 14px; margin: 12px 0;">
+            <strong style="color: #FF453A; font-size: 16px;">🚀 INSTANT PRIORITY!</strong><br>
+            <span style="color: #FF9F0A;">{instant_waiting} dari {instant_total} pesanan <strong>instant/same-day</strong> ({instant_pct:.0f}%) belum dipacking — 
+            <u>dahulukan sebelum reguler!</u></span> &nbsp;
+            <span style="color: #30D158;">✅ {instant_done} sudah selesai.</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # ── Alerts Section ──
+    if alerts:
+        st.markdown("### 🚨 Alert & Peringatan")
+        for icon, title, desc in alerts:
+            bg = "#FF453A22" if "🔴" in icon else "#FF9F0A22"
+            border = "#FF453A" if "🔴" in icon else "#FF9F0A"
+            st.markdown(f"""
+            <div style="background: {bg}; border-left: 4px solid {border}; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+                <strong>{icon} {title}</strong><br>
+                <small style="color: #AEAEB2;">{desc}</small>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.success("✅ Tidak ada alert — semua berjalan normal!")
+
+    # ── AI Insights ──
+    st.markdown("---")
+    st.markdown("### 🧠 Insight AI")
+    col_i1, col_i2 = st.columns(2)
+    for i, (icon, title, desc, level) in enumerate(insights):
+        target = col_i1 if i % 2 == 0 else col_i2
+        with target:
+            color = {"good": "#30D158", "normal": "#0A84FF", "warn": "#FF9F0A", "critical": "#FF453A"}.get(level, "#0A84FF")
+            st.markdown(f"""
+            <div style="background: {color}15; border: 1px solid {color}44; border-radius: 12px; padding: 14px; margin-bottom: 8px;">
+                <strong style="color: {color};">{icon} {title}</strong><br>
+                <small style="color: #AEAEB2;">{desc}</small>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ── Recommendations ──
+    if recommendations:
+        st.markdown("---")
+        st.markdown("### 📋 Rekomendasi AI")
+        for icon, title, desc in recommendations:
+            st.markdown(f"""
+            <div style="background: #0A84FF15; border: 1px solid #0A84FF44; border-radius: 12px; padding: 12px; margin-bottom: 6px; display: flex; align-items: flex-start; gap: 10px;">
+                <span style="font-size: 20px;">{icon}</span>
+                <div>
+                    <strong>{title}</strong><br>
+                    <small style="color: #AEAEB2;">{desc}</small>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ── Performance Tables ──
+    st.markdown("---")
+    col_t1, col_t2 = st.columns(2)
+
+    with col_t1:
+        st.markdown("#### 🏪 Performa per Toko")
+        if toko_perf:
+            df_toko = pd.DataFrame([dict(r) for r in toko_perf])
+            df_toko = df_toko.rename(columns={
+                "nama_toko": "Toko", "total_orders": "Pesanan",
+                "packed": "Packed", "packed_revenue": "Revenue"
+            })
+            df_toko["% Packed"] = df_toko.apply(
+                lambda r: f"{r['Packed']/r['Pesanan']*100:.0f}%" if r["Pesanan"] > 0 else "0%", axis=1
+            )
+            df_toko["Revenue"] = df_toko["Revenue"].apply(lambda x: f"Rp {x:,.0f}" if x else "Rp 0")
+            st.dataframe(df_toko[["Toko", "Pesanan", "Packed", "% Packed", "Revenue"]], width="stretch", height=250, hide_index=True)
+        else:
+            st.info("Belum ada data toko.")
+
+    with col_t2:
+        st.markdown("#### 🚚 Performa per Ekspedisi")
+        if ekspedisi_perf:
+            df_eks = pd.DataFrame([dict(r) for r in ekspedisi_perf])
+            df_eks = df_eks.rename(columns={
+                "ekspedisi": "Ekspedisi", "total": "Total Scan",
+                "packed": "Packed", "pending": "Pending", "cancel": "Cancel"
+            })
+            st.dataframe(df_eks[["Ekspedisi", "Total Scan", "Packed", "Pending", "Cancel"]], width="stretch", height=250, hide_index=True)
+        else:
+            st.info("Belum ada data ekspedisi.")
+
+    # ── Marketplace Breakdown ──
+    if mp_stats:
+        st.markdown("---")
+        st.markdown("#### 🛒 Breakdown per Marketplace")
+        df_mp = pd.DataFrame([dict(r) for r in mp_stats])
+        df_mp = df_mp.rename(columns={
+            "marketplace": "Marketplace", "total_orders": "Pesanan",
+            "with_resi": "Punya Resi", "revenue": "Revenue"
+        })
+        df_mp["Revenue"] = df_mp["Revenue"].apply(lambda x: f"Rp {x:,.0f}" if x else "Rp 0")
+        col_mp1, col_mp2, col_mp3 = st.columns(3)
+        for i, (_, row) in enumerate(df_mp.iterrows()):
+            target = [col_mp1, col_mp2, col_mp3][i % 3]
+            with target:
+                resi_pct = f"{(row['Punya Resi']/row['Pesanan']*100):.0f}%" if row["Pesanan"] > 0 else "0%"
+                st.metric(f"{row['Marketplace']}", f"{row['Pesanan']} orders", f"📦 {row['Punya Resi']} resi ({resi_pct}) | {row['Revenue']}")
+
+    # ── Refresh & Timestamp ──
+    st.markdown("---")
+
+    # ═══════════════════════════════════════════
+    # 🔊 VOICE ALERT SYSTEM (Text-to-Speech)
+    # ═══════════════════════════════════════════
+    st.markdown("### 🔊 Voice Alert (Text-to-Speech)")
+
+    # Init session state
+    if "voice_enabled" not in st.session_state:
+        st.session_state.voice_enabled = False
+    if "voice_interval" not in st.session_state:
+        st.session_state.voice_interval = 60
+    if "voice_snooze_until" not in st.session_state:
+        st.session_state.voice_snooze_until = None
+
+    col_v1, col_v2, col_v3, col_v4 = st.columns([1, 1, 1, 1])
+    with col_v1:
+        voice_enabled = st.toggle("🔊 Aktifkan Suara", value=st.session_state.voice_enabled, key="voice_toggle",
+                                   help="AI akan bersuara melalui speaker saat ada alert penting")
+    with col_v2:
+        voice_interval = st.slider("⏱ Interval Cek (detik)", 15, 300, st.session_state.voice_interval, 15, key="voice_interval_slider",
+                                    help="Seberapa sering AI mengecek dan bersuara")
+    with col_v3:
+        snooze_minutes = st.number_input("😴 Snooze (menit)", 1, 60, 5, key="voice_snooze_minutes",
+                                          help="Berapa lama menunda suara alert")
+    with col_v4:
+        st.write("")
+        snooze_clicked = st.button("😴 Snooze Sekarang", width="stretch", key="voice_snooze_btn",
+                                    help="Tunda semua suara alert untuk sementara")
+
+    if snooze_clicked:
+        st.session_state.voice_snooze_until = datetime.now().timestamp() + (snooze_minutes * 60)
+        st.success(f"🔇 Alert suara ditunda selama {snooze_minutes} menit.")
+        st.rerun()
+
+    # Test suara button
+    test_col1, test_col2 = st.columns([1, 3])
+    with test_col1:
+        test_clicked = st.button("🔊 Test Suara", width="stretch", key="voice_test_btn",
+                                  help="Coba putar suara test")
+    with test_col2:
+        st.caption("💡 Pastikan speaker menyala & volume cukup. Chrome/Edge disarankan. Cek icon 🔊 di tab browser tidak di-mute.")
+
+    if test_clicked:
+        import streamlit.components.v1 as components
+        components.html("""
+        <html><body style="margin:0;padding:0;">
+        <script>
+        function speakMsg(msg) {
+            var u = new SpeechSynthesisUtterance(msg);
+            u.lang = 'id-ID'; u.rate = 1.0; u.pitch = 1.1; u.volume = 1.0;
+            // Pilih suara Indonesia terbaik (perempuan, natural)
+            var voices = speechSynthesis.getVoices();
+            if (voices.length === 0) {
+                // Voices belum load — tunggu dan retry
+                speechSynthesis.onvoiceschanged = function() {
+                    speechSynthesis.onvoiceschanged = null;
+                    speakMsg(msg);
+                };
+                return;
+            }
+            var idVoices = voices.filter(function(v) { return v.lang.startsWith('id'); });
+            if (idVoices.length > 0) {
+                var best = idVoices.find(function(v) {
+                    var n = v.name.toLowerCase();
+                    return n.includes('female') || n.includes('wanita') || n.includes('gadis');
+                });
+                u.voice = best || idVoices[0];
+            }
+            speechSynthesis.cancel();
+            speechSynthesis.speak(u);
+            document.body.innerHTML = '<div style="color:green;font-size:14px;padding:6px;font-family:sans-serif;">✅ Suara test diputar! Jika tidak terdengar, cek volume speaker & icon mute di tab browser.</div>';
+        }
+        try { speakMsg("Halo! iScan Pro A I Supervisor siap membantu. Sistem berjalan normal."); }
+        catch(e) { document.body.innerHTML = '<div style="color:red;font-size:14px;padding:6px;font-family:sans-serif;">❌ Gagal: '+e.message+'</div>'; }
+        </script>
+        </body></html>
+        """, height=50)
+        st.success("🔊 Memutar suara test...")
+
+    st.session_state.voice_enabled = voice_enabled
+    st.session_state.voice_interval = voice_interval
+
+    # Check snooze status
+    snooze_active = False
+    if st.session_state.voice_snooze_until:
+        if datetime.now().timestamp() < st.session_state.voice_snooze_until:
+            remaining = int(st.session_state.voice_snooze_until - datetime.now().timestamp())
+            snooze_active = True
+            st.info(f"🔇 Snooze aktif — suara dinonaktifkan selama {remaining // 60}m {remaining % 60}d lagi.")
+        else:
+            st.session_state.voice_snooze_until = None
+
+    # ── Build voice message ──
+    voice_msg = ""
+    if instant_waiting > 0:
+        voice_msg = (f"Perhatian! {instant_waiting} pesanan instant atau same-day belum dipacking. "
+                     f"Dahulukan segera sebelum reguler. ")
+    elif alerts:
+        first_alert = alerts[0]
+        voice_msg = f"{first_alert[1]}. {first_alert[2].split(chr(8212))[0].strip().rstrip('.')}. "  # chr(8212) = —
+        if recommendations:
+            voice_msg += f"Rekomendasi: {recommendations[0][1]}."
+    elif total_orders_cnt == 0:
+        voice_msg = "Belum ada data pesanan. Silakan import data terlebih dahulu."
+
+    # ── Inject TTS via iframe (harus pake components.html biar script execute) ──
+    if voice_enabled and not snooze_active and voice_msg:
+        ss_key = "last_voice_msg_hash"
+        msg_hash = hash(voice_msg)
+        last_hash = st.session_state.get(ss_key, 0)
+
+        if msg_hash != last_hash:
+            st.session_state[ss_key] = msg_hash
+            escaped = voice_msg.replace("\\", "\\\\").replace("`", "\\`").replace("'", "\\'")
+            import streamlit.components.v1 as components
+            components.html(f"""
+            <html><body style="margin:0;padding:0;">
+            <script>
+            function speakMsg(msg) {{
+                var u = new SpeechSynthesisUtterance(msg);
+                u.lang = 'id-ID'; u.rate = 1.0; u.pitch = 1.1; u.volume = 1.0;
+                var voices = speechSynthesis.getVoices();
+                if (voices.length === 0) {{
+                    speechSynthesis.onvoiceschanged = function() {{
+                        speechSynthesis.onvoiceschanged = null;
+                        speakMsg(msg);
+                    }};
+                    return;
+                }}
+                var idVoices = voices.filter(function(v) {{ return v.lang.startsWith('id'); }});
+                if (idVoices.length > 0) {{
+                    var best = idVoices.find(function(v) {{
+                        var n = v.name.toLowerCase();
+                        return n.includes('female') || n.includes('wanita') || n.includes('gadis');
+                    }});
+                    u.voice = best || idVoices[0];
+                }}
+                speechSynthesis.cancel();
+                speechSynthesis.speak(u);
+                document.body.innerHTML = '<div style="color:green;font-size:12px;padding:4px;">🔊 Suara diputar</div>';
+            }}
+            try {{ speakMsg('{escaped}'); }}
+            catch(e) {{ document.body.innerHTML = '<div style="color:red;font-size:12px;padding:4px;">❌ '+e.message+'</div>'; }}
+            </script>
+            </body></html>
+            """, height=30)
+            st.caption(f"🔊 Voice diputar | _{voice_msg[:80]}..._")
+        else:
+            st.caption(f"🔊 Alert sudah diucapkan — klik 'Analisa Ulang' untuk refresh.")
+
+    elif voice_enabled and snooze_active:
+        st.caption("🔇 Suara ditunda (snooze).")
+    elif voice_enabled and not voice_msg:
+        st.caption("✅ Tidak ada alert — semua aman.")
+
+    # ═══════════════════════════════════════════
+    # 🔄 AUTO-REFRESH (via JavaScript timer)
+    # ═══════════════════════════════════════════
+    if voice_enabled and not snooze_active:
+        # Inject auto-refresh timer — reload halaman setiap voice_interval detik
+        import streamlit.components.v1 as components
+        components.html(f"""
+        <html><body style="margin:0;padding:0;">
+        <script>
+        // Reset voice hash di sessionStorage biar alert baru bisa diputar
+        var refreshKey = 'ai_auto_refresh_active';
+        if (!sessionStorage.getItem(refreshKey)) {{
+            sessionStorage.setItem(refreshKey, '1');
+            // Timer auto-refresh
+            setInterval(function() {{
+                // Clear hash biar suara diputar ulang kalau ada alert baru
+                sessionStorage.removeItem('ai_voice_hash');
+                window.parent.location.reload();
+            }}, {voice_interval * 1000});
+        }}
+        </script>
+        </body></html>
+        """, height=0)
+        st.caption(f"🔄 Auto-refresh aktif — halaman refresh setiap {voice_interval} detik.")
+
+    # ── Manual Refresh ──
+    st.markdown("---")
+    col_r1, col_r2 = st.columns([1, 3])
+    with col_r1:
+        if st.button("🔄 Analisa Ulang", width="stretch", type="primary"):
+            # Clear voice hash di session_state biar suara bisa diputar ulang
+            st.session_state.pop("last_voice_msg_hash", None)
+            st.rerun()
+    with col_r2:
+        st.caption(f"🤖 AI Supervisor terakhir diperbarui: {datetime.now().strftime('%d %B %Y, %H:%M:%S')} | Data real-time dari database operasional.")
+
+
 def _render_handover_tab(db, tipe_kiriman: str):
     """Render satu tab Handover (REGULER atau INSTANT)."""
     tipe_label = "🚀 Instant" if tipe_kiriman == "INSTANT" else "📦 Reguler"
@@ -3389,7 +3977,7 @@ OPERATIONAL_SUB_MENUS = {
     "📊 Dashboard": "Dashboard",
     "📷 SCAN Operasional": "Scan_Operasional",
     "📦 Input Resi & Pesanan": "Sales_Input",
-    "📊 Laporan Penjualan": "Sales_Daily_Report",
+    "🤖 AI Supervisor": "AI_Supervisor",
     "📋 Handover": "Handover",
     "🚚 Ekspedisi": "Ekspedisi",
     "🏪 Toko": "Toko",
@@ -3484,7 +4072,7 @@ def render_sidebar():
         # ── Stats summary (only for Operasional) ──
         if main_menu == "Operasional":
             stats = get_stats(st.session_state.db)
-            st.caption(f"📦 Total Sales: {stats.get('TOTAL_SALES', 0):,}")
+            st.caption(f"📦 Pesanan dgn Resi: {stats.get('TOTAL_SALES', 0):,}")
             st.caption(f"✅ Packed: {stats.get('PACKED', 0):,} | ⏳ Pending: {stats.get('PENDING', 0):,} | ❌ Cancel: {stats.get('CANCEL', 0):,}")
             st.caption(f"� Instant: {stats.get('INSTANT', 0):,} | 📦 Reguler: {stats.get('PACKED_REGULER', 0):,} | Besar: {stats.get('PACKED_BESAR', 0):,}")
 
@@ -3543,7 +4131,7 @@ def main():
             # Detail metrics
             sr_col1, sr_col2, sr_col3, sr_col4 = st.columns(4)
             with sr_col1:
-                st.metric("📦 Total Sales", f"{total_sales:,}")
+                st.metric("📦 Pesanan dgn Resi", f"{total_sales:,}")
             with sr_col2:
                 st.metric("✅ Packed", f"{packed:,}")
             with sr_col3:
@@ -3554,7 +4142,7 @@ def main():
 
             # Status indicator
             if success_rate >= 100:
-                st.success(f"🎉 **100% Sukses!** Semua {total_sales:,} resi sales sudah ditangani (Packed + Cancel).")
+                st.success(f"🎉 **100% Sukses!** Semua {total_sales:,} pesanan sudah ditangani (Packed + Cancel).")
             elif success_rate >= 80:
                 st.info(f"📈 Progress baik: {resolved:,} dari {total_sales:,} resi sudah ditangani ({success_rate:.1f}%).")
             elif success_rate > 0:
@@ -3738,9 +4326,10 @@ def main():
                                 if qc:
                                     # CANCEL: update penjualan + insert scan_aktif
                                     match_c = db.fetch_one(
-                                        "SELECT no_resi, no_pesanan FROM penjualan WHERE no_resi = ? OR no_pesanan = ? LIMIT 1",
+                                        "SELECT no_resi, no_pesanan, nama_toko FROM penjualan WHERE no_resi = ? OR no_pesanan = ? LIMIT 1",
                                         (qc, qc),
                                     )
+                                    qc_toko = (match_c["nama_toko"] or selected_toko) if match_c else selected_toko
                                     real = match_c["no_resi"] if match_c else qc
                                     dup = db.fetch_one("SELECT id FROM scan_aktif WHERE resi = ?", (real,))
                                     if dup:
@@ -3748,8 +4337,8 @@ def main():
                                     else:
                                         now = datetime.now()
                                         db.execute(
-                                            "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                            (now.strftime("%H:%M:%S"), now.strftime("%d-%m-%Y"), qc, "CANCEL", selected_toko, "CANCEL", "REGULER", "", "REGULER"),
+                                            "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman, marketplace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                            (now.strftime("%H:%M:%S"), now.strftime("%d-%m-%Y"), qc, "CANCEL", qc_toko, "CANCEL", "REGULER", "", "REGULER", ""),
                                         )
                                         db.execute(
                                             "UPDATE penjualan SET status_pesanan = 'CANCEL', qty = 0, total_harga = 0, harga_jual = 0 WHERE no_resi = ? OR no_pesanan = ?",
@@ -3933,10 +4522,11 @@ def main():
                         if scan_mode == "❌ CANCEL":
                             # ── CANCEL mode: cari by resi ATAU no_pesanan ──
                             match_cancel = db.fetch_one(
-                                "SELECT no_resi, no_pesanan FROM penjualan WHERE no_resi = ? OR no_pesanan = ? LIMIT 1",
+                                "SELECT no_resi, no_pesanan, nama_toko FROM penjualan WHERE no_resi = ? OR no_pesanan = ? LIMIT 1",
                                 (cleaned, cleaned),
                             )
                             real_resi = match_cancel["no_resi"] if match_cancel else cleaned
+                            cancel_toko = (match_cancel["nama_toko"] or selected_toko) if match_cancel else selected_toko
 
                             # Check duplicate on real resi
                             dup = db.fetch_one("SELECT id FROM scan_aktif WHERE resi = ?", (real_resi,))
@@ -3944,8 +4534,8 @@ def main():
                                 st.error(f"🚫 Resi `{real_resi}` sudah di-scan sebelumnya.")
                             else:
                                 db.execute(
-                                    "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                    (waktu, tanggal, cleaned, "CANCEL", selected_toko, "CANCEL", "REGULER", "", "REGULER"),
+                                    "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman, marketplace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                    (waktu, tanggal, cleaned, "CANCEL", cancel_toko, "CANCEL", "REGULER", "", "REGULER", ""),
                                 )
                                 db.execute(
                                     "UPDATE penjualan SET status_pesanan = 'CANCEL', qty = 0, total_harga = 0, harga_jual = 0 WHERE no_resi = ? OR no_pesanan = ?",
@@ -3982,9 +4572,10 @@ def main():
                                     f"• Toko: {existing['toko']}"
                                 )
                             else:
+                                scan_toko = match["nama_toko"] or selected_toko
                                 db.execute(
-                                    "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                    (waktu, tanggal, real_resi, match["kurir"] or "Unknown", selected_toko, "PACKED", kategori, keterangan_barang, tipe_kiriman),
+                                    "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman, marketplace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                    (waktu, tanggal, real_resi, match["kurir"] or "Unknown", scan_toko, "PACKED", kategori, keterangan_barang, tipe_kiriman, match.get("marketplace", "")),
                                 )
                                 # Update penjualan — pakai no_resi DAN no_pesanan sekaligus untuk memastikan
                                 db.execute(
@@ -4035,8 +4626,8 @@ def main():
                         else:
                             # Not found in penjualan
                             db.execute(
-                                "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                (waktu, tanggal, cleaned, "Unknown", selected_toko, "PENDING", kategori, keterangan_barang, tipe_kiriman),
+                                "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman, marketplace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (waktu, tanggal, cleaned, "Unknown", selected_toko, "PENDING", kategori, keterangan_barang, tipe_kiriman, ""),
                             )
                             st.warning(f"⏳ **PENDING!** `{cleaned}` belum ada di data penjualan (baik sebagai No Resi maupun No Pesanan).")
 
@@ -4289,6 +4880,10 @@ def main():
     elif page == "Sales_Daily_Report":
         st.title("📊 Laporan Penjualan Harian")
         render_sales_daily_report()
+
+    elif page == "AI_Supervisor":
+        st.title("🤖 AI Supervisor — Pantauan & Rekomendasi")
+        render_ai_supervisor()
 
     # ── Penjualan Pages ──
     elif page == "Sales_Dashboard":
