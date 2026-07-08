@@ -203,6 +203,39 @@ class Database:
             except:
                 pass
 
+            # Migration: add kategori column to scan_aktif (REGULER / BESAR)
+            try:
+                cursor.execute("ALTER TABLE scan_aktif ADD COLUMN kategori TEXT DEFAULT 'REGULER'")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
+            # Migration: update existing NULL kategori to REGULER
+            try:
+                cursor.execute("UPDATE scan_aktif SET kategori = 'REGULER' WHERE kategori IS NULL OR kategori = ''")
+            except:
+                pass
+
+            # Migration: add keterangan_barang column to scan_aktif
+            try:
+                cursor.execute("ALTER TABLE scan_aktif ADD COLUMN keterangan_barang TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
+            # Migration: add tipe_kiriman column to scan_aktif (REGULER / INSTANT)
+            try:
+                cursor.execute("ALTER TABLE scan_aktif ADD COLUMN tipe_kiriman TEXT DEFAULT 'REGULER'")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS daftar_barang_besar (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nama_barang TEXT NOT NULL,
+                    keterangan TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS penjualan (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -320,13 +353,41 @@ def get_active_scans(db: Database) -> list:
 
 
 def get_stats(db: Database):
-    """Get scan statistics."""
+    """Get scan statistics — diselaraskan dengan Scan Operasional (PACKED/PENDING/CANCEL)."""
     rows = db.fetch_all("SELECT status, COUNT(*) as cnt FROM scan_aktif GROUP BY status")
-    stats = {"KIRIM": 0, "RETUR": 0, "PENDING": 0}
+    stats = {"KIRIM": 0, "RETUR": 0, "PENDING": 0, "PACKED": 0, "CANCEL": 0}
+
     for r in rows:
         if r["status"] in stats:
             stats[r["status"]] = r["cnt"]
-    stats["TOTAL"] = sum(stats.values())
+        elif r["status"] == "PENDING":
+            stats["PENDING"] = r["cnt"]
+        elif r["status"] == "CANCEL":
+            stats["CANCEL"] = r["cnt"]
+
+    stats["TOTAL_SCAN"] = sum(stats.values())
+
+    # Total resi dari penjualan (ada no_resi)
+    total_penjualan = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan WHERE no_resi != ''")
+    stats["TOTAL_SALES"] = total_penjualan["cnt"] if total_penjualan else 0
+
+    # Belum discan = total penjualan - packed - cancel
+    stats["BELUM_SCAN"] = max(0, stats["TOTAL_SALES"] - stats["PACKED"] - stats["CANCEL"])
+
+    # ── Breakdown per kategori ──
+    kategori_rows = db.fetch_all("SELECT kategori, COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED' GROUP BY kategori")
+    stats["PACKED_REGULER"] = 0
+    stats["PACKED_BESAR"] = 0
+    for kr in kategori_rows:
+        if kr["kategori"] == "BESAR":
+            stats["PACKED_BESAR"] = kr["cnt"]
+        else:
+            stats["PACKED_REGULER"] += kr["cnt"]
+
+    # ── Instant ──
+    instant_row = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED' AND tipe_kiriman = 'INSTANT'")
+    stats["INSTANT"] = instant_row["cnt"] if instant_row else 0
+
     return stats
 
 
@@ -373,18 +434,22 @@ def scan_resi(resi: str, mode: str, store: str, db: Database, cache: ExpeditionC
 
 
 def delete_scan_by_resi(resi: str, db: Database) -> bool:
-    """Delete a scan entry by resi number."""
+    """Delete a scan entry by resi number, and revert penjualan status."""
     cleaned = Validator.sanitize_resi(resi)
     if not cleaned:
         return False
+    # Revert penjualan status_pesanan ke semula (kosongkan)
+    db.execute("UPDATE penjualan SET status_pesanan = '' WHERE no_resi = ?", (cleaned,))
     db.execute("DELETE FROM scan_aktif WHERE resi = ?", (cleaned,))
     return True
 
 
 def delete_last_scan(db: Database) -> bool:
-    """Delete the most recent scan entry."""
-    row = db.fetch_one("SELECT id FROM scan_aktif ORDER BY id DESC LIMIT 1")
+    """Delete the most recent scan entry, and revert penjualan status."""
+    row = db.fetch_one("SELECT id, resi FROM scan_aktif ORDER BY id DESC LIMIT 1")
     if row:
+        # Revert penjualan status_pesanan
+        db.execute("UPDATE penjualan SET status_pesanan = '' WHERE no_resi = ?", (row["resi"],))
         db.execute("DELETE FROM scan_aktif WHERE id = ?", (row["id"],))
         return True
     return False
@@ -436,22 +501,25 @@ def export_to_excel(db: Database, folder: str, judul: str = None) -> str:
         (judul, filename, now.strftime("%d-%m-%Y %H:%M")),
     )
 
-    # Clear active scans
+    # Clear active scans — revert penjualan status_pesanan terlebih dahulu
+    db.execute(
+        "UPDATE penjualan SET status_pesanan = '' WHERE no_resi IN (SELECT resi FROM scan_aktif)"
+    )
     db.execute("DELETE FROM scan_aktif")
 
     return filepath
 
 
 def export_handover_report(db: Database, folder: str, ekspedisi_filter: str = None) -> str:
-    """Generate handover report for a specific expedition."""
+    """Generate handover report for a specific expedition (status PACKED)."""
     if ekspedisi_filter:
         rows = db.fetch_all(
-            "SELECT waktu, tanggal, resi, ekspedisi, toko, status FROM scan_aktif WHERE ekspedisi = ? AND status = 'KIRIM' ORDER BY id ASC",
+            "SELECT waktu, tanggal, resi, ekspedisi, toko, status FROM scan_aktif WHERE ekspedisi = ? AND status = 'PACKED' ORDER BY id ASC",
             (ekspedisi_filter,),
         )
     else:
         rows = db.fetch_all(
-            "SELECT waktu, tanggal, resi, ekspedisi, toko, status FROM scan_aktif WHERE status = 'KIRIM' ORDER BY ekspedisi, id ASC"
+            "SELECT waktu, tanggal, resi, ekspedisi, toko, status FROM scan_aktif WHERE status = 'PACKED' ORDER BY ekspedisi, id ASC"
         )
 
     if not rows:
@@ -477,16 +545,18 @@ def export_handover_report(db: Database, folder: str, ekspedisi_filter: str = No
 
 # ==================== UI COMPONENTS ====================
 def render_stats_cards(stats: dict):
-    """Render statistics cards."""
-    cols = st.columns(4)
+    """Render statistics cards — diselaraskan dengan Scan Operasional."""
+    cols = st.columns(5)
     with cols[0]:
-        st.metric("📦 Total Paket", stats["KIRIM"], delta=None)
+        st.metric("📦 Total Resi (Sales)", f"{stats.get('TOTAL_SALES', 0):,}")
     with cols[1]:
-        st.metric("↩️ Total Retur", stats["RETUR"], delta=None)
+        st.metric("✅ Packed", f"{stats.get('PACKED', 0):,}")
     with cols[2]:
-        st.metric("⏳ Total Pending", stats["PENDING"], delta=None)
+        st.metric("⏳ Pending Scan", f"{stats.get('PENDING', 0):,}")
     with cols[3]:
-        st.metric("📋 Total Scan", stats["TOTAL"], delta=None)
+        st.metric("❌ Cancel", f"{stats.get('CANCEL', 0):,}")
+    with cols[4]:
+        st.metric("📋 Belum Scan", f"{stats.get('BELUM_SCAN', 0):,}")
 
 
 def render_scan_input():
@@ -752,108 +822,99 @@ def render_archive():
 
 
 def render_ekspedisi():
-    """Render expedition management page."""
+    """Render expedition management page — data dari Scan Operasional."""
     db = st.session_state.db
-    cache = st.session_state.cache
 
     st.subheader("🚚 Manajemen Ekspedisi")
+    st.caption("Data ekspedisi/kurir diambil dari hasil Scan Operasional & data penjualan.")
 
-    # Add new expedition
-    with st.expander("➕ Tambah Ekspedisi Baru", expanded=False):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            nama = st.text_input("Nama Ekspedisi", key="new_exp_nama")
-        with col2:
-            prefix = st.text_input("Prefix (pisahkan koma)", placeholder="SPXID,JX,JP", key="new_exp_prefix")
-        with col3:
-            keterangan = st.text_input("Keterangan", key="new_exp_ket")
+    # ── Auto-sync ekspedisi dari scan_aktif & penjualan ──
+    kurir_penj = db.fetch_all("SELECT DISTINCT kurir FROM penjualan WHERE kurir != '' AND kurir IS NOT NULL ORDER BY kurir")
+    kurir_scan = db.fetch_all("SELECT DISTINCT ekspedisi FROM scan_aktif WHERE ekspedisi != '' AND ekspedisi != 'Unknown' AND ekspedisi IS NOT NULL ORDER BY ekspedisi")
+    all_kurir = set()
+    for k in kurir_penj:
+        all_kurir.add(k["kurir"])
+    for k in kurir_scan:
+        all_kurir.add(k["ekspedisi"])
 
-        if st.button("💾 Simpan Ekspedisi", type="primary"):
-            if not nama.strip():
-                st.error("Nama ekspedisi harus diisi!")
-            else:
-                try:
-                    db.execute(
-                        "INSERT INTO ekspedisi (nama, prefix, keterangan) VALUES (?, ?, ?)",
-                        (nama.strip(), prefix.strip(), keterangan.strip()),
-                    )
-                    cache.invalidate()
-                    st.success(f"Ekspedisi '{nama}' ditambahkan!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Gagal menambah: {str(e)}")
+    if not all_kurir:
+        st.info("📭 Belum ada data ekspedisi. Mulai scan di SCAN Operasional.")
+        return
 
+    # ── Summary Cards ──
+    st.markdown("### 📊 Ringkasan per Ekspedisi")
+    exp_stats = db.fetch_all(
+        "SELECT ekspedisi, "
+        "COUNT(*) as total, "
+        "SUM(CASE WHEN status = 'PACKED' AND tipe_kiriman = 'REGULER' THEN 1 ELSE 0 END) as packed_reg, "
+        "SUM(CASE WHEN status = 'PACKED' AND tipe_kiriman = 'INSTANT' THEN 1 ELSE 0 END) as packed_inst, "
+        "SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) as pending, "
+        "SUM(CASE WHEN status = 'CANCEL' THEN 1 ELSE 0 END) as cancel "
+        "FROM scan_aktif WHERE ekspedisi != '' AND ekspedisi != 'Unknown' "
+        "GROUP BY ekspedisi ORDER BY total DESC"
+    )
+
+    if exp_stats:
+        df_exp = pd.DataFrame([dict(r) for r in exp_stats])
+        df_exp = df_exp.rename(columns={
+            "ekspedisi": "Ekspedisi", "total": "Total Scan",
+            "packed_reg": "📦 Reguler", "packed_inst": "🚀 Instant",
+            "pending": "⏳ Pending", "cancel": "❌ Cancel",
+        })
+        st.dataframe(df_exp, width="stretch", hide_index=True)
+
+    # ── Detail per Ekspedisi ──
     st.markdown("---")
+    st.subheader("🔍 Detail per Ekspedisi")
+    kurir_sorted = sorted(all_kurir)
 
-    # List expeditions
-    expeditions = db.fetch_all("SELECT id, nama, prefix, keterangan FROM ekspedisi ORDER BY nama")
+    selected_kurir = st.selectbox("Pilih Ekspedisi / Kurir", ["Semua"] + kurir_sorted, key="exp_detail_kurir")
 
-    # Summary chips
-    st.markdown("### Daftar Ekspedisi")
-    cols = st.columns(4)
-    for i, exp in enumerate(expeditions):
-        with cols[i % 4]:
-            # Count scans for this expedition
-            count_row = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE ekspedisi = ?", (exp["nama"],))
-            count = count_row["cnt"] if count_row else 0
-            st.metric(
-                f"📦 {exp['nama']}",
-                f"{count} scan",
-                delta=f"Prefix: {exp['prefix'] or '(kosong)'}" if exp["prefix"] else None,
-            )
+    if selected_kurir != "Semua":
+        scans = db.fetch_all(
+            "SELECT s.waktu, s.tanggal, s.resi, s.toko, s.status, s.tipe_kiriman, s.kategori, "
+            "p.marketplace, p.no_pesanan, p.nama_produk "
+            "FROM scan_aktif s LEFT JOIN penjualan p ON s.resi = p.no_resi "
+            "WHERE s.ekspedisi = ? ORDER BY s.id DESC LIMIT 100",
+            (selected_kurir,),
+        )
+        if scans:
+            df_detail = pd.DataFrame([dict(r) for r in scans])
+            df_detail = df_detail.rename(columns={
+                "waktu": "Waktu", "tanggal": "Tanggal", "resi": "No Resi",
+                "toko": "Toko", "status": "Status", "tipe_kiriman": "Tipe",
+                "kategori": "Kategori", "marketplace": "MP",
+                "no_pesanan": "No Pesanan", "nama_produk": "Produk",
+            })
+            display = ["Waktu", "No Resi", "Tipe", "Kategori", "MP", "No Pesanan", "Produk", "Toko", "Status"]
+            available = [c for c in display if c in df_detail.columns]
+            st.dataframe(df_detail[available], width="stretch", height=400, hide_index=True)
 
+            total_kurir = len(scans)
+            packed_k = sum(1 for s in scans if s["status"] == "PACKED")
+            inst_k = sum(1 for s in scans if s["status"] == "PACKED" and s["tipe_kiriman"] == "INSTANT")
+            st.caption(f"Total: {total_kurir} scan | Packed: {packed_k} | 🚀 Instant: {inst_k}")
+        else:
+            st.info(f"Belum ada scan untuk {selected_kurir}.")
+
+    # ── Ekspedisi dari penjualan (belum di-scan) ──
     st.markdown("---")
-
-    # Edit/Delete table
-    for exp in expeditions:
-        col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
-        with col1:
-            st.markdown(f"**{exp['nama']}**")
-        with col2:
-            st.caption(f"Prefix: {exp['prefix'] or '(kosong)'} | {exp['keterangan'] or ''}")
-        with col3:
-            if st.button("✏️ Edit", key=f"edit_exp_{exp['id']}"):
-                st.session_state.editing_exp = exp
-                st.rerun()
-        with col4:
-            if exp["nama"] != "LAINNYA":
-                if st.button("🗑️", key=f"del_exp_{exp['id']}"):
-                    db.execute("DELETE FROM ekspedisi WHERE id = ?", (exp["id"],))
-                    cache.invalidate()
-                    st.success(f"Ekspedisi '{exp['nama']}' dihapus.")
-                    st.rerun()
-
-    # Edit modal (using expander)
-    if "editing_exp" in st.session_state and st.session_state.editing_exp:
-        exp = st.session_state.editing_exp
-        st.markdown("---")
-        st.markdown(f"### ✏️ Edit: {exp['nama']}")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            edit_nama = st.text_input("Nama", value=exp["nama"], key="edit_exp_nama")
-        with col2:
-            edit_prefix = st.text_input("Prefix", value=exp["prefix"] or "", key="edit_exp_prefix")
-        with col3:
-            edit_ket = st.text_input("Keterangan", value=exp["keterangan"] or "", key="edit_exp_ket")
-
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.button("💾 Update", type="primary", width="stretch"):
-                if not edit_nama.strip():
-                    st.error("Nama tidak boleh kosong!")
-                else:
-                    db.execute(
-                        "UPDATE ekspedisi SET nama=?, prefix=?, keterangan=? WHERE id=?",
-                        (edit_nama.strip(), edit_prefix.strip(), edit_ket.strip(), exp["id"]),
-                    )
-                    cache.invalidate()
-                    del st.session_state.editing_exp
-                    st.success("Ekspedisi diupdate!")
-                    st.rerun()
-        with col_btn2:
-            if st.button("✕ Batal", width="stretch"):
-                del st.session_state.editing_exp
-                st.rerun()
+    st.subheader("📋 Ekspedisi dari Data Penjualan (belum di-scan)")
+    exp_penj = db.fetch_all(
+        "SELECT p.kurir, COUNT(DISTINCT p.no_resi) as jml_resi, COUNT(DISTINCT p.no_pesanan) as jml_orders "
+        "FROM penjualan p "
+        "WHERE p.kurir != '' AND p.no_resi != '' "
+        "AND p.no_resi NOT IN (SELECT resi FROM scan_aktif WHERE status IN ('PACKED', 'CANCEL')) "
+        "GROUP BY p.kurir ORDER BY jml_resi DESC"
+    )
+    if exp_penj:
+        df_penj = pd.DataFrame([dict(r) for r in exp_penj])
+        df_penj = df_penj.rename(columns={
+            "kurir": "Kurir", "jml_resi": "Resi Belum Scan", "jml_orders": "Orders",
+        })
+        st.dataframe(df_penj, width="stretch", hide_index=True)
+    else:
+        st.caption("Semua resi sudah di-scan atau belum ada data.")
 
 
 def render_toko():
@@ -883,12 +944,41 @@ def render_toko():
     st.markdown("### Daftar Toko")
 
     for store in stores:
+        nama_toko = store["nama"]
+        # Count scans per status
+        packed_cnt = db.fetch_one(
+            "SELECT COUNT(*) as cnt FROM scan_aktif WHERE toko = ? AND status = 'PACKED' AND tipe_kiriman = 'REGULER'",
+            (nama_toko,),
+        )
+        instant_cnt = db.fetch_one(
+            "SELECT COUNT(*) as cnt FROM scan_aktif WHERE toko = ? AND status = 'PACKED' AND tipe_kiriman = 'INSTANT'",
+            (nama_toko,),
+        )
+        pending_cnt = db.fetch_one(
+            "SELECT COUNT(*) as cnt FROM scan_aktif WHERE toko = ? AND status = 'PENDING'",
+            (nama_toko,),
+        )
+        cancel_cnt = db.fetch_one(
+            "SELECT COUNT(*) as cnt FROM scan_aktif WHERE toko = ? AND status = 'CANCEL'",
+            (nama_toko,),
+        )
+        # Total orders from penjualan for this store
+        penj_cnt = db.fetch_one(
+            "SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan WHERE nama_toko = ?",
+            (nama_toko,),
+        )
+
+        total_scan = (packed_cnt["cnt"] if packed_cnt else 0) + (instant_cnt["cnt"] if instant_cnt else 0) + (pending_cnt["cnt"] if pending_cnt else 0) + (cancel_cnt["cnt"] if cancel_cnt else 0)
+
         col1, col2, col3 = st.columns([3, 1, 1])
         with col1:
-            # Count scans for this store
-            count_row = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE toko = ?", (store["nama"],))
-            count = count_row["cnt"] if count_row else 0
-            st.markdown(f"🏪 **{store['nama']}** — _{count} scan_")
+            st.markdown(f"🏪 **{nama_toko}**")
+            p = packed_cnt["cnt"] if packed_cnt else 0
+            i = instant_cnt["cnt"] if instant_cnt else 0
+            pe = pending_cnt["cnt"] if pending_cnt else 0
+            c = cancel_cnt["cnt"] if cancel_cnt else 0
+            pj = penj_cnt["cnt"] if penj_cnt else 0
+            st.caption(f"📦 Packed: {p} | 🚀 Instant: {i} | ⏳ Pending: {pe} | ❌ Cancel: {c} | 🛒 Orders: {pj}")
         with col2:
             if st.button("✏️ Edit", key=f"edit_toko_{store['id']}"):
                 st.session_state.editing_toko = store
@@ -896,12 +986,11 @@ def render_toko():
         with col3:
             if store["nama"] != "Mitra Mulia Abadi":
                 if st.button("🗑️", key=f"del_toko_{store['id']}"):
-                    # Check if store has scan data
-                    if count > 0:
-                        st.warning(f"Toko '{store['nama']}' memiliki {count} data scan. Hapus data scan terlebih dahulu.")
+                    if total_scan > 0:
+                        st.warning(f"Toko '{nama_toko}' memiliki {total_scan} data scan. Hapus data scan terlebih dahulu.")
                     else:
                         db.execute("DELETE FROM toko WHERE id = ?", (store["id"],))
-                        st.success(f"Toko '{store['nama']}' dihapus.")
+                        st.success(f"Toko '{nama_toko}' dihapus.")
                         st.rerun()
 
     # Edit modal
@@ -3094,6 +3183,128 @@ def render_sales_daily_report():
             st.success(f"✅ Laporan tersimpan: {filename}")
 
 
+def _render_handover_tab(db, tipe_kiriman: str):
+    """Render satu tab Handover (REGULER atau INSTANT)."""
+    tipe_label = "🚀 Instant" if tipe_kiriman == "INSTANT" else "📦 Reguler"
+
+    # Filter Kategori
+    kat_filter = st.selectbox(
+        "Filter Kategori",
+        ["Semua", "REGULER", "BESAR"],
+        key=f"handover_kat_{tipe_kiriman}",
+    )
+
+    kat_where = f" AND s.tipe_kiriman = '{tipe_kiriman}'"
+    if kat_filter != "Semua":
+        kat_where += f" AND s.kategori = '{kat_filter}'"
+
+    kurir_list = db.fetch_all(
+        f"SELECT DISTINCT p.kurir FROM scan_aktif s "
+        "JOIN penjualan p ON s.resi = p.no_resi "
+        f"WHERE s.status = 'PACKED' AND p.kurir != '' {kat_where} "
+        "ORDER BY p.kurir"
+    )
+
+    if not kurir_list:
+        st.info(f"📭 Belum ada resi {tipe_label}. Scan resi di SCAN Operasional.")
+        return
+
+    kurir_options = ["Semua Kurir"] + [k["kurir"] for k in kurir_list]
+    selected_kurir = st.selectbox("Pilih Kurir", kurir_options, key=f"handover_kurir_{tipe_kiriman}")
+
+    kurir_where = "" if selected_kurir == "Semua Kurir" else f" AND p.kurir = '{selected_kurir}'"
+
+    items = db.fetch_all(
+        f"SELECT s.id as scan_id, s.waktu, s.tanggal, s.resi, s.kategori, s.keterangan_barang, s.tipe_kiriman, "
+        "p.marketplace, p.no_pesanan, "
+        "GROUP_CONCAT(p.nama_produk, ', ') as nama_produk, "
+        "p.kurir, p.nama_toko, GROUP_CONCAT(p.sku_terdeteksi, ', ') as sku_terdeteksi "
+        "FROM scan_aktif s JOIN penjualan p ON s.resi = p.no_resi "
+        f"WHERE s.status = 'PACKED' {kat_where} {kurir_where} "
+        "GROUP BY s.resi ORDER BY p.kurir, s.id"
+    )
+
+    if not items:
+        st.info(f"Tidak ada resi {tipe_label} untuk kurir '{selected_kurir}'.")
+        return
+
+    df_items = pd.DataFrame([dict(r) for r in items])
+    df_items["No"] = range(1, len(items) + 1)
+    df_items = df_items.rename(columns={
+        "waktu": "Waktu", "tanggal": "Tanggal", "resi": "No Resi",
+        "marketplace": "MP", "no_pesanan": "No Pesanan",
+        "nama_produk": "Produk", "kurir": "Kurir",
+        "nama_toko": "Toko", "sku_terdeteksi": "SKU",
+        "kategori": "Kategori", "keterangan_barang": "Keterangan",
+        "tipe_kiriman": "Tipe",
+    })
+
+    display_cols = ["No", "Waktu", "No Resi", "Kategori", "Keterangan", "MP", "No Pesanan", "Produk", "SKU", "Kurir", "Toko"]
+    available_cols = [c for c in display_cols if c in df_items.columns]
+    st.dataframe(df_items[available_cols], width="stretch", height=400, hide_index=True)
+
+    st.markdown(f"📋 **{len(items)} resi** {tipe_label} siap diserahkan ke **{selected_kurir}**")
+
+    # ── Konfirmasi Instant: sudah diambil kurir ──
+    if tipe_kiriman == "INSTANT":
+        st.markdown("---")
+        st.subheader("✅ Konfirmasi Pengambilan Kurir")
+        st.caption("Setelah kurir mengambil paket Instant, konfirmasi di sini. Resi akan dihapus dari daftar.")
+
+        konfirm_col1, konfirm_col2 = st.columns([3, 1])
+        with konfirm_col1:
+            konfirm_resi = st.text_input(
+                "No Resi yang sudah diambil kurir",
+                placeholder="Ketik no resi...",
+                key=f"konfirm_instant_{tipe_kiriman}",
+                label_visibility="collapsed",
+            )
+        with konfirm_col2:
+            if st.button("✅ Konfirmasi Diambil", width="stretch", type="primary", key=f"konfirm_btn_{tipe_kiriman}"):
+                if konfirm_resi.strip():
+                    c_clean = Validator.sanitize_resi(konfirm_resi.strip())
+                    if c_clean:
+                        # Hapus dari scan_aktif (sudah diambil kurir)
+                        db.execute("DELETE FROM scan_aktif WHERE resi = ? AND tipe_kiriman = 'INSTANT'", (c_clean,))
+                        # Update penjualan: tetap PACKED (sudah terkirim)
+                        db.execute("UPDATE penjualan SET status_pesanan = 'TERKIRIM' WHERE no_resi = ?", (c_clean,))
+                        st.success(f"✅ `{c_clean}` dikonfirmasi — sudah diambil kurir & status penjualan: TERKIRIM.")
+                        st.rerun()
+                else:
+                    st.warning("Masukkan No Resi.")
+
+    # ── Summary per kurir ──
+    if selected_kurir == "Semua Kurir":
+        st.markdown("---")
+        st.subheader("📊 Ringkasan per Kurir")
+        summary = db.fetch_all(
+            f"SELECT p.kurir, COUNT(DISTINCT s.resi) as jml FROM scan_aktif s "
+            "JOIN penjualan p ON s.resi = p.no_resi "
+            f"WHERE s.status = 'PACKED' {kat_where} GROUP BY p.kurir ORDER BY jml DESC"
+        )
+        if summary:
+            df_sum = pd.DataFrame([dict(r) for r in summary])
+            df_sum = df_sum.rename(columns={"kurir": "Kurir", "jml": "Jumlah Resi"})
+            st.dataframe(df_sum, width="stretch", hide_index=True)
+
+    # ── Export ──
+    st.markdown("---")
+    kurir_label = selected_kurir.replace(" ", "_") if selected_kurir != "Semua Kurir" else "Semua"
+    now_exp = datetime.now()
+    tipe_file = "Instant" if tipe_kiriman == "INSTANT" else "Reguler"
+    filename = f"Handover_{tipe_file}_{kurir_label}_{now_exp.strftime('%d-%m-%Y_%H%M%S')}.xlsx"
+    filepath = os.path.join(Config.HANDOVER_FOLDER, filename)
+    with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
+        df_items.to_excel(writer, index=False, sheet_name="Handover")
+    with open(filepath, "rb") as fp:
+        st.download_button(
+            "📥 Download Handover (Excel)",
+            fp, file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"dl_{tipe_kiriman}",
+        )
+
+
 def render_reports():
     """Render reports page (Handover & Sales)."""
     db = st.session_state.db
@@ -3105,10 +3316,10 @@ def render_reports():
 
     with tab1:
         st.markdown("### Handover Report per Ekspedisi")
-        st.caption("Generate laporan serah terima paket ke ekspedisi.")
+        st.caption("Generate laporan serah terima paket ke ekspedisi (status PACKED).")
 
-        expeditions = db.fetch_all("SELECT DISTINCT ekspedisi FROM scan_aktif WHERE status = 'KIRIM' ORDER BY ekspedisi")
-        exp_list = ["Semua Ekspedisi"] + [e["ekspedisi"] for e in expeditions]
+        expeditions = db.fetch_all("SELECT DISTINCT ekspedisi FROM scan_aktif WHERE status = 'PACKED' AND ekspedisi != 'CANCEL' ORDER BY ekspedisi")
+        exp_list = ["Semua Ekspedisi"] + [e["ekspedisi"] for e in expeditions if e["ekspedisi"]]
 
         selected_exp = st.selectbox("Pilih Ekspedisi", exp_list, key="handover_exp")
 
@@ -3125,23 +3336,25 @@ def render_reports():
                     )
                 st.success(f"✅ Report tersimpan: {os.path.basename(filepath)}")
             else:
-                st.warning("Tidak ada data KIRIM untuk diexport.")
+                st.warning("Tidak ada data PACKED untuk diexport.")
 
     with tab2:
         st.markdown("### Sales Report")
         st.caption("Generate laporan penjualan/pengiriman.")
 
-        # Summary per expedition
+        # Summary per expedition — mencakup semua status
         rows = db.fetch_all(
             "SELECT ekspedisi, status, COUNT(*) as cnt FROM scan_aktif GROUP BY ekspedisi, status ORDER BY ekspedisi"
         )
 
         if rows:
             summary = {}
+            all_statuses = ["PACKED", "PENDING", "CANCEL", "KIRIM", "RETUR"]
             for r in rows:
                 if r["ekspedisi"] not in summary:
-                    summary[r["ekspedisi"]] = {"KIRIM": 0, "RETUR": 0, "PENDING": 0}
-                summary[r["ekspedisi"]][r["status"]] = r["cnt"]
+                    summary[r["ekspedisi"]] = {s: 0 for s in all_statuses}
+                if r["status"] in summary[r["ekspedisi"]]:
+                    summary[r["ekspedisi"]][r["status"]] = r["cnt"]
 
             df_summary = pd.DataFrame([
                 {"Ekspedisi": k, **v, "Total": sum(v.values())}
@@ -3180,7 +3393,8 @@ OPERATIONAL_SUB_MENUS = {
     "📋 Handover": "Handover",
     "🚚 Ekspedisi": "Ekspedisi",
     "🏪 Toko": "Toko",
-    "📈 Reports": "Reports",
+    "� Daftar Barang Besar": "Barang_Besar",
+    "�📈 Reports": "Reports",
 }
 
 SALES_SUB_MENUS = {
@@ -3270,8 +3484,9 @@ def render_sidebar():
         # ── Stats summary (only for Operasional) ──
         if main_menu == "Operasional":
             stats = get_stats(st.session_state.db)
-            st.caption(f"📦 Total Scan: {stats['TOTAL']}")
-            st.caption(f"✅ Kirim: {stats['KIRIM']} | ↩️ Retur: {stats['RETUR']} | ⏳ Pending: {stats['PENDING']}")
+            st.caption(f"📦 Total Sales: {stats.get('TOTAL_SALES', 0):,}")
+            st.caption(f"✅ Packed: {stats.get('PACKED', 0):,} | ⏳ Pending: {stats.get('PENDING', 0):,} | ❌ Cancel: {stats.get('CANCEL', 0):,}")
+            st.caption(f"� Instant: {stats.get('INSTANT', 0):,} | 📦 Reguler: {stats.get('PACKED_REGULER', 0):,} | Besar: {stats.get('PACKED_BESAR', 0):,}")
 
         st.markdown("---")
         st.caption(f"v{APP_VERSION}")
@@ -3287,47 +3502,143 @@ def main():
 
     # Page title
     if page == "Dashboard":
-        st.title("📊 Dashboard")
-        st.caption(f"Selamat datang di iScan Pro — {datetime.now().strftime('%d %B %Y, %H:%M')}")
+        st.title("📊 Dashboard Operasional")
 
-        # Stats
-        stats = get_stats(st.session_state.db)
+        col_title, col_refresh = st.columns([5, 1])
+        with col_title:
+            st.caption(f"Selamat datang di iScan Pro — {datetime.now().strftime('%d %B %Y, %H:%M')}")
+        with col_refresh:
+            if st.button("🔄 Refresh", width="stretch", key="dashboard_refresh", help="Klik untuk memperbarui data"):
+                st.rerun()
+
+        db = st.session_state.db
+
+        # Stats — selaras dengan Scan Operasional
+        stats = get_stats(db)
         render_stats_cards(stats)
 
-        st.markdown("---")
-
-        # Scan input
-        render_scan_input()
-
-        # Recent scans preview
-        st.markdown("---")
-        scans = get_active_scans(st.session_state.db)
-        if scans:
-            st.subheader("📋 Scan Terbaru")
-            df_recent = pd.DataFrame(scans[:10])
-            df_recent = df_recent.rename(columns={
-                "waktu": "Waktu", "tanggal": "Tanggal", "resi": "Nomor Resi",
-                "ekspedisi": "Ekspedisi", "toko": "Toko", "status": "Status",
-            })
-            st.dataframe(
-                df_recent[["Waktu", "Nomor Resi", "Ekspedisi", "Toko", "Status"]],
-                width="stretch",
-                hide_index=True,
+        # ── Info orders tanpa resi ──
+        orders_tanpa_resi = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan WHERE no_resi = '' OR no_resi IS NULL")
+        total_orders_all = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan")
+        jika_ada = orders_tanpa_resi["cnt"] if orders_tanpa_resi else 0
+        if jika_ada > 0:
+            st.warning(
+                f"⚠️ **{jika_ada}** dari **{total_orders_all['cnt']}** pesanan belum memiliki No Resi. "
+                f"Update di menu **📦 Input Resi & Pesanan** agar bisa di-scan."
             )
-            if len(scans) > 10:
-                st.caption(f"... dan {len(scans) - 10} data lainnya. Lihat di halaman Scan History.")
 
-        # Expedition summary chips
+        # ── Success Rate ──
         st.markdown("---")
-        st.subheader("🚚 Ringkasan per Ekspedisi")
-        rows = st.session_state.db.fetch_all(
-            "SELECT ekspedisi, COUNT(*) as cnt FROM scan_aktif GROUP BY ekspedisi ORDER BY cnt DESC"
+        total_sales = stats.get("TOTAL_SALES", 0)
+        packed = stats.get("PACKED", 0)
+        cancel = stats.get("CANCEL", 0)
+        resolved = packed + cancel  # resi yang sudah ditangani (packed atau cancel)
+        success_rate = (resolved / total_sales * 100) if total_sales > 0 else 0
+
+        col_sr1, col_sr2, col_sr3 = st.columns([1, 2, 1])
+        with col_sr2:
+            # Progress bar
+            st.progress(min(success_rate / 100, 1.0), text=f"🎯 Success Rate: {success_rate:.1f}%")
+
+            # Detail metrics
+            sr_col1, sr_col2, sr_col3, sr_col4 = st.columns(4)
+            with sr_col1:
+                st.metric("📦 Total Sales", f"{total_sales:,}")
+            with sr_col2:
+                st.metric("✅ Packed", f"{packed:,}")
+            with sr_col3:
+                st.metric("❌ Cancel", f"{cancel:,}")
+            with sr_col4:
+                belum = stats.get("BELUM_SCAN", 0)
+                st.metric("📋 Belum Scan", f"{belum:,}")
+
+            # Status indicator
+            if success_rate >= 100:
+                st.success(f"🎉 **100% Sukses!** Semua {total_sales:,} resi sales sudah ditangani (Packed + Cancel).")
+            elif success_rate >= 80:
+                st.info(f"📈 Progress baik: {resolved:,} dari {total_sales:,} resi sudah ditangani ({success_rate:.1f}%).")
+            elif success_rate > 0:
+                st.warning(f"⏳ Baru {resolved:,} dari {total_sales:,} resi yang ditangani ({success_rate:.1f}%).")
+            else:
+                st.info("📭 Belum ada aktivitas scan hari ini. Mulai scan di halaman SCAN Operasional.")
+
+        # ── Kategori Breakdown: Reguler vs Barang Besar ──
+        if packed > 0:
+            st.markdown("---")
+            st.subheader("📦 Breakdown Kategori Packing")
+            packed_reguler = stats.get("PACKED_REGULER", 0)
+            packed_besar = stats.get("PACKED_BESAR", 0)
+
+            kat_col1, kat_col2, kat_col3 = st.columns([1, 1, 2])
+            with kat_col1:
+                st.metric("📦 Reguler", f"{packed_reguler:,}")
+            with kat_col2:
+                st.metric("📦 Barang Besar", f"{packed_besar:,}")
+            with kat_col3:
+                if packed_reguler + packed_besar > 0:
+                    besar_pct = packed_besar / (packed_reguler + packed_besar) * 100
+                    st.caption(f"Barang besar: {besar_pct:.1f}% dari total packing")
+
+        # ── Recent scans preview (dari scan_aktif + penjualan) ──
+        st.markdown("---")
+        st.subheader("📋 Scan Terbaru (Packing)")
+        scans = db.fetch_all(
+            "SELECT s.waktu, s.tanggal, s.resi, s.toko, s.status, s.kategori, s.keterangan_barang, "
+            "p.marketplace, p.no_pesanan, p.nama_produk, p.kurir "
+            "FROM scan_aktif s LEFT JOIN penjualan p ON s.resi = p.no_resi "
+            "ORDER BY s.id DESC LIMIT 10"
+        )
+        if scans:
+            df_recent = pd.DataFrame([dict(r) for r in scans])
+            df_recent = df_recent.rename(columns={
+                "waktu": "Waktu", "tanggal": "Tanggal", "resi": "No Resi",
+                "marketplace": "MP", "no_pesanan": "No Pesanan",
+                "nama_produk": "Produk", "kurir": "Kurir",
+                "toko": "Toko", "status": "Status",
+                "kategori": "Kategori", "keterangan_barang": "Keterangan",
+            })
+
+            def color_dashboard_status(val):
+                if val == "PACKED":
+                    return "background-color: #d4edda; color: #155724; font-weight: bold"
+                elif val == "PENDING":
+                    return "background-color: #fff3cd; color: #856404; font-weight: bold"
+                elif val == "CANCEL":
+                    return "background-color: #f8d7da; color: #721c24; font-weight: bold"
+                return ""
+
+            def color_kategori_dashboard(val):
+                if val == "BESAR":
+                    return "background-color: #e8d1f5; color: #6a1b9a; font-weight: bold"
+                return ""
+
+            display_cols = ["Waktu", "No Resi", "Kategori", "Keterangan", "MP", "No Pesanan", "Produk", "Kurir", "Toko", "Status"]
+            available_cols = [c for c in display_cols if c in df_recent.columns]
+            styled = df_recent[available_cols].style.map(color_dashboard_status, subset=["Status"]).map(color_kategori_dashboard, subset=["Kategori"])
+            st.dataframe(styled, width="stretch", hide_index=True)
+
+            total_scans = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif")
+            if total_scans and total_scans["cnt"] > 10:
+                st.caption(f"... dan {total_scans['cnt'] - 10} data lainnya. Lihat di halaman SCAN Operasional.")
+        else:
+            st.info("📭 Belum ada data scan.")
+
+        # Expedition summary chips — dari scan_aktif
+        st.markdown("---")
+        st.subheader("🚚 Ringkasan per Ekspedisi (Packing)")
+        rows = db.fetch_all(
+            "SELECT s.ekspedisi, COUNT(*) as cnt FROM scan_aktif s "
+            "WHERE s.status IN ('PACKED', 'PENDING') "
+            "GROUP BY s.ekspedisi ORDER BY cnt DESC"
         )
         if rows:
             cols = st.columns(min(len(rows), 5))
             for i, r in enumerate(rows):
                 with cols[i % 5]:
-                    st.metric(r["ekspedisi"], r["cnt"])
+                    label = r["ekspedisi"] if r["ekspedisi"] and r["ekspedisi"] != "Unknown" else "❓Unknown"
+                    st.metric(label, r["cnt"])
+        else:
+            st.caption("Belum ada data.")
 
     elif page == "Scan_Operasional":
         st.title("📷 SCAN Operasional — Packing & Verifikasi")
@@ -3340,43 +3651,228 @@ def main():
         packed = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED'")
         pending_scan = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PENDING'")
         cancel_scan = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'CANCEL'")
-        total_penjualan = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan WHERE no_resi != ''")
+        total_resi_unique = db.fetch_one("SELECT COUNT(DISTINCT no_resi) as cnt FROM penjualan WHERE no_resi != ''")
+        total_orders_all = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan")
+        orders_tanpa_resi = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan WHERE no_resi = '' OR no_resi IS NULL")
 
-        col1, col2, col3, col4, col5 = st.columns(5)
+        orders_cnt = total_orders_all["cnt"] if total_orders_all else 0
+        resi_cnt = total_resi_unique["cnt"] if total_resi_unique else 0
+        tanpa_cnt = orders_tanpa_resi["cnt"] if orders_tanpa_resi else 0
+        packed_cnt = packed["cnt"] if packed else 0
+        cancel_cnt = cancel_scan["cnt"] if cancel_scan else 0
+        pending_cnt = pending_scan["cnt"] if pending_scan else 0
+        belum_scan = max(0, resi_cnt - packed_cnt - cancel_cnt)
+
+        # Row 1: Total Orders, Total Resi, Packed, Tanpa Resi
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("📦 Total Resi (Sales)", f"{total_penjualan['cnt']:,}" if total_penjualan else "0")
+            st.metric("📦 Total Orders", f"{orders_cnt:,}", help="Semua pesanan unik (dengan & tanpa resi)")
         with col2:
-            st.metric("✅ Packed", f"{packed['cnt']:,}" if packed else "0")
+            st.metric("🏷️ Total Resi", f"{resi_cnt:,}", help="Unique resi yang harus di-scan")
         with col3:
-            st.metric("⏳ Pending Scan", f"{pending_scan['cnt']:,}" if pending_scan else "0")
+            st.metric("✅ Packed", f"{packed_cnt:,}")
         with col4:
-            st.metric("❌ Cancel", f"{cancel_scan['cnt']:,}" if cancel_scan else "0")
+            st.metric("⚠️ Tanpa Resi", f"{tanpa_cnt:,}", help="Pesanan belum memiliki No Resi")
+
+        # Row 2: Belum Scan, Pending, Cancel, Sisa
+        col5, col6, col7, col8 = st.columns(4)
         with col5:
-            belum_scan = total_penjualan["cnt"] - packed["cnt"] - cancel_scan["cnt"] if total_penjualan and packed and cancel_scan else (total_penjualan["cnt"] if total_penjualan else 0)
-            st.metric("📋 Belum Scan", f"{max(0, belum_scan):,}")
+            st.metric("📋 Belum Scan", f"{belum_scan:,}",
+                     help=f"Resi yang belum di-scan. Bisa jadi paket dibatalkan sistem.")
+        with col6:
+            st.metric("⏳ Pending", f"{pending_cnt:,}", help="Resi di-scan tapi tidak ada di data penjualan")
+        with col7:
+            st.metric("❌ Cancel", f"{cancel_cnt:,}")
+        with col8:
+            sisa = orders_cnt - packed_cnt - cancel_cnt
+            st.metric("🔍 Sisa", f"{max(0, sisa):,}",
+                     help="Total pesanan yang belum selesai (termasuk tanpa resi & belum scan)")
+
+        # ── Info bar ──
+        if orders_cnt > 0:
+            orders_dengan_resi = orders_cnt - tanpa_cnt
+            st.info(
+                f"📊 **{orders_cnt}** Total Pesanan → "
+                f"**{orders_dengan_resi}** punya Resi ({resi_cnt} unique) + "
+                f"**{tanpa_cnt}** tanpa Resi | "
+                f"**{belum_scan}** resi belum di-scan | "
+                f"**{packed_cnt}** packed | **{cancel_cnt}** cancel"
+            )
+
+        # ── Daftar Belum Scan (resi ada, belum diproses) ──
+        if belum_scan > 0:
+            with st.expander(f"📋 {belum_scan} Resi Belum Di-Scan — Kemungkinan dibatalkan sistem? Klik untuk lihat & intervensi", expanded=False):
+                st.caption("Pesanan dengan resi yang belum di-scan. Gunakan mode ❌ CANCEL atau upload pembatalan di Input Resi & Pesanan.")
+                belum_list = db.fetch_all(
+                    "SELECT p.marketplace, p.no_pesanan, p.no_resi, p.nama_produk, p.kurir, p.nama_toko, p.qty, p.total_harga, p.status_pesanan "
+                    "FROM penjualan p "
+                    "WHERE p.no_resi != '' AND p.no_resi IS NOT NULL "
+                    "AND p.no_resi NOT IN (SELECT resi FROM scan_aktif WHERE status IN ('PACKED', 'CANCEL')) "
+                    "ORDER BY p.created_at DESC LIMIT 50"
+                )
+                if belum_list:
+                    df_belum = pd.DataFrame([dict(r) for r in belum_list])
+                    df_belum = df_belum.rename(columns={
+                        "marketplace": "MP", "no_pesanan": "No Pesanan", "no_resi": "No Resi",
+                        "nama_produk": "Produk", "kurir": "Kurir", "nama_toko": "Toko",
+                        "qty": "Qty", "total_harga": "Total", "status_pesanan": "Status",
+                    })
+                    df_belum["Total"] = df_belum["Total"].apply(lambda x: f"Rp {x:,.0f}")
+                    st.dataframe(df_belum, width="stretch", height=300, hide_index=True)
+
+                    # Quick CANCEL: input resi langsung dari sini
+                    st.markdown("---")
+                    st.caption("⚡ **Intervensi Cepat**: Ketik No Resi atau No Pesanan untuk langsung CANCEL:")
+                    quick_col1, quick_col2 = st.columns([3, 1])
+                    with quick_col1:
+                        quick_cancel_input = st.text_input(
+                            "No Resi / No Pesanan yang dibatalkan",
+                            placeholder="Ketik resi atau no pesanan...",
+                            key="quick_cancel_input",
+                            label_visibility="collapsed",
+                        )
+                    with quick_col2:
+                        if st.button("❌ CANCEL Cepat", width="stretch", type="primary", key="quick_cancel_btn"):
+                            if quick_cancel_input.strip():
+                                qc = Validator.sanitize_resi(quick_cancel_input.strip())
+                                if qc:
+                                    # CANCEL: update penjualan + insert scan_aktif
+                                    match_c = db.fetch_one(
+                                        "SELECT no_resi, no_pesanan FROM penjualan WHERE no_resi = ? OR no_pesanan = ? LIMIT 1",
+                                        (qc, qc),
+                                    )
+                                    real = match_c["no_resi"] if match_c else qc
+                                    dup = db.fetch_one("SELECT id FROM scan_aktif WHERE resi = ?", (real,))
+                                    if dup:
+                                        st.warning(f"Resi `{real}` sudah ada di scan.")
+                                    else:
+                                        now = datetime.now()
+                                        db.execute(
+                                            "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                            (now.strftime("%H:%M:%S"), now.strftime("%d-%m-%Y"), qc, "CANCEL", selected_toko, "CANCEL", "REGULER", "", "REGULER"),
+                                        )
+                                        db.execute(
+                                            "UPDATE penjualan SET status_pesanan = 'CANCEL', qty = 0, total_harga = 0, harga_jual = 0 WHERE no_resi = ? OR no_pesanan = ?",
+                                            (qc, qc),
+                                        )
+                                        st.success(f"❌ `{qc}` berhasil di-CANCEL.")
+                                        st.rerun()
+                            else:
+                                st.warning("Masukkan No Resi atau No Pesanan.")
+
+        # ── Pesanan Tanpa Resi (expandable) ──
+        if tanpa_cnt > 0:
+            with st.expander(f"⚠️ {tanpa_cnt} Pesanan Belum Memiliki No Resi — Klik untuk lihat", expanded=False):
+                st.caption("Update No Resi di halaman Input Resi & Pesanan agar bisa di-scan.")
+                tanpa_list = db.fetch_all(
+                    "SELECT marketplace, no_pesanan, nama_produk, nama_toko, qty, total_harga, tanggal_pesanan "
+                    "FROM penjualan WHERE no_resi = '' OR no_resi IS NULL "
+                    "ORDER BY created_at DESC LIMIT 50"
+                )
+                if tanpa_list:
+                    df_tanpa = pd.DataFrame([dict(r) for r in tanpa_list])
+                    df_tanpa = df_tanpa.rename(columns={
+                        "marketplace": "MP", "no_pesanan": "No Pesanan",
+                        "nama_produk": "Produk", "nama_toko": "Toko",
+                        "qty": "Qty", "total_harga": "Total",
+                        "tanggal_pesanan": "Tgl Pesan",
+                    })
+                    df_tanpa["Total"] = df_tanpa["Total"].apply(lambda x: f"Rp {x:,.0f}")
+                    st.dataframe(df_tanpa, width="stretch", height=300, hide_index=True)
 
         st.markdown("---")
 
         # ── Mode ──
-        col_m1, col_m2 = st.columns([1, 3])
+        col_m1, col_m2, col_m3 = st.columns([1, 1, 2])
         with col_m1:
             scan_mode = st.radio(
                 "Mode Scan",
-                ["📦 PACK", "❌ CANCEL"],
+                ["📦 PACK", "🚀 INSTANT", "❌ CANCEL"],
                 horizontal=True,
                 key="scan_ops_mode",
-                help="PACK = packing normal, CANCEL = tandai resi batal/dibatalkan sistem"
+                help="PACK = reguler, INSTANT = kiriman prioritas (siap diambil kurir), CANCEL = batalkan"
             )
         with col_m2:
-            st.write("")
-            if st.button("🔄 Refresh", width="stretch"):
-                st.rerun()
+            # Barang Besar toggle — hanya aktif saat PACK/INSTANT mode
+            is_besar = st.checkbox(
+                "📦 Barang Besar",
+                value=False,
+                key="scan_ops_besar",
+                help="Centang untuk scan barang besar. Data dipisah dari paket reguler.",
+                disabled=(scan_mode == "❌ CANCEL"),
+            )
+        with col_m3:
+            # ── Pilih Toko (dari Manajemen Toko) ──
+            toko_list = db.fetch_all("SELECT nama FROM toko ORDER BY nama")
+            toko_options = [t["nama"] for t in toko_list] if toko_list else ["Mitra Mulia Abadi"]
+            # Default: pakai session state, atau toko pertama
+            if "selected_toko_scan" not in st.session_state:
+                st.session_state.selected_toko_scan = toko_options[0]
+            if st.session_state.selected_toko_scan not in toko_options:
+                st.session_state.selected_toko_scan = toko_options[0]
+            selected_toko = st.selectbox(
+                "🏪 Toko",
+                toko_options,
+                index=toko_options.index(st.session_state.selected_toko_scan),
+                key="scan_ops_toko",
+                help="Pilih toko dari Manajemen Toko. Toko dari marketplace akan otomatis tersimpan.",
+            )
+            st.session_state.selected_toko_scan = selected_toko
+
+        # Tentukan kategori & tipe_kiriman
+        if scan_mode == "🚀 INSTANT":
+            kategori = "BESAR" if is_besar else "REGULER"
+            tipe_kiriman = "INSTANT"
+        elif scan_mode == "📦 PACK":
+            kategori = "BESAR" if is_besar else "REGULER"
+            tipe_kiriman = "REGULER"
+        else:
+            kategori = "REGULER"
+            tipe_kiriman = "REGULER"
+
+        # ── Keterangan Barang Besar ──
+        keterangan_barang = ""
+        if is_besar and scan_mode != "❌ CANCEL":
+            st.markdown("---")
+            # Ambil daftar barang besar dari database
+            daftar_besar = db.fetch_all("SELECT id, nama_barang, keterangan FROM daftar_barang_besar ORDER BY nama_barang")
+            besar_options = [""] + [f"{b['nama_barang']}" for b in daftar_besar] + ["➕ Tambah Baru..."]
+
+            kat_col1, kat_col2 = st.columns([2, 2])
+            with kat_col1:
+                selected_barang = st.selectbox(
+                    "📋 Pilih Barang Besar",
+                    besar_options,
+                    key="scan_ops_pilih_barang",
+                    help="Pilih dari daftar barang besar yang sudah terdaftar, atau pilih 'Tambah Baru' untuk input manual."
+                )
+            with kat_col2:
+                if selected_barang == "➕ Tambah Baru...":
+                    keterangan_barang = st.text_input(
+                        "✏️ Nama Barang Baru",
+                        placeholder="Contoh: Bak Cuci Piring, Portable Wastafel...",
+                        key="scan_ops_keterangan_free",
+                    )
+                elif selected_barang:
+                    keterangan_barang = selected_barang
+                    # Tampilkan keterangan tambahan jika ada
+                    matched = [b for b in daftar_besar if b["nama_barang"] == selected_barang]
+                    if matched and matched[0]["keterangan"]:
+                        st.caption(f"📝 {matched[0]['keterangan']}")
+
+            if not keterangan_barang and selected_barang == "➕ Tambah Baru...":
+                st.warning("⚠️ Isi nama barang terlebih dahulu sebelum scan.")
 
         # ── Scan input ──
         st.markdown("---")
         scan_col1, scan_col2 = st.columns([4, 1])
         with scan_col1:
-            placeholder_text = "Scan resi fisik paket..." if scan_mode == "📦 PACK" else "Scan/ketik resi CANCEL..."
+            if scan_mode == "🚀 INSTANT":
+                placeholder_text = "Scan resi kiriman INSTANT/Prioritas..."
+            elif scan_mode == "📦 PACK":
+                placeholder_text = "Scan resi fisik paket..."
+            else:
+                placeholder_text = "Scan/ketik resi CANCEL..."
             resi_input = st.text_input(
                 "Scan barcode atau ketik nomor resi",
                 placeholder=placeholder_text,
@@ -3384,7 +3880,12 @@ def main():
                 label_visibility="collapsed",
             )
         with scan_col2:
-            btn_label = "📷 Scan" if scan_mode == "📦 PACK" else "❌ Cancel"
+            if scan_mode == "🚀 INSTANT":
+                btn_label = "🚀 Instant"
+            elif scan_mode == "📦 PACK":
+                btn_label = "📷 Scan"
+            else:
+                btn_label = "❌ Cancel"
             scan_btn = st.button(btn_label, width="stretch", type="primary", key="scan_ops_btn")
 
         if resi_input or scan_btn:
@@ -3443,8 +3944,8 @@ def main():
                                 st.error(f"🚫 Resi `{real_resi}` sudah di-scan sebelumnya.")
                             else:
                                 db.execute(
-                                    "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status) VALUES (?, ?, ?, ?, ?, ?)",
-                                    (waktu, tanggal, cleaned, "CANCEL", "", "CANCEL"),
+                                    "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                    (waktu, tanggal, cleaned, "CANCEL", selected_toko, "CANCEL", "REGULER", "", "REGULER"),
                                 )
                                 db.execute(
                                     "UPDATE penjualan SET status_pesanan = 'CANCEL', qty = 0, total_harga = 0, harga_jual = 0 WHERE no_resi = ? OR no_pesanan = ?",
@@ -3482,35 +3983,95 @@ def main():
                                 )
                             else:
                                 db.execute(
-                                    "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status) VALUES (?, ?, ?, ?, ?, ?)",
-                                    (waktu, tanggal, real_resi, match["kurir"] or "Unknown", match["nama_toko"] or "", "PACKED"),
+                                    "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                    (waktu, tanggal, real_resi, match["kurir"] or "Unknown", selected_toko, "PACKED", kategori, keterangan_barang, tipe_kiriman),
                                 )
+                                # Update penjualan — pakai no_resi DAN no_pesanan sekaligus untuk memastikan
                                 db.execute(
-                                    "UPDATE penjualan SET status_pesanan = 'PACKED' WHERE no_resi = ?",
-                                    (real_resi,),
+                                    "UPDATE penjualan SET status_pesanan = 'PACKED' WHERE no_resi = ? OR no_pesanan = ?",
+                                    (real_resi, match["no_pesanan"]),
                                 )
+                                # Verifikasi update berhasil
+                                verify = db.fetch_one(
+                                    "SELECT COUNT(*) as cnt FROM penjualan WHERE (no_resi = ? OR no_pesanan = ?) AND status_pesanan = 'PACKED'",
+                                    (real_resi, match["no_pesanan"]),
+                                )
+                                if not verify or verify["cnt"] == 0:
+                                    st.warning(f"⚠️ Gagal update status penjualan untuk resi `{real_resi}`. Coba refresh.")
+
                                 scan_type = "No Pesanan → Resi" if is_order_scan else "Resi"
-                                st.success(f"✅ **PACKED!** ({scan_type}) `{real_resi}`")
+                                tipe_label = "🚀 INSTANT" if tipe_kiriman == "INSTANT" else "PACKED"
+                                st.success(f"✅ **{tipe_label}!** ({scan_type}) `{real_resi}`")
                                 st.info(
                                     f"📦 {match['marketplace']} | {match['no_pesanan']}\n"
                                     f"🛍️ {match['nama_produk'][:50]}\n"
                                     f"🏪 {match['nama_toko'] or '-'} | 🚚 {match['kurir'] or '-'} | SKU: {match['sku_terdeteksi'] or '?'}"
                                 )
+
+                                # ── Auto-save barang besar baru ke daftar ──
+                                if is_besar and keterangan_barang:
+                                    existing_brg = db.fetch_one(
+                                        "SELECT id FROM daftar_barang_besar WHERE nama_barang = ?",
+                                        (keterangan_barang,),
+                                    )
+                                    if not existing_brg:
+                                        try:
+                                            db.execute(
+                                                "INSERT INTO daftar_barang_besar (nama_barang, keterangan) VALUES (?, ?)",
+                                                (keterangan_barang, "Ditambahkan otomatis dari scan"),
+                                            )
+                                        except:
+                                            pass  # ignore duplicate
+
+                                # ── Auto-sync toko ke toko table ──
+                                if match["nama_toko"]:
+                                    try:
+                                        db.execute(
+                                            "INSERT OR IGNORE INTO toko (nama) VALUES (?)",
+                                            (match["nama_toko"].strip(),),
+                                        )
+                                    except:
+                                        pass
                         else:
                             # Not found in penjualan
                             db.execute(
-                                "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status) VALUES (?, ?, ?, ?, ?, ?)",
-                                (waktu, tanggal, cleaned, "Unknown", "", "PENDING"),
+                                "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (waktu, tanggal, cleaned, "Unknown", selected_toko, "PENDING", kategori, keterangan_barang, tipe_kiriman),
                             )
                             st.warning(f"⏳ **PENDING!** `{cleaned}` belum ada di data penjualan (baik sebagai No Resi maupun No Pesanan).")
+
+                            # ── Auto-save barang besar baru ke daftar (PENDING path) ──
+                            if is_besar and keterangan_barang:
+                                existing_brg = db.fetch_one(
+                                    "SELECT id FROM daftar_barang_besar WHERE nama_barang = ?",
+                                    (keterangan_barang,),
+                                )
+                                if not existing_brg:
+                                    try:
+                                        db.execute(
+                                            "INSERT INTO daftar_barang_besar (nama_barang, keterangan) VALUES (?, ?)",
+                                            (keterangan_barang, "Ditambahkan otomatis dari scan"),
+                                        )
+                                    except:
+                                        pass
                         st.rerun()
 
         st.markdown("---")
 
         # ── Scan History Table ──
         st.subheader("📋 Riwayat Scan Packing")
+
+        # Filter kategori
+        filter_col1, filter_col2 = st.columns([1, 3])
+        with filter_col1:
+            kategori_filter = st.selectbox(
+                "Filter Kategori",
+                ["Semua", "REGULER", "BESAR"],
+                key="scan_ops_kategori_filter",
+            )
+
         scans = db.fetch_all(
-            "SELECT MAX(s.id) as id, s.waktu, s.tanggal, s.resi, s.toko, s.status, "
+            "SELECT MAX(s.id) as id, s.waktu, s.tanggal, s.resi, s.toko, s.status, s.kategori, s.keterangan_barang, "
             "p.marketplace, p.no_pesanan, "
             "GROUP_CONCAT(p.nama_produk, ', ') as nama_produk, "
             "p.kurir, GROUP_CONCAT(p.sku_terdeteksi, ', ') as sku_terdeteksi "
@@ -3521,11 +4082,17 @@ def main():
             st.info("📭 Belum ada scan. Mulai scan resi fisik.")
         else:
             df_scans = pd.DataFrame([dict(r) for r in scans])
+
+            # Apply kategori filter
+            if kategori_filter != "Semua":
+                df_scans = df_scans[df_scans["kategori"] == kategori_filter]
+
             df_scans = df_scans.rename(columns={
                 "waktu": "Waktu", "tanggal": "Tanggal", "resi": "No Resi",
                 "marketplace": "MP", "no_pesanan": "No Pesanan",
                 "nama_produk": "Produk", "kurir": "Kurir",
                 "sku_terdeteksi": "SKU", "toko": "Toko", "status": "Status",
+                "kategori": "Kategori", "keterangan_barang": "Keterangan",
             })
 
             def color_packed(val):
@@ -3537,9 +4104,28 @@ def main():
                     return "background-color: #f8d7da; color: #721c24; font-weight: bold"
                 return ""
 
-            display_cols = ["Waktu", "No Resi", "MP", "No Pesanan", "Produk", "SKU", "Kurir", "Toko", "Status"]
-            styled = df_scans[display_cols].style.map(color_packed, subset=["Status"])
+            def color_kategori(val):
+                if val == "BESAR":
+                    return "background-color: #e8d1f5; color: #6a1b9a; font-weight: bold"
+                return ""
+
+            display_cols = ["Waktu", "No Resi", "Kategori", "Keterangan", "MP", "No Pesanan", "Produk", "SKU", "Kurir", "Toko", "Status"]
+            available_cols = [c for c in display_cols if c in df_scans.columns]
+            styled = df_scans[available_cols].style.map(color_packed, subset=["Status"]).map(color_kategori, subset=["Kategori"])
             st.dataframe(styled, width="stretch", height=400, hide_index=True)
+
+            # ── Statistik per Kategori ──
+            if "Kategori" in df_scans.columns:
+                st.markdown("---")
+                st.caption("📊 Distribusi Kategori:")
+                reg_count = len(df_scans[df_scans["Kategori"] == "REGULER"]) if kategori_filter == "Semua" else 0
+                besar_count = len(df_scans[df_scans["Kategori"] == "BESAR"]) if kategori_filter == "Semua" else 0
+                if kategori_filter == "Semua":
+                    cat_col1, cat_col2 = st.columns(2)
+                    with cat_col1:
+                        st.metric("📦 Reguler", reg_count)
+                    with cat_col2:
+                        st.metric("📦 Barang Besar", besar_count)
 
             # ── Actions ──
             st.markdown("---")
@@ -3550,15 +4136,19 @@ def main():
                     if delete_resi.strip():
                         cleaned_del = Validator.sanitize_resi(delete_resi.strip())
                         if cleaned_del:
+                            # Revert penjualan status sebelum hapus scan
+                            db.execute("UPDATE penjualan SET status_pesanan = '' WHERE no_resi = ?", (cleaned_del,))
                             db.execute("DELETE FROM scan_aktif WHERE resi = ?", (cleaned_del,))
-                            st.success(f"'{cleaned_del}' dihapus.")
+                            st.success(f"'{cleaned_del}' dihapus — status penjualan dikembalikan.")
                             st.rerun()
             with col_a2:
                 if st.button("↩️ Undo Terakhir", width="stretch", key="scan_ops_undo"):
-                    row = db.fetch_one("SELECT id FROM scan_aktif ORDER BY id DESC LIMIT 1")
+                    row = db.fetch_one("SELECT id, resi FROM scan_aktif ORDER BY id DESC LIMIT 1")
                     if row:
+                        # Revert penjualan status sebelum hapus scan
+                        db.execute("UPDATE penjualan SET status_pesanan = '' WHERE no_resi = ?", (row["resi"],))
                         db.execute("DELETE FROM scan_aktif WHERE id = ?", (row["id"],))
-                        st.success("Scan terakhir di-undo.")
+                        st.success("Scan terakhir di-undo — status penjualan dikembalikan.")
                         st.rerun()
             with col_a3:
                 # Export packed items only
@@ -3591,94 +4181,23 @@ def main():
         db = st.session_state.db
 
         # ── Stats ──
-        packed = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED'")
-        st.caption(f"✅ {packed['cnt']} resi siap handover")
+        packed = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED' AND tipe_kiriman = 'REGULER'")
+        instant = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED' AND tipe_kiriman = 'INSTANT'")
+        packed_besar = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED' AND kategori = 'BESAR'")
+        st.caption(f"📦 Reguler: {packed['cnt']} | 🚀 Instant: {instant['cnt']} | 📦 Barang Besar: {packed_besar['cnt']}")
 
         st.markdown("---")
 
-        # ── Get distinct kurir from PACKED scans ──
-        kurir_list = db.fetch_all(
-            "SELECT DISTINCT p.kurir FROM scan_aktif s "
-            "JOIN penjualan p ON s.resi = p.no_resi "
-            "WHERE s.status = 'PACKED' AND p.kurir != '' "
-            "ORDER BY p.kurir"
-        )
+        tab_reg, tab_inst = st.tabs(["📦 Reguler", "🚀 Instant / Prioritas"])
 
-        if not kurir_list:
-            st.info("📭 Belum ada resi PACKED. Scan resi di SCAN Operasional terlebih dahulu.")
-        else:
-            kurir_options = ["Semua Kurir"] + [k["kurir"] for k in kurir_list]
-            selected_kurir = st.selectbox("Pilih Kurir", kurir_options, key="handover_kurir")
+        # ═══════════════ TAB REGULER ═══════════════
+        with tab_reg:
+            _render_handover_tab(db, "REGULER")
 
-            # ── Query packed items — 1 row per resi (group multi-SKU) ──
-            if selected_kurir == "Semua Kurir":
-                items = db.fetch_all(
-                    "SELECT s.waktu, s.tanggal, s.resi, p.marketplace, p.no_pesanan, "
-                    "GROUP_CONCAT(p.nama_produk, ', ') as nama_produk, "
-                    "p.kurir, p.nama_toko, GROUP_CONCAT(p.sku_terdeteksi, ', ') as sku_terdeteksi "
-                    "FROM scan_aktif s JOIN penjualan p ON s.resi = p.no_resi "
-                    "WHERE s.status = 'PACKED' "
-                    "GROUP BY s.resi ORDER BY p.kurir, s.id"
-                )
-            else:
-                items = db.fetch_all(
-                    "SELECT s.waktu, s.tanggal, s.resi, p.marketplace, p.no_pesanan, "
-                    "GROUP_CONCAT(p.nama_produk, ', ') as nama_produk, "
-                    "p.kurir, p.nama_toko, GROUP_CONCAT(p.sku_terdeteksi, ', ') as sku_terdeteksi "
-                    "FROM scan_aktif s JOIN penjualan p ON s.resi = p.no_resi "
-                    "WHERE s.status = 'PACKED' AND p.kurir = ? "
-                    "GROUP BY s.resi ORDER BY s.id",
-                    (selected_kurir,),
-                )
-
-            if not items:
-                st.info(f"Tidak ada resi PACKED untuk kurir '{selected_kurir}'.")
-            else:
-                df_items = pd.DataFrame([dict(r) for r in items])
-                df_items["No"] = range(1, len(items) + 1)
-                df_items = df_items.rename(columns={
-                    "waktu": "Waktu", "tanggal": "Tanggal", "resi": "No Resi",
-                    "marketplace": "MP", "no_pesanan": "No Pesanan",
-                    "nama_produk": "Produk", "kurir": "Kurir",
-                    "nama_toko": "Toko", "sku_terdeteksi": "SKU",
-                })
-
-                display_cols = ["No", "Waktu", "No Resi", "MP", "No Pesanan", "Produk", "SKU", "Kurir", "Toko"]
-                st.dataframe(df_items[display_cols], width="stretch", height=450, hide_index=True)
-
-                # ── Summary per kurir ──
-                if selected_kurir == "Semua Kurir":
-                    st.markdown("---")
-                    st.subheader("📊 Ringkasan per Kurir")
-                    summary = db.fetch_all(
-                        "SELECT p.kurir, COUNT(DISTINCT s.resi) as jml FROM scan_aktif s "
-                        "JOIN penjualan p ON s.resi = p.no_resi "
-                        "WHERE s.status = 'PACKED' GROUP BY p.kurir ORDER BY jml DESC"
-                    )
-                    if summary:
-                        df_sum = pd.DataFrame([dict(r) for r in summary])
-                        df_sum = df_sum.rename(columns={"kurir": "Kurir", "jml": "Jumlah Resi"})
-                        st.dataframe(df_sum, width="stretch", hide_index=True)
-
-                # ── Print/Export ──
-                st.markdown("---")
-                col1, col2 = st.columns(2)
-                with col1:
-                    kurir_label = selected_kurir.replace(" ", "_") if selected_kurir != "Semua Kurir" else "Semua"
-                    now_exp = datetime.now()
-                    filename = f"Handover_{kurir_label}_{now_exp.strftime('%d-%m-%Y_%H%M%S')}.xlsx"
-                    filepath = os.path.join(Config.HANDOVER_FOLDER, filename)
-                    with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
-                        df_items.to_excel(writer, index=False, sheet_name="Handover")
-                    with open(filepath, "rb") as fp:
-                        st.download_button(
-                            "📥 Download Handover (Excel)",
-                            fp, file_name=filename,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        )
-                    st.success(f"✅ {filename}")
-                with col2:
-                    st.info(f"📋 **{len(items)} resi** siap diserahkan ke **{selected_kurir}**")
+        # ═══════════════ TAB INSTANT ═══════════════
+        with tab_inst:
+            st.caption("Kiriman Instant/Prioritas — sudah di-scan, siap diambil kurir. Konfirmasi setelah kurir mengambil paket.")
+            _render_handover_tab(db, "INSTANT")
 
     elif page == "Ekspedisi":
         st.title("🚚 Manajemen Ekspedisi")
@@ -3687,6 +4206,77 @@ def main():
     elif page == "Toko":
         st.title("🏪 Manajemen Toko")
         render_toko()
+
+    elif page == "Barang_Besar":
+        st.title("📦 Daftar Barang Besar")
+        st.caption("Kelola daftar barang besar untuk keperluan scan packing (bak cuci, wastafel, tempat sampah, gerobak, dll).")
+
+        db = st.session_state.db
+
+        # ── Form Tambah Barang ──
+        with st.expander("➕ Tambah Barang Besar Baru", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                nama_baru = st.text_input("Nama Barang", placeholder="Contoh: Bak Cuci Piring", key="besar_nama")
+            with col2:
+                ket_baru = st.text_input("Keterangan (opsional)", placeholder="Ukuran, bahan, dll", key="besar_ket")
+            if st.button("💾 Simpan", type="primary"):
+                if nama_baru.strip():
+                    try:
+                        db.execute(
+                            "INSERT INTO daftar_barang_besar (nama_barang, keterangan) VALUES (?, ?)",
+                            (nama_baru.strip(), ket_baru.strip()),
+                        )
+                        st.success(f"✅ '{nama_baru.strip()}' ditambahkan!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal: {e}")
+                else:
+                    st.warning("Nama barang tidak boleh kosong.")
+
+        st.markdown("---")
+
+        # ── Daftar Barang Besar ──
+        daftar = db.fetch_all("SELECT id, nama_barang, keterangan, created_at FROM daftar_barang_besar ORDER BY nama_barang")
+
+        if not daftar:
+            st.info("📭 Belum ada daftar barang besar. Tambahkan di atas.")
+        else:
+            st.subheader(f"📋 Daftar Barang Besar ({len(daftar)} items)")
+
+            for item in daftar:
+                col1, col2, col3 = st.columns([3, 1, 1])
+                with col1:
+                    st.markdown(f"**{item['nama_barang']}**")
+                    if item["keterangan"]:
+                        st.caption(f"📝 {item['keterangan']}")
+                with col2:
+                    st.caption(f"🕐 {item['created_at'][:10] if item['created_at'] else '-'}")
+                with col3:
+                    if st.button("🗑️", key=f"del_besar_{item['id']}", help=f"Hapus {item['nama_barang']}"):
+                        db.execute("DELETE FROM daftar_barang_besar WHERE id = ?", (item['id'],))
+                        st.success(f"🗑️ '{item['nama_barang']}' dihapus.")
+                        st.rerun()
+
+        # ── Statistik Barang Besar di Scan ──
+        st.markdown("---")
+        st.subheader("📊 Statistik Scan Barang Besar")
+        besar_scans = db.fetch_all(
+            "SELECT s.keterangan_barang, s.kategori, COUNT(*) as cnt "
+            "FROM scan_aktif s "
+            "WHERE s.kategori = 'BESAR' AND s.keterangan_barang != '' "
+            "GROUP BY s.keterangan_barang ORDER BY cnt DESC"
+        )
+        if besar_scans:
+            df_besar_stats = pd.DataFrame([dict(r) for r in besar_scans])
+            df_besar_stats = df_besar_stats.rename(columns={
+                "keterangan_barang": "Nama Barang",
+                "kategori": "Kategori",
+                "cnt": "Jumlah Scan",
+            })
+            st.dataframe(df_besar_stats, width="stretch", hide_index=True)
+        else:
+            st.caption("Belum ada data scan barang besar.")
 
     elif page == "Reports":
         st.title("📊 Reports")
@@ -3703,84 +4293,175 @@ def main():
     # ── Penjualan Pages ──
     elif page == "Sales_Dashboard":
         st.title("💰 Dashboard Penjualan")
-        st.caption(f"Ringkasan penjualan marketplace — {datetime.now().strftime('%d %B %Y, %H:%M')}")
+
+        col_title, col_refresh = st.columns([5, 1])
+        with col_title:
+            st.caption(f"Ringkasan penjualan marketplace — {datetime.now().strftime('%d %B %Y, %H:%M')}")
+        with col_refresh:
+            if st.button("🔄 Refresh", width="stretch", key="sales_dash_refresh", help="Klik untuk memperbarui data"):
+                st.rerun()
 
         db = st.session_state.db
 
-        # ── Stats ──
-        total_sales = db.fetch_one("SELECT COUNT(*) as rows, COUNT(DISTINCT no_pesanan) as orders, COALESCE(SUM(total_harga), 0) as total FROM penjualan")
+        # ── Stats: selaras dengan Scan Operasional ──
+        # Unique resi (paket fisik yang harus di-scan) — sama dengan Scan Operasional
+        total_resi_unique = db.fetch_one("SELECT COUNT(DISTINCT no_resi) as cnt FROM penjualan WHERE no_resi != '' AND no_resi IS NOT NULL")
+        total_unique_resi = total_resi_unique["cnt"] if total_resi_unique else 0
+
+        # Total rows dengan resi (termasuk multi-SKU)
+        total_rows_resi = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan WHERE no_resi != '' AND no_resi IS NOT NULL")
+
+        # Total unique orders (semua)
+        total_orders = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan")
+        total_orders_cnt = total_orders["cnt"] if total_orders else 0
+
+        # Orders tanpa resi
+        orders_tanpa_resi = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan WHERE no_resi = '' OR no_resi IS NULL")
+
+        # Total Revenue Input: semua baris
+        total_rev_input = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM penjualan")
+
+        # Real Packed: dari scan_aktif (ground truth — unik per resi)
+        real_packed = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED'")
+        real_cnt = real_packed["cnt"] if real_packed else 0
+
+        # Cancel: dari scan_aktif
+        cancel_cnt_row = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'CANCEL'")
+        cancel_cnt = cancel_cnt_row["cnt"] if cancel_cnt_row else 0
+
+        # Revenue Real: dari penjualan, hanya resi yang PACKED di scan_aktif (termasuk multi-SKU)
+        real_rev = db.fetch_one(
+            "SELECT COALESCE(SUM(p.total_harga), 0) as total "
+            "FROM penjualan p INNER JOIN scan_aktif s ON p.no_resi = s.resi "
+            "WHERE s.status = 'PACKED'"
+        )
+
+        # Revenue Cancel
+        cancel_rev = db.fetch_one(
+            "SELECT COALESCE(SUM(p.total_harga), 0) as total "
+            "FROM penjualan p INNER JOIN scan_aktif s ON p.no_resi = s.resi "
+            "WHERE s.status = 'CANCEL'"
+        )
+
+        # Today's input
         today_sales = db.fetch_one(
-            "SELECT COUNT(DISTINCT no_pesanan) as cnt, COALESCE(SUM(total_harga), 0) as total FROM penjualan WHERE tanggal_pesanan = ?",
+            "SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan WHERE tanggal_pesanan = ?",
             (datetime.now().strftime("%d-%m-%Y"),),
         )
-        sku_match = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan WHERE sku_terdeteksi != ''")
-        total_orders = total_sales["orders"] if total_sales else 0
-        total_rows = total_sales["rows"] if total_sales else 0
 
+        # ── Kartu Statistik ──
+        st.subheader("📊 Ringkasan Penjualan")
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
-            st.metric("📦 Pesanan (unik)", f"{total_orders:,}")
+            st.metric("📦 Total Orders", f"{total_orders_cnt:,}",
+                     help=f"Unique orders: {total_orders_cnt} | Unique resi: {total_unique_resi} | Orders tanpa resi: {orders_tanpa_resi['cnt']}")
         with col2:
-            st.metric("📋 Total Item", f"{total_rows:,}")
+            st.metric("✅ Real Terkirim (PACKED)", f"{real_cnt:,}",
+                     help="Jumlah resi yang berhasil dipacking (dari Scan Operasional)")
         with col3:
-            st.metric("💰 Total Penjualan", f"Rp {total_sales['total']:,.0f}" if total_sales else "Rp 0")
+            st.metric("❌ Cancel", f"{cancel_cnt:,}",
+                     help="Jumlah resi yang dibatalkan saat scan")
         with col4:
-            st.metric("📅 Pesanan Hari Ini", f"{today_sales['cnt']}" if today_sales else "0")
+            belum = total_unique_resi - real_cnt - cancel_cnt
+            st.metric("⏳ Belum Diproses", f"{max(0, belum):,}",
+                     help=f"Dari {total_unique_resi} unique resi yang harus di-scan. Total baris (incl. multi-SKU): {total_rows_resi['cnt']}")
         with col5:
-            pct = f"{(sku_match['cnt'] / total_rows * 100):.0f}%" if total_rows > 0 else "0%"
-            st.metric("🔗 SKU Cocok", f"{sku_match['cnt']} ({pct})" if sku_match else "0")
+            st.metric("📅 Input Hari Ini", f"{today_sales['cnt']}" if today_sales else "0")
+
+        # ── Revenue Comparison ──
+        st.markdown("---")
+        st.subheader("💰 Perbandingan Revenue")
+        rev_col1, rev_col2, rev_col3 = st.columns(3)
+        with rev_col1:
+            tr = total_rev_input["total"] if total_rev_input else 0
+            st.metric("📋 Total Revenue (Input)", f"Rp {tr:,.0f}")
+        with rev_col2:
+            rr = real_rev["total"] if real_rev else 0
+            st.metric("✅ Real Revenue (Terkirim)", f"Rp {rr:,.0f}",
+                     delta=f"Rp {rr - tr:,.0f}" if tr != rr else None)
+        with rev_col3:
+            cr = cancel_rev["total"] if cancel_rev else 0
+            st.metric("❌ Revenue Hilang (Cancel)", f"Rp {cr:,.0f}")
+
+        # Progress bar
+        if total_unique_resi > 0:
+            real_pct = (real_cnt / total_unique_resi * 100)
+            cancel_pct = (cancel_cnt / total_unique_resi * 100)
+            belum_pct = max(0, 100 - real_pct - cancel_pct)
+            st.progress(real_pct / 100, text=f"🎯 Real Terkirim: {real_pct:.1f}% | Cancel: {cancel_pct:.1f}% | Belum: {belum_pct:.1f}%")
 
         st.markdown("---")
 
-        # ── Per Marketplace ──
+        # ── Per Marketplace (input vs packed via JOIN scan_aktif) ──
         col_left, col_right = st.columns(2)
         with col_left:
             st.subheader("📊 Per Marketplace")
             mp_data = db.fetch_all(
-                "SELECT marketplace, COUNT(*) as pesanan, SUM(qty) as qty, SUM(total_harga) as total "
-                "FROM penjualan GROUP BY marketplace ORDER BY total DESC"
+                "SELECT p.marketplace, "
+                "COUNT(DISTINCT p.no_pesanan) as total_orders, "
+                "COUNT(DISTINCT CASE WHEN s.status = 'PACKED' THEN p.no_pesanan END) as packed_orders, "
+                "COALESCE(SUM(p.total_harga), 0) as rev_input, "
+                "COALESCE(SUM(CASE WHEN s.status = 'PACKED' THEN p.total_harga ELSE 0 END), 0) as rev_real "
+                "FROM penjualan p LEFT JOIN scan_aktif s ON p.no_resi = s.resi "
+                "GROUP BY p.marketplace ORDER BY rev_input DESC"
             )
             if mp_data:
                 df_mp = pd.DataFrame([dict(r) for r in mp_data])
-                df_mp = df_mp.rename(columns={"marketplace": "Marketplace", "pesanan": "Item", "qty": "Qty", "total": "Total"})
-                df_mp["Total"] = df_mp["Total"].apply(lambda x: f"Rp {x:,.0f}")
+                df_mp = df_mp.rename(columns={
+                    "marketplace": "Marketplace", "total_orders": "Input (Orders)",
+                    "packed_orders": "Packed", "rev_input": "Rev Input", "rev_real": "Rev Real",
+                })
+                df_mp["Rev Input"] = df_mp["Rev Input"].apply(lambda x: f"Rp {x:,.0f}")
+                df_mp["Rev Real"] = df_mp["Rev Real"].apply(lambda x: f"Rp {x:,.0f}")
                 st.dataframe(df_mp, width="stretch", hide_index=True)
 
         with col_right:
             st.subheader("🏪 Per Toko")
             toko_data = db.fetch_all(
-                "SELECT nama_toko, COUNT(*) as pesanan, SUM(qty) as qty, SUM(total_harga) as total "
-                "FROM penjualan WHERE nama_toko != '' GROUP BY nama_toko ORDER BY total DESC LIMIT 10"
+                "SELECT p.nama_toko, "
+                "COUNT(DISTINCT p.no_pesanan) as total_orders, "
+                "COUNT(DISTINCT CASE WHEN s.status = 'PACKED' THEN p.no_pesanan END) as packed_orders, "
+                "COALESCE(SUM(CASE WHEN s.status = 'PACKED' THEN p.total_harga ELSE 0 END), 0) as rev_real "
+                "FROM penjualan p LEFT JOIN scan_aktif s ON p.no_resi = s.resi "
+                "WHERE p.nama_toko != '' "
+                "GROUP BY p.nama_toko ORDER BY rev_real DESC LIMIT 10"
             )
             if toko_data:
                 df_toko = pd.DataFrame([dict(r) for r in toko_data])
-                df_toko = df_toko.rename(columns={"nama_toko": "Toko", "pesanan": "Item", "qty": "Qty", "total": "Total"})
-                df_toko["Total"] = df_toko["Total"].apply(lambda x: f"Rp {x:,.0f}")
+                df_toko = df_toko.rename(columns={
+                    "nama_toko": "Toko", "total_orders": "Input (Orders)",
+                    "packed_orders": "Packed", "rev_real": "Rev Real",
+                })
+                df_toko["Rev Real"] = df_toko["Rev Real"].apply(lambda x: f"Rp {x:,.0f}")
                 st.dataframe(df_toko, width="stretch", hide_index=True)
 
-        # ── Top SKU ──
+        # ── Top SKU (hanya PACKED) ──
         st.markdown("---")
-        st.subheader("🏆 Top SKU Terjual")
+        st.subheader("🏆 Top SKU Terkirim (Real)")
         top_sku = db.fetch_all(
-            "SELECT sku_terdeteksi, nama_produk, SUM(qty) as total_qty, SUM(total_harga) as total "
-            "FROM penjualan WHERE sku_terdeteksi != '' "
-            "GROUP BY sku_terdeteksi ORDER BY total DESC LIMIT 10"
+            "SELECT p.sku_terdeteksi, p.nama_produk, SUM(p.qty) as total_qty, SUM(p.total_harga) as total "
+            "FROM penjualan p INNER JOIN scan_aktif s ON p.no_resi = s.resi "
+            "WHERE p.sku_terdeteksi != '' AND s.status = 'PACKED' "
+            "GROUP BY p.sku_terdeteksi ORDER BY total DESC LIMIT 10"
         )
         if top_sku:
             df_top = pd.DataFrame([dict(r) for r in top_sku])
             df_top = df_top.rename(columns={
                 "sku_terdeteksi": "SKU", "nama_produk": "Produk",
-                "total_qty": "Total Qty", "total": "Total",
+                "total_qty": "Total Qty", "total": "Total Real",
             })
-            df_top["Total"] = df_top["Total"].apply(lambda x: f"Rp {x:,.0f}")
+            df_top["Total Real"] = df_top["Total Real"].apply(lambda x: f"Rp {x:,.0f}")
             st.dataframe(df_top, width="stretch", hide_index=True)
+        else:
+            st.info("Belum ada SKU yang berhasil dikirim (PACKED).")
 
-        # ── Recent ──
+        # ── Recent Orders ──
         st.markdown("---")
         st.subheader("🛍️ Pesanan Terbaru")
         recent = db.fetch_all(
-            "SELECT marketplace, no_pesanan, no_resi, kurir, sku_terdeteksi, nama_produk, nama_toko, qty, total_harga "
-            "FROM penjualan ORDER BY created_at DESC LIMIT 10"
+            "SELECT p.marketplace, p.no_pesanan, p.no_resi, p.kurir, p.sku_terdeteksi, p.nama_produk, "
+            "p.nama_toko, p.qty, p.total_harga, p.status_pesanan "
+            "FROM penjualan p ORDER BY p.created_at DESC LIMIT 10"
         )
         if recent:
             df_rec = pd.DataFrame([dict(r) for r in recent])
@@ -3788,9 +4469,16 @@ def main():
             df_rec = df_rec.rename(columns={
                 "marketplace": "MP", "no_pesanan": "No Pesanan", "no_resi": "Resi", "kurir": "Kurir",
                 "sku_terdeteksi": "SKU", "nama_produk": "Produk", "nama_toko": "Toko",
-                "qty": "Qty", "total_harga": "Total",
+                "qty": "Qty", "total_harga": "Total", "status_pesanan": "Status",
             })
-            st.dataframe(df_rec, width="stretch", hide_index=True)
+            def color_sales_status(val):
+                if val == "PACKED":
+                    return "background-color: #d4edda; color: #155724; font-weight: bold"
+                elif val == "CANCEL":
+                    return "background-color: #f8d7da; color: #721c24; font-weight: bold"
+                return ""
+            styled = df_rec.style.map(color_sales_status, subset=["Status"])
+            st.dataframe(styled, width="stretch", hide_index=True)
 
     elif page == "Sales_History":
         st.title("📋 Riwayat Penjualan")
