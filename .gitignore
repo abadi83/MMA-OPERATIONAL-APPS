@@ -1,25 +1,41 @@
-# Database
+# Database (NEVER commit production database!)
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
+DB_Backup/
+Copy of *.db
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
+.venv/
+venv/
 
-# Logs
-logs/
+# Environment
+.env
+.env.local
+.env.production
 
-# Excel output
-Gudang_Arsip_Excel/*.xlsx
-Handover_Reports/*.xlsx
-Sales_Reports/*.xlsx
+# Logs (keep folder structure only)
+logs/*
+!logs/.gitkeep
 
-# Keep DB backups
-!DB_Backup/*.xlsx
+# Excel output (keep folder structure, ignore xlsx files)
+Gudang_Arsip_Excel/*
+!Gudang_Arsip_Excel/.gitkeep
+Handover_Reports/*
+!Handover_Reports/.gitkeep
+Sales_Reports/*
+!Sales_Reports/.gitkeep
+
+# Data folders (keep folder structure only)
+Packing_Videos/*
+!Packing_Videos/.gitkeep
+DB_Backup/*
+!DB_Backup/.gitkeep
 
 # IDE
 .vscode/

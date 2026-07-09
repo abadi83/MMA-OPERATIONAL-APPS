@@ -1,0 +1,51 @@
+# ══════════════════════════════════════════════════════
+# iScan Pro By MMA — systemd Service (VPS Deployment)
+# ══════════════════════════════════════════════════════
+#
+# Install:
+#   sudo cp deploy/iscan.service /etc/systemd/system/iscan.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable iscan
+#   sudo systemctl start iscan
+#
+# Check status:
+#   sudo systemctl status iscan
+#   sudo journalctl -u iscan -f
+#
+
+[Unit]
+Description=iScan Pro By MMA — Streamlit App
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/iscan-pro
+Environment="PATH=/opt/iscan-pro/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+Environment="STREAMLIT_SERVER_HEADLESS=true"
+
+# Start Streamlit
+ExecStart=/opt/iscan-pro/venv/bin/python -m streamlit run app.py --server.port=8501 --server.address=127.0.0.1
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/iscan-pro
+ReadOnlyPaths=/opt/iscan-pro/venv
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=iscan
+
+[Install]
+WantedBy=multi-user.target

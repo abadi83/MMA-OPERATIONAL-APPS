@@ -1,0 +1,91 @@
+# ═══════════════════════════════════════════════
+# iScan Pro By MMA — Docker Compose
+# ═══════════════════════════════════════════════
+#
+# Deployment:
+#   1. Upload seluruh folder project ke VPS
+#   2. docker compose up -d
+#   3. Buka http://VPS_IP:80
+#
+# ═══════════════════════════════════════════════
+
+version: "3.8"
+
+services:
+  # ── Streamlit App ──
+  app:
+    build: .
+    container_name: iscan-app
+    restart: unless-stopped
+    expose:
+      - "8501"
+    environment:
+      - TZ=Asia/Jakarta
+    volumes:
+      # Persistent data (survive container restart/recreate)
+      - app_data:/app/iscan_database.db
+      - app_logs:/app/logs
+      - app_arsip:/app/Gudang_Arsip_Excel
+      - app_handover:/app/Handover_Reports
+      - app_sales:/app/Sales_Reports
+      - app_videos:/app/Packing_Videos
+      - app_db_backup:/app/DB_Backup
+      # Static files shared with Nginx
+      - app_static:/app/static
+    networks:
+      - iscan_net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── Nginx Reverse Proxy + PWA ──
+  nginx:
+    image: nginx:stable-alpine
+    container_name: iscan-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      - TZ=Asia/Jakarta
+    volumes:
+      # Nginx config
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Static PWA files (shared with app)
+      - app_static:/app/static:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - iscan_net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+# ── Networks ──
+networks:
+  iscan_net:
+    driver: bridge
+
+# ── Persistent Volumes ──
+volumes:
+  app_data:
+    driver: local
+  app_logs:
+    driver: local
+  app_arsip:
+    driver: local
+  app_handover:
+    driver: local
+  app_sales:
+    driver: local
+  app_videos:
+    driver: local
+  app_db_backup:
+    driver: local
+  app_static:
+    driver: local

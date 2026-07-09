@@ -38,6 +38,18 @@ st.set_page_config(
 )
 
 
+# ==================== PWA INJECTION ====================
+def inject_pwa():
+    """Inject PWA initialization script.
+
+    NOTE: Streamlit sanitizes inline scripts for security. The <script src>
+    approach below is a best-effort client-side fallback. For full PWA support
+    (manifest in <head>, service worker, A2HS), deploy behind Nginx with
+    sub_filter enabled — see deploy/nginx-iscan.conf.
+    """
+    st.html('<script src="/app/static/pwa-init.js"></script>')
+
+
 # ==================== DATABASE ====================
 class Database:
     """Thread-safe SQLite database wrapper."""
@@ -183,6 +195,8 @@ class Database:
                     keterangan TEXT DEFAULT '',
                     metode_bayar TEXT DEFAULT 'Transfer',
                     status_bayar TEXT DEFAULT 'PENDING',
+                    biaya_operasional REAL DEFAULT 0,
+                    biaya_packing REAL DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -196,6 +210,14 @@ class Database:
                 cursor.execute("ALTER TABLE pembelian ADD COLUMN status_bayar TEXT DEFAULT 'PENDING'")
             except sqlite3.OperationalError:
                 pass  # Column already exists
+            try:
+                cursor.execute("ALTER TABLE pembelian ADD COLUMN biaya_operasional REAL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("ALTER TABLE pembelian ADD COLUMN biaya_packing REAL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
 
             # Migration: update existing NULL status_bayar to PENDING
             try:
@@ -274,6 +296,46 @@ class Database:
             except sqlite3.OperationalError:
                 pass
 
+            # ── Users & Roles table ──
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    nama_lengkap TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'operator',
+                    active INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_login TIMESTAMP
+                )
+            """)
+
+            # ── Operational Expenses (OPEX) table ──
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS opex (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kategori TEXT NOT NULL DEFAULT 'Lainnya',
+                    deskripsi TEXT NOT NULL,
+                    supplier TEXT DEFAULT '',
+                    qty INTEGER DEFAULT 1,
+                    satuan TEXT DEFAULT 'pcs',
+                    harga_satuan REAL DEFAULT 0,
+                    total_harga REAL DEFAULT 0,
+                    tanggal TEXT NOT NULL,
+                    no_faktur TEXT DEFAULT '',
+                    metode_bayar TEXT DEFAULT 'Transfer',
+                    status_bayar TEXT DEFAULT 'PENDING',
+                    keterangan TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Migration: add columns for existing opex table
+            try:
+                cursor.execute("ALTER TABLE opex ADD COLUMN no_faktur TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
+
             # Insert defaults if empty
             cursor.execute("SELECT COUNT(*) FROM ekspedisi")
             if cursor.fetchone()[0] == 0:
@@ -290,6 +352,124 @@ class Database:
             conn.commit()
         finally:
             conn.close()
+
+
+# ==================== AUTH HELPERS ====================
+import hashlib
+import secrets
+
+# Role definitions & their menu access
+ROLES = {
+    "admin": {
+        "label": "Admin",
+        "desc": "Full access — semua menu termasuk manajemen user",
+        "menus": ["Operasional", "Penjualan", "Pembelian", "OPEX", "Finance", "Admin"],
+    },
+    "supervisor": {
+        "label": "Supervisor",
+        "desc": "Monitoring — dashboard, AI supervisor, reports",
+        "menus": ["Operasional"],
+        "pages": ["Dashboard", "AI_Supervisor", "Reports", "Handover", "Ekspedisi", "Toko"],
+    },
+    "operator": {
+        "label": "Operator",
+        "desc": "Operasional — scan, input resi, handover",
+        "menus": ["Operasional"],
+        "pages": ["Dashboard", "Scan_Operasional", "Sales_Input", "Handover", "Ekspedisi"],
+    },
+    "gudang": {
+        "label": "Gudang",
+        "desc": "Warehouse — SKU, barang besar, pembelian SKU & OPEX",
+        "menus": ["Operasional", "Pembelian", "OPEX"],
+        "pages": ["Dashboard", "Barang_Besar",
+                  "Purchase_Dashboard", "Purchase_SKU", "Purchase_Input", "Purchase_History",
+                  "Opex_Dashboard", "Opex_Input", "Opex_History"],
+    },
+    "finance": {
+        "label": "Finance",
+        "desc": "Keuangan — konfirmasi bayar SKU & OPEX, dashboard finance",
+        "menus": ["Pembelian", "OPEX", "Finance"],
+        "pages": ["Purchase_Dashboard", "Purchase_History",
+                  "Opex_Dashboard", "Opex_History",
+                  "Finance_Dashboard", "Finance_SKU", "Finance_OPEX", "Finance_History"],
+    },
+}
+
+# Role list for dropdown
+ROLE_CHOICES = list(ROLES.keys())
+
+
+def hash_password(password: str) -> str:
+    """Hash password with PBKDF2 + SHA256 + random salt."""
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 200_000)
+    return f"{salt}${dk.hex()}"
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    """Verify a password against the stored hash."""
+    try:
+        salt, original = stored_hash.split("$", 1)
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 200_000)
+        return dk.hex() == original
+    except (ValueError, AttributeError):
+        return False
+
+
+def authenticate_user(db, username: str, password: str) -> dict | None:
+    """Authenticate a user by username & password. Returns user dict or None."""
+    user = db.fetch_one(
+        "SELECT id, username, nama_lengkap, role, password_hash, active FROM users WHERE username = ?",
+        (username.strip().lower(),),
+    )
+    if not user:
+        return None
+    if not user["active"]:
+        return None
+    if not verify_password(password, user["password_hash"]):
+        return None
+    # Update last_login
+    db.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?", (user["id"],))
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "nama_lengkap": user["nama_lengkap"],
+        "role": user["role"],
+    }
+
+
+def user_has_access(user_role: str, page: str) -> bool:
+    """Check if a role has access to a specific page."""
+    role_def = ROLES.get(user_role, {})
+    # Admin has access to everything
+    if user_role == "admin":
+        return True
+    # Check explicit page allowlist
+    allowed_pages = role_def.get("pages", [])
+    if page in allowed_pages:
+        return True
+    # Check menu-level access
+    menu_map = {
+        "Operasional": ["Dashboard", "Scan_Operasional", "Sales_Input", "AI_Supervisor",
+                        "Handover", "Ekspedisi", "Toko", "Barang_Besar", "Reports"],
+        "Penjualan": ["Sales_Dashboard", "Sales_History", "Sales_Archive"],
+        "Pembelian": ["Purchase_Dashboard", "Purchase_SKU", "Purchase_Input",
+                      "Purchase_History", "Purchase_Archive"],
+        "OPEX": ["Opex_Dashboard", "Opex_Input", "Opex_History"],
+        "Finance": ["Finance_Dashboard", "Finance_SKU", "Finance_OPEX", "Finance_History"],
+        "Admin": ["Admin_Users"],
+    }
+    allowed_menus = role_def.get("menus", [])
+    for menu in allowed_menus:
+        if page in menu_map.get(menu, []):
+            return True
+    return False
+
+
+def get_user_menus(user_role: str) -> list:
+    """Get allowed main menus for a role."""
+    role_def = ROLES.get(user_role, {})
+    return role_def.get("menus", [])
 
 
 # ==================== CACHE ====================
@@ -322,6 +502,23 @@ def init_session():
         st.session_state.db = Database()
     if "cache" not in st.session_state:
         st.session_state.cache = ExpeditionCache(st.session_state.db)
+
+    # ── Auth state ──
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+    if "user" not in st.session_state:
+        st.session_state.user = None
+
+    # ── Create default admin if no users exist ──
+    db = st.session_state.db
+    user_count = db.fetch_one("SELECT COUNT(*) as cnt FROM users")
+    if user_count and user_count["cnt"] == 0:
+        db.execute(
+            "INSERT INTO users (username, password_hash, nama_lengkap, role) VALUES (?, ?, ?, ?)",
+            ("admin", hash_password("admin123"), "Administrator", "admin"),
+        )
+        logging.info("Default admin user created (admin / admin123)")
+
     if "scan_mode" not in st.session_state:
         st.session_state.scan_mode = "KIRIM"  # KIRIM or RETUR
     if "selected_store" not in st.session_state:
@@ -1615,6 +1812,10 @@ def render_purchase_input():
         st.session_state.purchase_supplier = ""
     if "purchase_faktur" not in st.session_state:
         st.session_state.purchase_faktur = _generate_faktur(db)
+    if "purchase_biaya_operasional" not in st.session_state:
+        st.session_state.purchase_biaya_operasional = 0
+    if "purchase_biaya_packing" not in st.session_state:
+        st.session_state.purchase_biaya_packing = 0
 
     cart = st.session_state.purchase_cart
 
@@ -1788,8 +1989,8 @@ def render_purchase_input():
 
         st.dataframe(df_display, width="stretch", hide_index=True)
 
-        grand_total = sum(item["total_harga"] for item in cart)
-        st.markdown(f"**💵 Total Pembelian: Rp {grand_total:,.0f}** | **📦 {len(cart)} item**")
+        grand_total_barang = sum(item["total_harga"] for item in cart)
+        st.markdown(f"**💵 Total Barang: Rp {grand_total_barang:,.0f}** | **📦 {len(cart)} item**")
 
         # ── Cart Actions ──
         col_c1, col_c2, col_c3 = st.columns([2, 1, 1])
@@ -1811,6 +2012,43 @@ def render_purchase_input():
                 st.session_state.purchase_cart = []
                 st.rerun()
 
+    # ── Biaya Tambahan (always visible, outside cart empty check) ──
+    st.markdown("---")
+    st.markdown("### 💸 Biaya Tambahan")
+    col_biaya1, col_biaya2 = st.columns(2)
+    with col_biaya1:
+        biaya_operasional = st.number_input(
+            "🔧 Biaya Operasional Tetap",
+            min_value=0, value=st.session_state.purchase_biaya_operasional, step=10000,
+            key="purchase_biaya_operasional_input",
+            help="Biaya operasional tetap per transaksi (contoh: transport, bongkar muat, dll)",
+        )
+        st.session_state.purchase_biaya_operasional = biaya_operasional
+    with col_biaya2:
+        biaya_packing = st.number_input(
+            "📦 Biaya Packing",
+            min_value=0, value=st.session_state.purchase_biaya_packing, step=5000,
+            key="purchase_biaya_packing_input",
+            help="Biaya packing / pengemasan per transaksi (contoh: kardus, bubble wrap, lakban, dll)",
+        )
+        st.session_state.purchase_biaya_packing = biaya_packing
+
+    # ── Grand Total Preview ──
+    if cart:
+        grand_total_barang = sum(item["total_harga"] for item in cart)
+        grand_total = grand_total_barang + biaya_operasional + biaya_packing
+        col_gt1, col_gt2, col_gt3 = st.columns(3)
+        with col_gt1:
+            st.metric("📦 Total Barang", f"Rp {grand_total_barang:,.0f}")
+        with col_gt2:
+            st.metric("🔧 Biaya Operasional", f"Rp {biaya_operasional:,.0f}" if biaya_operasional else "-")
+        with col_gt3:
+            st.metric("📦 Biaya Packing", f"Rp {biaya_packing:,.0f}" if biaya_packing else "-")
+        st.markdown(f"### 💰 Grand Total: Rp {grand_total:,.0f}")
+        if biaya_operasional > 0 or biaya_packing > 0:
+            st.caption(f"(Termasuk biaya tambahan: Rp {biaya_operasional + biaya_packing:,.0f})")
+
+    if cart:
         # ── Save Transaction ──
         st.markdown("---")
         col_s1, col_s2, col_s3 = st.columns([2, 1, 1])
@@ -1844,13 +2082,15 @@ def render_purchase_input():
                         try:
                             db.execute(
                                 """INSERT INTO pembelian (no_faktur, tanggal, supplier, kode_sku, nama_barang,
-                                   qty, satuan, harga_beli, total_harga, keterangan, metode_bayar, status_bayar)
-                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                   qty, satuan, harga_beli, total_harga, keterangan, metode_bayar, status_bayar,
+                                   biaya_operasional, biaya_packing)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                                 (faktur.strip(), today_str, supplier,
                                  item["kode_sku"], item["nama_barang"],
                                  item["qty"], item["satuan"], item["harga_beli"],
                                  item["total_harga"], ket_global.strip(),
-                                 metode_bayar, status_bayar),
+                                 metode_bayar, status_bayar,
+                                 biaya_operasional, biaya_packing),
                             )
 
                             # ── Auto-update SKU: stok + harga_beli + supplier ──
@@ -1917,6 +2157,8 @@ def render_purchase_input():
                         st.session_state.purchase_cart = []
                         st.session_state.purchase_faktur = _generate_faktur(db)
                         st.session_state.purchase_supplier = ""
+                        st.session_state.purchase_biaya_operasional = 0
+                        st.session_state.purchase_biaya_packing = 0
                         st.rerun()
 
 
@@ -1929,7 +2171,15 @@ def render_purchase_history():
     # ── Stats ──
     total_trx = db.fetch_one("SELECT COUNT(DISTINCT no_faktur) as cnt FROM pembelian")
     total_items = db.fetch_one("SELECT COUNT(*) as cnt FROM pembelian")
-    total_value = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM pembelian")
+    total_value = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) + COALESCE(SUM(DISTINCT biaya_operasional), 0) + COALESCE(SUM(DISTINCT biaya_packing), 0) as total FROM pembelian"
+    )
+    total_biaya_ops = db.fetch_one(
+        "SELECT COALESCE(SUM(DISTINCT biaya_operasional), 0) as total FROM pembelian"
+    )
+    total_biaya_pack = db.fetch_one(
+        "SELECT COALESCE(SUM(DISTINCT biaya_packing), 0) as total FROM pembelian"
+    )
     pending_value = db.fetch_one(
         "SELECT COALESCE(SUM(total_harga), 0) as total FROM pembelian WHERE status_bayar = 'PENDING'"
     )
@@ -1944,7 +2194,10 @@ def render_purchase_history():
         st.metric("📦 Total Item Dibeli", total_items["cnt"] if total_items else 0)
     with col_s3:
         val = total_value["total"] if total_value else 0
-        st.metric("💰 Total Nilai", f"Rp {val:,.0f}")
+        biaya_ops_val = total_biaya_ops["total"] if total_biaya_ops else 0
+        biaya_pack_val = total_biaya_pack["total"] if total_biaya_pack else 0
+        st.metric("💰 Total Nilai", f"Rp {val:,.0f}",
+                  help=f"Termasuk biaya operasional Rp {biaya_ops_val:,.0f} & biaya packing Rp {biaya_pack_val:,.0f}")
     with col_s4:
         pd_val = pending_value["total"] if pending_value else 0
         st.metric("📌 Pending", f"Rp {pd_val:,.0f}" if pd_val > 0 else "Rp 0")
@@ -2029,19 +2282,31 @@ def render_purchase_history():
         st.markdown("---")
         st.markdown("### 📊 Ringkasan per Faktur")
         faktur_summary = db.fetch_all(
-            "SELECT no_faktur, tanggal, supplier, metode_bayar, status_bayar, COUNT(*) as items, SUM(total_harga) as total "
+            "SELECT no_faktur, tanggal, supplier, metode_bayar, status_bayar, "
+            "COUNT(*) as items, SUM(total_harga) as total_barang, "
+            "MAX(biaya_operasional) as biaya_ops, MAX(biaya_packing) as biaya_pack "
             "FROM pembelian GROUP BY no_faktur ORDER BY created_at DESC",
             params[:len(params)] if params else [],
         )
         if faktur_summary:
             df_faktur = pd.DataFrame([dict(r) for r in faktur_summary])
+            # Calculate grand total including biaya
+            def calc_grand(row):
+                return (row["total_barang"] or 0) + (row["biaya_ops"] or 0) + (row["biaya_pack"] or 0)
+            df_faktur["Grand Total"] = df_faktur.apply(calc_grand, axis=1)
             df_faktur = df_faktur.rename(columns={
                 "no_faktur": "No Faktur", "tanggal": "Tanggal", "supplier": "Supplier",
                 "metode_bayar": "Metode Bayar", "status_bayar": "Status Bayar",
-                "items": "Jumlah Item", "total": "Total",
+                "items": "Item", "total_barang": "Total Barang",
+                "biaya_ops": "Biaya Ops", "biaya_pack": "Biaya Packing",
             })
-            df_faktur["Total"] = df_faktur["Total"].apply(lambda x: f"Rp {x:,.0f}")
-            st.dataframe(df_faktur, width="stretch", hide_index=True)
+            df_faktur["Total Barang"] = df_faktur["Total Barang"].apply(lambda x: f"Rp {x:,.0f}")
+            df_faktur["Biaya Ops"] = df_faktur["Biaya Ops"].apply(lambda x: f"Rp {x:,.0f}" if x else "-")
+            df_faktur["Biaya Packing"] = df_faktur["Biaya Packing"].apply(lambda x: f"Rp {x:,.0f}" if x else "-")
+            df_faktur["Grand Total"] = df_faktur["Grand Total"].apply(lambda x: f"Rp {x:,.0f}")
+            display_faktur = df_faktur[["No Faktur", "Tanggal", "Supplier", "Metode Bayar", "Status Bayar",
+                                         "Item", "Total Barang", "Biaya Ops", "Biaya Packing", "Grand Total"]]
+            st.dataframe(display_faktur, width="stretch", hide_index=True)
             st.caption(f"Total: {len(faktur_summary)} faktur")
 
         # ── Delete ──
@@ -2262,16 +2527,26 @@ def render_purchase_history():
 
                                 # Step 3: Insert new entries & update stock + harga
                                 price_changes = []
+                                # Get original biaya values to preserve them
+                                orig_biaya = db.fetch_one(
+                                    "SELECT biaya_operasional, biaya_packing FROM pembelian WHERE no_faktur = ? LIMIT 1",
+                                    (no_faktur_revisi,),
+                                )
+                                orig_biaya_ops = orig_biaya["biaya_operasional"] if orig_biaya else 0
+                                orig_biaya_pack = orig_biaya["biaya_packing"] if orig_biaya else 0
+
                                 for item in revisi_cart:
                                     db.execute(
                                         """INSERT INTO pembelian (no_faktur, tanggal, supplier, kode_sku, nama_barang,
-                                           qty, satuan, harga_beli, total_harga, keterangan, metode_bayar, status_bayar)
-                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                           qty, satuan, harga_beli, total_harga, keterangan, metode_bayar, status_bayar,
+                                           biaya_operasional, biaya_packing)
+                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                                         (no_faktur_revisi, current_tanggal, revisi_supplier,
                                          item["kode_sku"], item["nama_barang"],
                                          item["qty"], item["satuan"], item["harga_beli"],
                                          item["total_harga"], revisi_ket.strip(),
-                                         revisi_metode, revisi_status),
+                                         revisi_metode, revisi_status,
+                                         orig_biaya_ops, orig_biaya_pack),
                                     )
 
                                     # Update SKU: stock + harga_beli + supplier
@@ -2351,7 +2626,9 @@ def render_purchase_finance():
 
     # ── Daftar PO Pending ──
     pending_fakturs = db.fetch_all(
-        "SELECT no_faktur, tanggal, supplier, metode_bayar, COUNT(*) as items, SUM(total_harga) as total "
+        "SELECT no_faktur, tanggal, supplier, metode_bayar, "
+        "COUNT(*) as items, SUM(total_harga) as total_barang, "
+        "MAX(biaya_operasional) as biaya_ops, MAX(biaya_packing) as biaya_pack "
         "FROM pembelian WHERE status_bayar = 'PENDING' "
         "GROUP BY no_faktur ORDER BY created_at DESC"
     )
@@ -2362,21 +2639,48 @@ def render_purchase_finance():
         st.markdown(f"### 📋 {len(pending_fakturs)} PO Menunggu Konfirmasi")
 
         # ── Tabel PO Pending ──
-        df_pending = pd.DataFrame([dict(r) for r in pending_fakturs])
-        df_pending = df_pending.rename(columns={
-            "no_faktur": "No Faktur", "tanggal": "Tanggal", "supplier": "Supplier",
-            "metode_bayar": "Metode Bayar", "items": "Item", "total": "Total",
-        })
-        df_pending["Total"] = df_pending["Total"].apply(lambda x: f"Rp {x:,.0f}")
+        # Build pending dataframe with biaya
+        df_pending_data = []
+        for r in pending_fakturs:
+            total_barang = r["total_barang"] or 0
+            biaya_ops = r["biaya_ops"] or 0
+            biaya_pack = r["biaya_pack"] or 0
+            grand_total = total_barang + biaya_ops + biaya_pack
+            df_pending_data.append({
+                "No Faktur": r["no_faktur"],
+                "Tanggal": r["tanggal"],
+                "Supplier": r["supplier"],
+                "Metode Bayar": r["metode_bayar"],
+                "Item": r["items"],
+                "Total Barang": f"Rp {total_barang:,.0f}",
+                "Biaya Ops": f"Rp {biaya_ops:,.0f}" if biaya_ops else "-",
+                "Biaya Packing": f"Rp {biaya_pack:,.0f}" if biaya_pack else "-",
+                "Grand Total": f"Rp {grand_total:,.0f}",
+                "_grand": grand_total,
+            })
+        df_pending = pd.DataFrame(df_pending_data)
         df_pending["Pilih"] = False
-        st.dataframe(df_pending[["No Faktur", "Tanggal", "Supplier", "Metode Bayar", "Item", "Total"]], width="stretch", hide_index=True)
+        st.dataframe(
+            df_pending[["No Faktur", "Tanggal", "Supplier", "Metode Bayar", "Item",
+                         "Total Barang", "Biaya Ops", "Biaya Packing", "Grand Total"]],
+            width="stretch", hide_index=True,
+        )
 
         st.markdown("---")
 
         # ── Konfirmasi per PO ──
         st.markdown("### ✅ Konfirmasi Pembayaran")
 
-        faktur_options = [f"{r['no_faktur']} | {r['tanggal']} | {r['supplier']} | {r['metode_bayar']} | {r['items']} item | Rp {r['total']:,.0f}" for r in pending_fakturs]
+        faktur_options = []
+        for r in pending_fakturs:
+            total_barang = r["total_barang"] or 0
+            biaya_ops = r["biaya_ops"] or 0
+            biaya_pack = r["biaya_pack"] or 0
+            grand = total_barang + biaya_ops + biaya_pack
+            faktur_options.append(
+                f"{r['no_faktur']} | {r['tanggal']} | {r['supplier']} | {r['metode_bayar']} | "
+                f"{r['items']} item | Barang: Rp {total_barang:,.0f} | Grand: Rp {grand:,.0f}"
+            )
         selected_faktur_label = st.selectbox(
             "Pilih PO untuk dikonfirmasi",
             faktur_options,
@@ -2384,9 +2688,10 @@ def render_purchase_finance():
         )
         selected_no_faktur = selected_faktur_label.split(" | ")[0]
 
-        # Show detail items
+        # Show detail items + biaya
         detail_items = db.fetch_all(
-            "SELECT kode_sku, nama_barang, qty, satuan, harga_beli, total_harga FROM pembelian WHERE no_faktur = ?",
+            "SELECT kode_sku, nama_barang, qty, satuan, harga_beli, total_harga, "
+            "biaya_operasional, biaya_packing FROM pembelian WHERE no_faktur = ?",
             (selected_no_faktur,),
         )
         if detail_items:
@@ -2399,6 +2704,22 @@ def render_purchase_finance():
                 "satuan": "Satuan",
             })
             st.dataframe(df_detail[["SKU", "Nama Barang", "Qty", "Satuan", "Harga Beli", "Total"]], width="stretch", hide_index=True)
+
+            # Show biaya breakdown
+            biaya_ops_val = detail_items[0]["biaya_operasional"] or 0
+            biaya_pack_val = detail_items[0]["biaya_packing"] or 0
+            total_barang_val = sum(r["total_harga"] or 0 for r in detail_items)
+            grand_val = total_barang_val + biaya_ops_val + biaya_pack_val
+
+            col_b1, col_b2, col_b3, col_b4 = st.columns(4)
+            with col_b1:
+                st.metric("📦 Total Barang", f"Rp {total_barang_val:,.0f}")
+            with col_b2:
+                st.metric("🔧 Biaya Operasional", f"Rp {biaya_ops_val:,.0f}" if biaya_ops_val else "-")
+            with col_b3:
+                st.metric("📦 Biaya Packing", f"Rp {biaya_pack_val:,.0f}" if biaya_pack_val else "-")
+            with col_b4:
+                st.metric("💰 Grand Total", f"Rp {grand_val:,.0f}")
 
         st.markdown("---")
         col_c1, col_c2, col_c3 = st.columns(3)
@@ -3971,6 +4292,606 @@ def render_reports():
             st.info("Belum ada data scan.")
 
 
+# ==================== LOGIN PAGE ====================
+def render_login():
+    """Render the login form page."""
+    # Hide sidebar on login page
+    st.markdown("""
+    <style>
+        [data-testid="stSidebar"] { display: none; }
+        [data-testid="stSidebarCollapsedControl"] { display: none; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    col_center = st.columns([1, 2, 1])
+    with col_center[1]:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+
+        # Logo
+        st.markdown("""
+        <div style="text-align:center;margin-bottom:30px;">
+            <span style="font-size:42px;font-weight:800;color:#FFFFFF;">iScan</span>
+            <span style="font-size:32px;font-weight:700;color:#0A84FF;">Pro</span>
+            <br><span style="font-size:14px;color:#AEAEB2;">By MMA — Mitra Mulia Abadi</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Login card
+        with st.container(border=True):
+            st.markdown("### 🔐 Login")
+            username = st.text_input("Username", placeholder="Masukkan username", key="login_username")
+            password = st.text_input("Password", type="password", placeholder="Masukkan password", key="login_password")
+
+            col_btn, _ = st.columns([1, 2])
+            with col_btn:
+                login_btn = st.button("🔓 Masuk", type="primary", width="stretch", key="login_btn")
+
+            if login_btn:
+                if not username.strip() or not password.strip():
+                    st.error("Username dan password harus diisi!")
+                else:
+                    db = st.session_state.db
+                    user = authenticate_user(db, username.strip(), password.strip())
+                    if user:
+                        st.session_state.authenticated = True
+                        st.session_state.user = user
+                        st.success(f"✅ Selamat datang, {user['nama_lengkap']}!")
+                        time.sleep(0.5)
+                        st.rerun()
+                    else:
+                        st.error("❌ Username atau password salah, atau akun tidak aktif.")
+
+        st.markdown("""
+        <div style="text-align:center;margin-top:20px;color:#636366;font-size:13px;">
+            <p>Hubungi admin jika lupa password.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+# ==================== OPEX (Operational Expenses) ====================
+OPEX_CATEGORIES = [
+    "Listrik", "Internet", "Packing (Lakban/Kardus/Bubble)", "ATK",
+    "Transport", "Maintenance", "Sewa", "Gaji/Upah", "Lainnya",
+]
+
+
+def _generate_opex_faktur(db) -> str:
+    """Generate auto-incrementing faktur number for OPEX: OPEX-YYYYMMDD-NNN."""
+    today = datetime.now().strftime("%Y%m%d")
+    prefix = f"OPEX-{today}-"
+    existing = db.fetch_one(
+        "SELECT no_faktur FROM opex WHERE no_faktur LIKE ? ORDER BY id DESC LIMIT 1",
+        (f"{prefix}%",),
+    )
+    if existing and existing["no_faktur"]:
+        last_num = int(existing["no_faktur"].split("-")[-1])
+        return f"{prefix}{last_num + 1:03d}"
+    return f"{prefix}001"
+
+
+def render_opex_input():
+    """Render form input biaya operasional (OPEX)."""
+    db = st.session_state.db
+
+    st.subheader("📝 Input Biaya Operasional (OPEX)")
+    st.caption("Catat biaya operasional tetap: listrik, internet, packing, ATK, dll.")
+
+    # ── Init session state ──
+    if "opex_cart" not in st.session_state:
+        st.session_state.opex_cart = []
+    if "opex_supplier" not in st.session_state:
+        st.session_state.opex_supplier = ""
+    if "opex_faktur" not in st.session_state:
+        st.session_state.opex_faktur = _generate_opex_faktur(db)
+    if "opex_kategori" not in st.session_state:
+        st.session_state.opex_kategori = OPEX_CATEGORIES[0]
+
+    cart = st.session_state.opex_cart
+
+    # ── Header ──
+    col_h1, col_h2, col_h3 = st.columns([2, 2, 1])
+    with col_h1:
+        kategori = st.selectbox("Kategori *", OPEX_CATEGORIES,
+                                index=OPEX_CATEGORIES.index(st.session_state.opex_kategori) if st.session_state.opex_kategori in OPEX_CATEGORIES else 0,
+                                key="opex_kategori_select")
+        st.session_state.opex_kategori = kategori
+    with col_h2:
+        faktur = st.text_input("No Referensi", value=st.session_state.opex_faktur, key="opex_faktur_input",
+                               help="Nomor faktur/referensi/invoice")
+        st.session_state.opex_faktur = faktur
+    with col_h3:
+        st.write("")
+        st.write("")
+        if st.button("🔄 New Ref", width="stretch"):
+            st.session_state.opex_faktur = _generate_opex_faktur(db)
+            st.session_state.opex_cart = []
+            st.rerun()
+
+    st.markdown("---")
+
+    # ── Add Item ──
+    st.markdown("### ➕ Tambah Biaya")
+    col_i1, col_i2, col_i3, col_i4, col_i5 = st.columns([3, 1, 1, 1, 1])
+    with col_i1:
+        deskripsi = st.text_input("Deskripsi", placeholder="Contoh: Bayar listrik bulan Juli...", key="opex_desc")
+    with col_i2:
+        supplier = st.text_input("Supplier/Vendor", placeholder="PLN/Telkom...", key="opex_supplier_input")
+    with col_i3:
+        qty = st.number_input("Qty", min_value=1, value=1, step=1, key="opex_qty")
+    with col_i4:
+        satuan = st.selectbox("Satuan", ["pcs", "bulan", "liter", "kg", "paket", "unit", "kali"], key="opex_satuan")
+    with col_i5:
+        harga_satuan = st.number_input("Harga/Unit", min_value=0, value=0, step=10000, key="opex_harga")
+
+    if st.button("➕ Tambah ke Daftar", type="primary", width="stretch"):
+        if not deskripsi.strip():
+            st.error("Deskripsi wajib diisi!")
+        elif harga_satuan <= 0:
+            st.error("Harga harus > 0!")
+        else:
+            cart.append({
+                "kategori": kategori,
+                "deskripsi": deskripsi.strip(),
+                "supplier": supplier.strip() or "-",
+                "qty": qty,
+                "satuan": satuan,
+                "harga_satuan": harga_satuan,
+                "total_harga": qty * harga_satuan,
+            })
+            st.success(f"✅ '{deskripsi}' ditambahkan!")
+            st.rerun()
+
+    # ── OPEX Cart Table ──
+    st.markdown("---")
+    st.markdown("### 📋 Daftar Biaya")
+
+    if not cart:
+        st.info("Belum ada biaya ditambahkan.")
+    else:
+        df_cart = pd.DataFrame(cart)
+        df_cart["No"] = range(1, len(cart) + 1)
+        df_cart["Harga/Unit"] = df_cart["harga_satuan"].apply(lambda x: f"Rp {x:,.0f}")
+        df_cart["Total"] = df_cart["total_harga"].apply(lambda x: f"Rp {x:,.0f}")
+        df_display = df_cart[["No", "kategori", "deskripsi", "supplier", "qty", "satuan", "Harga/Unit", "Total"]]
+        df_display = df_display.rename(columns={
+            "kategori": "Kategori", "deskripsi": "Deskripsi",
+            "supplier": "Supplier", "qty": "Qty", "satuan": "Satuan",
+        })
+        st.dataframe(df_display, width="stretch", hide_index=True)
+
+        grand_total = sum(item["total_harga"] for item in cart)
+        st.markdown(f"### 💰 Total OPEX: Rp {grand_total:,.0f} | 📋 {len(cart)} item")
+
+        # Remove item
+        col_r1, col_r2 = st.columns([3, 1])
+        with col_r1:
+            remove_idx = st.selectbox(
+                "Hapus item",
+                [f"{i+1}. {item['deskripsi']} ({item['kategori']}) — Rp {item['total_harga']:,.0f}" for i, item in enumerate(cart)],
+                key="opex_remove",
+            )
+        with col_r2:
+            if st.button("🗑️ Hapus", width="stretch"):
+                idx = int(remove_idx.split(".")[0]) - 1
+                cart.pop(idx)
+                st.rerun()
+
+        # ── Save ──
+        st.markdown("---")
+        col_s1, col_s2, col_s3 = st.columns(3)
+        with col_s1:
+            ket = st.text_input("Keterangan", placeholder="Catatan tambahan...", key="opex_ket")
+        with col_s2:
+            metode_bayar = st.selectbox("Metode Bayar", ["Transfer", "Cash", "Kontrabon"], key="opex_metode")
+        with col_s3:
+            st.write("")
+            st.write("")
+            if st.button("💾 Simpan OPEX", type="primary", width="stretch"):
+                if not faktur.strip():
+                    st.error("No Referensi wajib diisi!")
+                else:
+                    today_str = datetime.now().strftime("%d-%m-%Y")
+                    saved = 0
+                    for item in cart:
+                        db.execute(
+                            """INSERT INTO opex (kategori, deskripsi, supplier, qty, satuan,
+                               harga_satuan, total_harga, tanggal, no_faktur,
+                               metode_bayar, status_bayar, keterangan)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            (item["kategori"], item["deskripsi"], item["supplier"],
+                             item["qty"], item["satuan"], item["harga_satuan"],
+                             item["total_harga"], today_str, faktur.strip(),
+                             metode_bayar, "PENDING", ket.strip()),
+                        )
+                        saved += 1
+                    st.success(f"✅ {saved} biaya OPEX tersimpan! Status: PENDING (menunggu konfirmasi Finance)")
+                    st.session_state.opex_cart = []
+                    st.session_state.opex_faktur = _generate_opex_faktur(db)
+                    st.rerun()
+
+
+def render_opex_history():
+    """Render riwayat OPEX."""
+    db = st.session_state.db
+
+    st.subheader("📋 Riwayat Biaya OPEX")
+
+    total_opex = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex")
+    pending_opex = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE status_bayar = 'PENDING'")
+    total_trx = db.fetch_one("SELECT COUNT(DISTINCT no_faktur) as cnt FROM opex")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("📋 Total Transaksi", total_trx["cnt"] if total_trx else 0)
+    with col2:
+        st.metric("💰 Total OPEX", f"Rp {total_opex['total']:,.0f}" if total_opex else "Rp 0")
+    with col3:
+        st.metric("📌 Pending", f"Rp {pending_opex['total']:,.0f}" if pending_opex else "Rp 0")
+
+    st.markdown("---")
+
+    # Per kategori
+    kat_rows = db.fetch_all(
+        "SELECT kategori, COUNT(*) as cnt, SUM(total_harga) as total FROM opex GROUP BY kategori ORDER BY total DESC"
+    )
+    if kat_rows:
+        st.markdown("### 📊 Breakdown per Kategori")
+        df_kat = pd.DataFrame([dict(r) for r in kat_rows])
+        df_kat["Total"] = df_kat["total"].apply(lambda x: f"Rp {x:,.0f}")
+        df_kat = df_kat.rename(columns={"kategori": "Kategori", "cnt": "Jumlah", "total": "_total"})
+        st.dataframe(df_kat[["Kategori", "Jumlah", "Total"]], width="stretch", hide_index=True)
+
+    # Detail
+    st.markdown("---")
+    st.markdown("### 📋 Detail Transaksi OPEX")
+    faktur_rows = db.fetch_all(
+        "SELECT no_faktur, tanggal, kategori, metode_bayar, status_bayar, "
+        "COUNT(*) as items, SUM(total_harga) as total "
+        "FROM opex GROUP BY no_faktur ORDER BY created_at DESC LIMIT 100"
+    )
+    if faktur_rows:
+        df_f = pd.DataFrame([dict(r) for r in faktur_rows])
+        df_f["Total"] = df_f["total"].apply(lambda x: f"Rp {x:,.0f}")
+        df_f = df_f.rename(columns={
+            "no_faktur": "No Ref", "tanggal": "Tanggal", "kategori": "Kategori",
+            "metode_bayar": "Metode Bayar", "status_bayar": "Status Bayar",
+            "items": "Item", "total": "_total",
+        })
+        st.dataframe(df_f[["No Ref", "Tanggal", "Kategori", "Metode Bayar", "Status Bayar", "Item", "Total"]],
+                     width="stretch", hide_index=True)
+
+
+def render_opex_dashboard():
+    """Dashboard ringkasan OPEX."""
+    db = st.session_state.db
+    st.subheader("📊 Dashboard Biaya Operasional")
+
+    total_opex = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex")
+    pending = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE status_bayar = 'PENDING'")
+    this_month = datetime.now().strftime("%m-%Y")
+    bulan_ini = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE tanggal LIKE ?",
+        (f"%{this_month}%",),
+    )
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("💰 Total OPEX", f"Rp {total_opex['total']:,.0f}" if total_opex else "Rp 0")
+    with col2:
+        st.metric("📌 Pending Bayar", f"Rp {pending['total']:,.0f}" if pending else "Rp 0")
+    with col3:
+        st.metric("📅 Bulan Ini", f"Rp {bulan_ini['total']:,.0f}" if bulan_ini else "Rp 0")
+    with col4:
+        trx_count = db.fetch_one("SELECT COUNT(DISTINCT no_faktur) as cnt FROM opex")
+        st.metric("📋 Transaksi", trx_count["cnt"] if trx_count else 0)
+
+    st.markdown("---")
+    # Per kategori chart
+    kat_rows = db.fetch_all(
+        "SELECT kategori, SUM(total_harga) as total FROM opex GROUP BY kategori ORDER BY total DESC"
+    )
+    if kat_rows:
+        st.markdown("### 📊 Pengeluaran per Kategori")
+        for r in kat_rows:
+            pct = (r["total"] / total_opex["total"] * 100) if total_opex and total_opex["total"] > 0 else 0
+            st.progress(min(pct / 100, 1.0), text=f"{r['kategori']}: Rp {r['total']:,.0f} ({pct:.1f}%)")
+
+
+# ==================== FINANCE ====================
+def render_finance_dashboard():
+    """Dashboard Finance — ringkasan semua pembayaran SKU + OPEX."""
+    db = st.session_state.db
+    st.subheader("💳 Dashboard Finance")
+
+    # SKU stats
+    sku_pending = db.fetch_one(
+        "SELECT COUNT(DISTINCT no_faktur) as cnt, COALESCE(SUM(total_harga), 0) as total "
+        "FROM pembelian WHERE status_bayar = 'PENDING'"
+    )
+    sku_kontrabon = db.fetch_one(
+        "SELECT COUNT(DISTINCT no_faktur) as cnt, COALESCE(SUM(total_harga), 0) as total "
+        "FROM pembelian WHERE status_bayar = 'KONTRA BON'"
+    )
+    sku_lunas = db.fetch_one(
+        "SELECT COUNT(DISTINCT no_faktur) as cnt, COALESCE(SUM(total_harga), 0) as total "
+        "FROM pembelian WHERE status_bayar = 'LUNAS'"
+    )
+    # OPEX stats
+    opex_pending = db.fetch_one(
+        "SELECT COUNT(DISTINCT no_faktur) as cnt, COALESCE(SUM(total_harga), 0) as total "
+        "FROM opex WHERE status_bayar = 'PENDING'"
+    )
+    opex_lunas = db.fetch_one(
+        "SELECT COUNT(DISTINCT no_faktur) as cnt, COALESCE(SUM(total_harga), 0) as total "
+        "FROM opex WHERE status_bayar = 'LUNAS'"
+    )
+
+    st.markdown("### 📦 Pembelian SKU")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("📌 Pending", f"{sku_pending['cnt']} PO" if sku_pending else "0",
+                  f"Rp {sku_pending['total']:,.0f}" if sku_pending else "")
+    with col2:
+        st.metric("⚠️ Kontrabon", f"{sku_kontrabon['cnt']} PO" if sku_kontrabon else "0",
+                  f"Rp {sku_kontrabon['total']:,.0f}" if sku_kontrabon else "")
+    with col3:
+        st.metric("✅ Lunas", f"{sku_lunas['cnt']} PO" if sku_lunas else "0",
+                  f"Rp {sku_lunas['total']:,.0f}" if sku_lunas else "")
+
+    st.markdown("### 📋 Biaya OPEX")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("📌 Pending OPEX", f"{opex_pending['cnt']} transaksi" if opex_pending else "0",
+                  f"Rp {opex_pending['total']:,.0f}" if opex_pending else "")
+    with col2:
+        st.metric("✅ Lunas OPEX", f"{opex_lunas['cnt']} transaksi" if opex_lunas else "0",
+                  f"Rp {opex_lunas['total']:,.0f}" if opex_lunas else "")
+
+    # Total pending all
+    total_pending = (sku_pending["total"] or 0) + (opex_pending["total"] or 0) + (sku_kontrabon["total"] or 0)
+    st.markdown("---")
+    if total_pending > 0:
+        st.warning(f"⚠️ **Total kewajiban pending: Rp {total_pending:,.0f}** — segera konfirmasi di menu Konfirmasi Bayar.")
+    else:
+        st.success("✅ Tidak ada kewajiban pending. Semua pembayaran sudah LUNAS.")
+
+
+def render_finance_opex():
+    """Konfirmasi pembayaran OPEX."""
+    db = st.session_state.db
+    st.subheader("✅ Konfirmasi Pembayaran OPEX")
+
+    pending = db.fetch_all(
+        "SELECT no_faktur, tanggal, kategori, metode_bayar, "
+        "COUNT(*) as items, SUM(total_harga) as total "
+        "FROM opex WHERE status_bayar = 'PENDING' "
+        "GROUP BY no_faktur ORDER BY created_at DESC"
+    )
+
+    if not pending:
+        st.success("✅ Semua biaya OPEX sudah LUNAS.")
+        return
+
+    st.markdown(f"### 📋 {len(pending)} OPEX Menunggu Konfirmasi")
+
+    df = []
+    for r in pending:
+        df.append({
+            "No Ref": r["no_faktur"], "Tanggal": r["tanggal"], "Kategori": r["kategori"],
+            "Metode Bayar": r["metode_bayar"], "Item": r["items"],
+            "Total": f"Rp {r['total']:,.0f}",
+        })
+    st.dataframe(pd.DataFrame(df), width="stretch", hide_index=True)
+
+    st.markdown("---")
+    ref_options = [f"{r['no_faktur']} | {r['tanggal']} | {r['kategori']} | Rp {r['total']:,.0f}" for r in pending]
+    selected = st.selectbox("Pilih OPEX untuk dikonfirmasi", ref_options, key="finance_opex_select")
+    selected_ref = selected.split(" | ")[0]
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ Konfirmasi LUNAS", type="primary", width="stretch", key="opex_lunas_btn"):
+            db.execute("UPDATE opex SET status_bayar = 'LUNAS' WHERE no_faktur = ?", (selected_ref,))
+            st.success(f"OPEX '{selected_ref}' dikonfirmasi LUNAS! ✅")
+            st.rerun()
+    with col2:
+        if st.button("📋 Konfirmasi KONTRA BON", width="stretch", key="opex_kontrabon_btn"):
+            db.execute("UPDATE opex SET status_bayar = 'KONTRA BON' WHERE no_faktur = ?", (selected_ref,))
+            st.warning(f"OPEX '{selected_ref}' dicatat sebagai KONTRA BON.")
+            st.rerun()
+
+
+def render_finance_history():
+    """Riwayat pembayaran SKU + OPEX."""
+    db = st.session_state.db
+    st.subheader("📋 Riwayat Pembayaran")
+
+    # Lunas SKU
+    sku_lunas = db.fetch_all(
+        "SELECT no_faktur, tanggal, supplier, metode_bayar, status_bayar, "
+        "COUNT(*) as items, SUM(total_harga) as total_barang, "
+        "MAX(biaya_operasional) as biaya_ops, MAX(biaya_packing) as biaya_pack "
+        "FROM pembelian WHERE status_bayar = 'LUNAS' "
+        "GROUP BY no_faktur ORDER BY created_at DESC LIMIT 50"
+    )
+
+    # Lunas OPEX
+    opex_lunas = db.fetch_all(
+        "SELECT no_faktur, tanggal, kategori, metode_bayar, status_bayar, "
+        "COUNT(*) as items, SUM(total_harga) as total "
+        "FROM opex WHERE status_bayar = 'LUNAS' "
+        "GROUP BY no_faktur ORDER BY created_at DESC LIMIT 50"
+    )
+
+    tab1, tab2 = st.tabs(["📦 Pembayaran SKU", "📋 Pembayaran OPEX"])
+    with tab1:
+        if sku_lunas:
+            df_s = pd.DataFrame([dict(r) for r in sku_lunas])
+            for _, row in df_s.iterrows():
+                grand = (row["total_barang"] or 0) + (row["biaya_ops"] or 0) + (row["biaya_pack"] or 0)
+                row["Grand Total"] = grand
+            df_s["Total Barang"] = df_s["total_barang"].apply(lambda x: f"Rp {x:,.0f}")
+            df_s["Grand Total"] = df_s["Grand Total"].apply(lambda x: f"Rp {x:,.0f}")
+            df_s = df_s.rename(columns={"no_faktur": "No Faktur", "tanggal": "Tanggal", "supplier": "Supplier",
+                                         "metode_bayar": "Metode Bayar", "items": "Item"})
+            st.dataframe(df_s[["No Faktur", "Tanggal", "Supplier", "Metode Bayar", "Item", "Total Barang", "Grand Total"]],
+                         width="stretch", hide_index=True)
+        else:
+            st.info("Belum ada pembayaran SKU LUNAS.")
+
+    with tab2:
+        if opex_lunas:
+            df_o = pd.DataFrame([dict(r) for r in opex_lunas])
+            df_o["Total"] = df_o["total"].apply(lambda x: f"Rp {x:,.0f}")
+            df_o = df_o.rename(columns={"no_faktur": "No Ref", "tanggal": "Tanggal", "kategori": "Kategori",
+                                         "metode_bayar": "Metode Bayar", "items": "Item"})
+            st.dataframe(df_o[["No Ref", "Tanggal", "Kategori", "Metode Bayar", "Item", "Total"]],
+                         width="stretch", hide_index=True)
+        else:
+            st.info("Belum ada pembayaran OPEX LUNAS.")
+
+
+# ==================== ADMIN USER MANAGEMENT ====================
+def render_admin_users():
+    """Render the admin user management page."""
+    db = st.session_state.db
+    current_user = st.session_state.user
+
+    st.subheader("👥 Manajemen User & Role")
+
+    # ── Stats ──
+    total_users = db.fetch_one("SELECT COUNT(*) as cnt FROM users")
+    active_users = db.fetch_one("SELECT COUNT(*) as cnt FROM users WHERE active = 1")
+
+    col_s1, col_s2, col_s3 = st.columns(3)
+    with col_s1:
+        st.metric("👤 Total User", total_users["cnt"] if total_users else 0)
+    with col_s2:
+        st.metric("✅ Aktif", active_users["cnt"] if active_users else 0)
+    with col_s3:
+        st.metric("🛑 Nonaktif", (total_users["cnt"] or 0) - (active_users["cnt"] or 0))
+
+    st.markdown("---")
+
+    # ── Add User ──
+    with st.expander("➕ Tambah User Baru", expanded=False):
+        col_a1, col_a2 = st.columns(2)
+        with col_a1:
+            new_username = st.text_input("Username", key="new_user_username", placeholder="huruf kecil tanpa spasi")
+            new_nama = st.text_input("Nama Lengkap", key="new_user_nama", placeholder="Nama lengkap")
+        with col_a2:
+            new_password = st.text_input("Password", type="password", key="new_user_password", placeholder="Minimal 4 karakter")
+            new_role = st.selectbox("Role", ROLE_CHOICES, format_func=lambda r: f"{ROLES[r]['label']} — {ROLES[r]['desc']}", key="new_user_role")
+
+        if st.button("💾 Simpan User", type="primary"):
+            if not new_username.strip() or not new_nama.strip() or len(new_password) < 4:
+                st.error("Username, nama, dan password (min 4 karakter) wajib diisi!")
+            else:
+                existing = db.fetch_one("SELECT id FROM users WHERE username = ?", (new_username.strip().lower(),))
+                if existing:
+                    st.error(f"Username '{new_username}' sudah digunakan.")
+                else:
+                    db.execute(
+                        "INSERT INTO users (username, password_hash, nama_lengkap, role) VALUES (?, ?, ?, ?)",
+                        (new_username.strip().lower(), hash_password(new_password), new_nama.strip(), new_role),
+                    )
+                    st.success(f"✅ User '{new_username}' berhasil dibuat!")
+                    st.rerun()
+
+    st.markdown("---")
+
+    # ── User List ──
+    users = db.fetch_all("SELECT id, username, nama_lengkap, role, active, created_at, last_login FROM users ORDER BY role, username")
+    if users:
+        st.markdown("### 📋 Daftar User")
+
+        # Build table data
+        user_data = []
+        for u in users:
+            role_label = ROLES.get(u["role"], {}).get("label", u["role"])
+            status = "✅ Aktif" if u["active"] else "🛑 Nonaktif"
+            last_login = u["last_login"] or "Belum pernah"
+            created = u["created_at"] or "-"
+            user_data.append({
+                "Username": u["username"],
+                "Nama": u["nama_lengkap"],
+                "Role": f"{role_label}",
+                "Status": status,
+                "Login Terakhir": last_login,
+                "Dibuat": created,
+                "_id": u["id"],
+                "_role": u["role"],
+                "_active": u["active"],
+            })
+
+        df_users = pd.DataFrame(user_data)
+        st.dataframe(
+            df_users[["Username", "Nama", "Role", "Status", "Login Terakhir", "Dibuat"]],
+            width="stretch",
+            hide_index=True,
+        )
+
+        # ── Edit / Delete ──
+        st.markdown("---")
+        st.markdown("### ✏️ Edit / Kelola User")
+
+        user_options = {f"{u['username']} ({ROLES.get(u['role'], {}).get('label', u['role'])})": u for u in users}
+        selected_label = st.selectbox("Pilih User", list(user_options.keys()), key="admin_select_user")
+        selected_user = user_options[selected_label]
+
+        col_e1, col_e2, col_e3 = st.columns(3)
+        with col_e1:
+            edit_nama = st.text_input("Nama Lengkap", value=selected_user["nama_lengkap"], key="edit_user_nama")
+        with col_e2:
+            edit_role = st.selectbox(
+                "Role",
+                ROLE_CHOICES,
+                index=ROLE_CHOICES.index(selected_user["role"]) if selected_user["role"] in ROLE_CHOICES else 0,
+                format_func=lambda r: ROLES[r]['label'],
+                key="edit_user_role",
+            )
+        with col_e3:
+            edit_active = st.checkbox("Akun Aktif", value=bool(selected_user["active"]), key="edit_user_active")
+
+        col_btn1, col_btn2, col_btn3 = st.columns(3)
+        with col_btn1:
+            if st.button("💾 Update User", width="stretch", type="primary", key="update_user_btn"):
+                if not edit_nama.strip():
+                    st.error("Nama tidak boleh kosong!")
+                else:
+                    db.execute(
+                        "UPDATE users SET nama_lengkap = ?, role = ?, active = ? WHERE id = ?",
+                        (edit_nama.strip(), edit_role, int(edit_active), selected_user["id"]),
+                    )
+                    st.success(f"✅ User '{selected_user['username']}' diupdate!")
+                    st.rerun()
+
+        with col_btn2:
+            new_pass = st.text_input("Password Baru", type="password", placeholder="Kosongkan jika tidak diganti", key="edit_user_pass")
+            if st.button("🔑 Reset Password", width="stretch", key="reset_pass_btn"):
+                if len(new_pass) < 4:
+                    st.error("Password baru minimal 4 karakter!")
+                else:
+                    db.execute(
+                        "UPDATE users SET password_hash = ? WHERE id = ?",
+                        (hash_password(new_pass), selected_user["id"]),
+                    )
+                    st.success(f"✅ Password '{selected_user['username']}' direset!")
+                    st.rerun()
+
+        with col_btn3:
+            if selected_user["username"] != current_user["username"]:
+                if st.button("🗑️ Hapus User", width="stretch", type="secondary", key="delete_user_btn"):
+                    db.execute("DELETE FROM users WHERE id = ?", (selected_user["id"],))
+                    st.warning(f"User '{selected_user['username']}' dihapus.")
+                    st.rerun()
+            else:
+                st.caption("⚠️ Tidak bisa hapus akun sendiri")
+
+    else:
+        st.info("Belum ada user terdaftar.")
+
+
 # ==================== SIDEBAR NAVIGATION ====================
 # Sub-menu definitions per main menu
 OPERATIONAL_SUB_MENUS = {
@@ -3994,17 +4915,33 @@ SALES_SUB_MENUS = {
 PURCHASE_SUB_MENUS = {
     "📊 Dashboard Pembelian": "Purchase_Dashboard",
     "🏷️ Manajemen SKU": "Purchase_SKU",
-    "🛒 Input Pembelian": "Purchase_Input",
-    "📋 Riwayat Pembelian": "Purchase_History",
-    "💳 Finance (Konfirmasi)": "Purchase_Finance",
+    "🛒 Input Pembelian SKU": "Purchase_Input",
+    "📋 Riwayat Pembelian SKU": "Purchase_History",
     "📁 Arsip Pembelian": "Purchase_Archive",
+}
+
+OPEX_SUB_MENUS = {
+    "📊 Dashboard OPEX": "Opex_Dashboard",
+    "📝 Input Biaya OPEX": "Opex_Input",
+    "📋 Riwayat OPEX": "Opex_History",
+}
+
+FINANCE_SUB_MENUS = {
+    "📊 Dashboard Finance": "Finance_Dashboard",
+    "✅ Konfirmasi Bayar SKU": "Finance_SKU",
+    "✅ Konfirmasi Bayar OPEX": "Finance_OPEX",
+    "📋 Riwayat Pembayaran": "Finance_History",
+}
+
+ADMIN_SUB_MENUS = {
+    "👥 Manajemen User": "Admin_Users",
 }
 
 
 def render_sidebar():
-    """Render the sidebar navigation with main-menu → sub-menu hierarchy."""
+    """Render the sidebar navigation with main-menu → sub-menu hierarchy + role-based filtering."""
     with st.sidebar:
-        # Logo
+        # ── Logo ──
         st.markdown(
             """
             <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:20px;">
@@ -4016,56 +4953,153 @@ def render_sidebar():
             unsafe_allow_html=True,
         )
 
-        # ── Main Menu ──
-        main_menus = ["📦 Operasional", "💰 Penjualan", "🛒 Pembelian"]
-        main_menu_map = {
+        # ── User info ──
+        user = st.session_state.get("user", {})
+        if user:
+            role_label = ROLES.get(user.get("role", ""), {}).get("label", user.get("role", "?"))
+            st.markdown(f"""
+            <div style="background:#1C1C1E;border-radius:10px;padding:10px 14px;margin-bottom:12px;">
+                <div style="font-size:14px;font-weight:600;color:#FFFFFF;">👤 {user.get('nama_lengkap', 'User')}</div>
+                <div style="font-size:12px;color:#AEAEB2;">🔑 Role: <strong style="color:#0A84FF;">{role_label}</strong></div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # ── Main Menu (filtered by role) ──
+        user_role = user.get("role", "operator") if user else "operator"
+        allowed_menus = get_user_menus(user_role)
+
+        MAIN_MENU_OPTIONS = ["📦 Operasional", "💰 Penjualan", "🛒 Pembelian SKU", "📋 Pembelian OPEX", "💳 Finance", "⚙️ Admin"]
+        MAIN_MENU_MAP = {
             "📦 Operasional": "Operasional",
             "💰 Penjualan": "Penjualan",
-            "🛒 Pembelian": "Pembelian",
+            "🛒 Pembelian SKU": "Pembelian",
+            "📋 Pembelian OPEX": "OPEX",
+            "💳 Finance": "Finance",
+            "⚙️ Admin": "Admin",
         }
 
-        # Determine current main menu index
+        # Filter menu options based on role
+        visible_labels = [lbl for lbl in MAIN_MENU_OPTIONS if MAIN_MENU_MAP[lbl] in allowed_menus]
+        visible_map = {lbl: MAIN_MENU_MAP[lbl] for lbl in visible_labels}
+
+        if not visible_labels:
+            visible_labels = ["📦 Operasional"]
+            visible_map = {"📦 Operasional": "Operasional"}
+
+        # ── Determine current main menu safely ──
         current_main = st.session_state.get("main_menu", "Operasional")
-        main_labels = list(main_menu_map.keys())
-        main_index = list(main_menu_map.values()).index(current_main) if current_main in main_menu_map.values() else 0
+        if current_main not in visible_map.values():
+            current_main = list(visible_map.values())[0]
+            st.session_state.main_menu = current_main
+
+        # ── Main Menu Selectbox (sync only when invalid) ──
+        selectbox_key = "sidebar_main_menu_select"
+        current_selectbox_val = st.session_state.get(selectbox_key)
+
+        if current_selectbox_val not in visible_labels:
+            desired_main_label = None
+            for label, key in visible_map.items():
+                if key == current_main:
+                    desired_main_label = label
+                    break
+            if desired_main_label is None:
+                desired_main_label = visible_labels[0]
+            st.session_state[selectbox_key] = desired_main_label
 
         selected_main_label = st.selectbox(
-            "Menu Utama",
-            main_labels,
-            index=main_index,
+            "Pilih Menu Utama",
+            visible_labels,
+            key=selectbox_key,
             label_visibility="collapsed",
         )
-        st.session_state.main_menu = main_menu_map[selected_main_label]
+        new_main_menu = visible_map[selected_main_label]
+
+        # ── Detect main menu switch & reset page immediately ──
+        if new_main_menu != current_main:
+            st.session_state.main_menu = new_main_menu
+            # Reset page to the default for the new main menu
+            default_pages = {
+                "Operasional": "Dashboard",
+                "Penjualan": "Sales_Dashboard",
+                "Pembelian": "Purchase_Dashboard",
+                "OPEX": "Opex_Dashboard",
+                "Finance": "Finance_Dashboard",
+                "Admin": "Admin_Users",
+            }
+            st.session_state.page = default_pages.get(new_main_menu, "Dashboard")
+            st.rerun()  # Rerun so sub-menu renders fresh with correct page
+
+        # ── Sub Menu (depends on main menu) ──
+        main_menu = current_main  # Use current_main (before selectbox change)
+
+        if main_menu == "Operasional":
+            sub_menus = dict(OPERATIONAL_SUB_MENUS)
+            default_page = "Dashboard"
+        elif main_menu == "Penjualan":
+            sub_menus = dict(SALES_SUB_MENUS)
+            default_page = "Sales_Dashboard"
+        elif main_menu == "Pembelian":
+            sub_menus = dict(PURCHASE_SUB_MENUS)
+            default_page = "Purchase_Dashboard"
+        elif main_menu == "OPEX":
+            sub_menus = dict(OPEX_SUB_MENUS)
+            default_page = "Opex_Dashboard"
+        elif main_menu == "Finance":
+            sub_menus = dict(FINANCE_SUB_MENUS)
+            default_page = "Finance_Dashboard"
+        else:  # Admin
+            sub_menus = dict(ADMIN_SUB_MENUS)
+            default_page = "Admin_Users"
 
         st.markdown("---")
 
-        # ── Sub Menu (depends on main menu) ──
-        main_menu = st.session_state.main_menu
+        # ── Role-based sub-menu filtering (non-admin) ──
+        if user_role != "admin":
+            sub_menus = {
+                lbl: page_key
+                for lbl, page_key in sub_menus.items()
+                if user_has_access(user_role, page_key)
+            }
+            if not sub_menus:
+                st.caption("⚠️ Tidak ada menu yang tersedia untuk role ini.")
+                st.markdown("---")
+                _render_sidebar_footer()
+                return
 
-        if main_menu == "Operasional":
-            sub_menus = OPERATIONAL_SUB_MENUS
-            default_page = "Dashboard"
-        elif main_menu == "Penjualan":
-            sub_menus = SALES_SUB_MENUS
-            default_page = "Sales_Dashboard"
-        else:  # Pembelian
-            sub_menus = PURCHASE_SUB_MENUS
-            default_page = "Purchase_Dashboard"
-
-        # Auto-reset page when switching main menu
+        # ── Ensure page is valid for current sub_menus ──
         current_page = st.session_state.get("page", default_page)
         if current_page not in sub_menus.values():
             current_page = default_page
+            st.session_state.page = default_page
 
-        sub_index = list(sub_menus.values()).index(current_page) if current_page in sub_menus.values() else 0
+        # ── Sub Menu Radio (key-managed, sync only when invalid) ──
+        radio_key = "sidebar_sub_menu_radio"
+        valid_labels = list(sub_menus.keys())
 
-        selected_sub = st.radio(
-            "Sub Menu Operasional" if main_menu == "Operasional" else "Sub Menu",
-            list(sub_menus.keys()),
-            index=sub_index,
-            label_visibility="collapsed",
-        )
-        st.session_state.page = sub_menus[selected_sub]
+        # Only sync radio if its current value is NOT in the current sub-menu
+        # (e.g. after switching main menu). NEVER override a valid user selection.
+        current_radio_val = st.session_state.get(radio_key)
+        if current_radio_val not in valid_labels:
+            # Find the label matching current page, or default to first
+            desired_label = None
+            for label, page_key in sub_menus.items():
+                if page_key == st.session_state.get("page", default_page):
+                    desired_label = label
+                    break
+            if desired_label is None:
+                desired_label = valid_labels[0] if valid_labels else None
+
+            if desired_label is not None:
+                st.session_state[radio_key] = desired_label
+
+        if valid_labels:
+            selected_sub = st.radio(
+                "Sub Menu",
+                valid_labels,
+                key=radio_key,
+                label_visibility="collapsed",
+            )
+            st.session_state.page = sub_menus[selected_sub]
 
         st.markdown("---")
 
@@ -4077,16 +5111,45 @@ def render_sidebar():
             st.caption(f"� Instant: {stats.get('INSTANT', 0):,} | 📦 Reguler: {stats.get('PACKED_REGULER', 0):,} | Besar: {stats.get('PACKED_BESAR', 0):,}")
 
         st.markdown("---")
-        st.caption(f"v{APP_VERSION}")
+
+        _render_sidebar_footer()
+
+
+def _render_sidebar_footer():
+    """Render the sidebar footer: logout + version."""
+    if st.button("🔒 Logout", width="stretch", key="sidebar_logout_btn"):
+        st.session_state.authenticated = False
+        st.session_state.user = None
+        st.session_state.main_menu = "Operasional"
+        st.session_state.page = "Dashboard"
+        st.rerun()
+
+    st.caption(f"v{APP_VERSION}")
 
 
 # ==================== MAIN APP ====================
 def main():
     """Main Streamlit application."""
+    inject_pwa()  # PWA: load pwa-init.js (client-side fallback)
     init_session()
+
+    # ── Auth guard ──
+    if not st.session_state.get("authenticated", False):
+        render_login()
+        return
+
+    # ── Render sidebar FIRST (it updates st.session_state.page from widget clicks) ──
     render_sidebar()
 
-    page = st.session_state.page
+    # ── Read page AFTER sidebar (gets the latest value from user click) ──
+    user = st.session_state.user
+    page = st.session_state.get("page", "Dashboard")
+
+    # ── Role-based page access check ──
+    if not user_has_access(user["role"], page):
+        st.error(f"⛔ Akses ditolak! Role **{ROLES.get(user['role'], {}).get('label', user['role'])}** tidak memiliki akses ke halaman ini.")
+        st.info("Silakan pilih menu yang tersedia di sidebar.")
+        return
 
     # Page title
     if page == "Dashboard":
@@ -5212,6 +6275,41 @@ def main():
     elif page == "Purchase_Archive":
         st.title("📁 Arsip Pembelian")
         render_purchase_archive()
+
+    # ── OPEX Pages ──
+    elif page == "Opex_Dashboard":
+        st.title("📊 Dashboard Biaya Operasional (OPEX)")
+        render_opex_dashboard()
+
+    elif page == "Opex_Input":
+        st.title("📝 Input Biaya Operasional (OPEX)")
+        render_opex_input()
+
+    elif page == "Opex_History":
+        st.title("📋 Riwayat Biaya Operasional (OPEX)")
+        render_opex_history()
+
+    # ── Finance Pages ──
+    elif page == "Finance_Dashboard":
+        st.title("💳 Dashboard Finance")
+        render_finance_dashboard()
+
+    elif page == "Finance_SKU":
+        st.title("✅ Konfirmasi Pembayaran — Pembelian SKU")
+        render_purchase_finance()  # Reuse existing function
+
+    elif page == "Finance_OPEX":
+        st.title("✅ Konfirmasi Pembayaran — Biaya OPEX")
+        render_finance_opex()
+
+    elif page == "Finance_History":
+        st.title("📋 Riwayat Pembayaran")
+        render_finance_history()
+
+    # ── Admin ──
+    elif page == "Admin_Users":
+        st.title("⚙️ Admin — Manajemen User & Role")
+        render_admin_users()
 
 
 if __name__ == "__main__":
