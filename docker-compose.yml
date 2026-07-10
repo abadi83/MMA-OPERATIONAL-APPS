@@ -23,7 +23,7 @@ services:
       - TZ=Asia/Jakarta
     volumes:
       # Persistent data (survive container restart/recreate)
-      - app_data:/app/iscan_database.db
+      - app_data:/app/data
       - app_logs:/app/logs
       - app_arsip:/app/Gudang_Arsip_Excel
       - app_handover:/app/Handover_Reports

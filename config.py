@@ -19,7 +19,7 @@ class Config:
     BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 
     # Database
-    DB_PATH = os.path.join(BASE_PATH, "iscan_database.db")
+    DB_PATH = os.path.join(BASE_PATH, "data", "iscan_database.db")
 
     # Folders
     LOGS_FOLDER = os.path.join(BASE_PATH, "logs")

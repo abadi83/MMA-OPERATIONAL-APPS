@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # ── Data directories (mounted as volumes in compose) ──
-RUN mkdir -p /app/logs /app/Gudang_Arsip_Excel /app/Handover_Reports \
+RUN mkdir -p /app/data /app/logs /app/Gudang_Arsip_Excel /app/Handover_Reports \
     /app/Sales_Reports /app/Packing_Videos /app/DB_Backup /app/static
 
 # ── Expose Streamlit port ──
