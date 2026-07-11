@@ -523,6 +523,49 @@ def authenticate_user(db, username: str, password: str) -> dict | None:
     }
 
 
+# ── Cookie-based auth persistence (survives F5 / browser refresh) ──
+AUTH_SECRET = "iscan-mma-2026-secure-key"
+
+def _make_auth_cookie(user: dict) -> str:
+    """Generate a signed auth token for URL storage."""
+    import base64, hmac
+    payload = f"{user['username']}|{user['role']}|{user['nama_lengkap']}|{user['id']}"
+    sig = hmac.new(AUTH_SECRET.encode(), payload.encode(), "sha256").hexdigest()[:16]
+    token = base64.urlsafe_b64encode(f"{payload}|{sig}".encode()).decode()
+    return token
+
+def _verify_auth_cookie(token: str, db):
+    """Verify an auth token and return user dict or None."""
+    import base64, hmac
+    try:
+        decoded = base64.urlsafe_b64decode(token.encode()).decode()
+        parts = decoded.rsplit("|", 1)
+        if len(parts) != 2:
+            return None
+        payload, sig = parts
+        expected = hmac.new(AUTH_SECRET.encode(), payload.encode(), "sha256").hexdigest()[:16]
+        if sig != expected:
+            return None
+        fields = payload.split("|")
+        if len(fields) < 4:
+            return None
+        username = fields[0]
+        user = db.fetch_one(
+            "SELECT id, username, nama_lengkap, role FROM users WHERE username = ? AND active = 1",
+            (username,),
+        )
+        if not user:
+            return None
+        return {
+            "id": user["id"],
+            "username": user["username"],
+            "nama_lengkap": user["nama_lengkap"],
+            "role": user["role"],
+        }
+    except Exception:
+        return None
+
+
 def user_has_access(user_role: str, page: str) -> bool:
     """Check if a role has access to a specific page."""
     role_def = ROLES.get(user_role, {})
@@ -593,6 +636,15 @@ def init_session():
         st.session_state.authenticated = False
     if "user" not in st.session_state:
         st.session_state.user = None
+
+    # ── Query-param auth (survives F5) ──
+    if not st.session_state.authenticated:
+        token = st.query_params.get("auth", "")
+        if token:
+            user = _verify_auth_cookie(token, st.session_state.db)
+            if user:
+                st.session_state.authenticated = True
+                st.session_state.user = user
 
     # ── Create default admin if no users exist ──
     db = st.session_state.db
@@ -6394,8 +6446,10 @@ def render_login():
                     if user:
                         st.session_state.authenticated = True
                         st.session_state.user = user
+                        token = _make_auth_cookie(user)
+                        st.query_params["auth"] = token
                         st.success(f"✅ Selamat datang, {user['nama_lengkap']}!")
-                        time.sleep(0.5)
+                        time.sleep(0.3)
                         st.rerun()
                     else:
                         st.error("❌ Username atau password salah, atau akun tidak aktif.")
@@ -7656,6 +7710,7 @@ def _render_sidebar_footer():
         st.session_state.user = None
         st.session_state.main_menu = "Operasional"
         st.session_state.page = "Dashboard"
+        st.query_params.clear()
         st.rerun()
 
     st.caption(f"v{APP_VERSION}")

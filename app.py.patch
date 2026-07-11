@@ -1,0 +1,31 @@
+--- a/app.py
++++ b/app.py
+@@ -599,18 +599,28 @@ def init_session():
+ 
+     # Cookie-based auth restoration (survives F5 refresh)
+     if not st.session_state.authenticated:
++        # Try query param first (most reliable across refreshes)
++        token = st.query_params.get("auth", "")
++        if token:
++            user = _verify_auth_cookie(token, st.session_state.db)
++            if user:
++                st.session_state.authenticated = True
++                st.session_state.user = user
++        # Fallback: try cookie
+         try:
+             ctx = st.context.cookies
+-            token = ctx.get("iscan_auth", "")
+-            if token:
+-                user = _verify_auth_cookie(token, st.session_state.db)
+-                if user:
+-                    st.session_state.authenticated = True
+-                    st.session_state.user = user
++            if not st.session_state.authenticated:
++                token = ctx.get("iscan_auth", "")
++                if token:
++                    user = _verify_auth_cookie(token, st.session_state.db)
++                    if user:
++                        st.session_state.authenticated = True
++                        st.session_state.user = user
+         except Exception:
+             pass
