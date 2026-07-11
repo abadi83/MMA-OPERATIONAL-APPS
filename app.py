@@ -937,13 +937,18 @@ def render_scan_input():
 
     # Scan input
     st.markdown("---")
+    # ── Dynamic key untuk auto-clear ──
+    if "_resi_input_counter" not in st.session_state:
+        st.session_state._resi_input_counter = 0
+    resi_widget_key = f"resi_input_{st.session_state._resi_input_counter}"
+
     scan_col1, scan_col2 = st.columns([4, 1])
 
     with scan_col1:
         resi_input = st.text_input(
             "Scan barcode atau ketik nomor resi",
             placeholder="Masukkan nomor resi lalu tekan Enter...",
-            key="resi_input",
+            key=resi_widget_key,
             label_visibility="collapsed",
         )
 
@@ -966,6 +971,14 @@ def render_scan_input():
             if result["success"]:
                 st.session_state.last_scan = result["data"]
                 st.success(result["message"])
+                # Dynamic key: increment counter agar widget baru & kosong
+                if "_resi_input_counter" not in st.session_state:
+                    st.session_state._resi_input_counter = 0
+                st.session_state._resi_input_counter += 1
+                # Bersihkan key lama
+                for k in list(st.session_state.keys()):
+                    if k.startswith("resi_input_") and k != f"resi_input_{st.session_state._resi_input_counter}":
+                        del st.session_state[k]
                 st.rerun()
             else:
                 st.error(result["message"])
@@ -4184,7 +4197,7 @@ def render_bulk_cancel_upload(db):
                                                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                                     (waktu, tanggal, penj_resi, "CANCEL", "",
                                                      "CANCEL", "REGULER", "", "REGULER",
-                                                     existing.get("marketplace", marketplace)),
+                                                     existing["marketplace"] if "marketplace" in existing.keys() else marketplace),
                                                 )
                                         else:
                                             # No resi — still insert cancel using no_pesanan as identifier
@@ -4200,7 +4213,7 @@ def render_bulk_cancel_upload(db):
                                                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                                     (waktu, tanggal, no_pesanan, "CANCEL", "",
                                                      "CANCEL", "REGULER", "", "REGULER",
-                                                     existing.get("marketplace", marketplace)),
+                                                     existing["marketplace"] if "marketplace" in existing.keys() else marketplace),
                                                 )
 
                                         cancelled_count += 1
@@ -4357,12 +4370,16 @@ def render_retur_klaim():
 
     # ── Scan Input ──
     st.markdown("### 🔍 Scan Paket Retur")
+    # ── Dynamic key untuk auto-clear ──
+    if "_retur_scan_widget_counter" not in st.session_state:
+        st.session_state._retur_scan_widget_counter = 0
+    retur_widget_key = f"retur_scan_input_{st.session_state._retur_scan_widget_counter}"
     scan_col1, scan_col2 = st.columns([3, 1])
     with scan_col1:
         retur_input = st.text_input(
             "Scan barcode atau ketik No Resi / No Pesanan",
             placeholder="Scan atau ketik No Resi / No Pesanan dari paket retur...",
-            key="retur_scan_input",
+            key=retur_widget_key,
             label_visibility="collapsed",
         )
     with scan_col2:
@@ -4592,6 +4609,11 @@ def render_retur_klaim():
                             st.info(f"⏳ Klaim PENDING untuk `{cleaned}` — menunggu hasil.")
 
                         st.session_state.retur_show_klaim_form = False
+                        # Dynamic key: increment counter agar input clear
+                        st.session_state._retur_scan_widget_counter += 1
+                        for k in list(st.session_state.keys()):
+                            if k.startswith("retur_scan_input_") and k != f"retur_scan_input_{st.session_state._retur_scan_widget_counter}":
+                                del st.session_state[k]
                         st.rerun()
 
                 if btn_diterima:
@@ -4666,7 +4688,12 @@ def render_retur_klaim():
                             )
                         else:
                             st.caption(f"⚠️ SKU `{sku_code}` tidak ditemukan — stok tidak di-update.")
-
+# Dynamic key: increment counter agar input clear
+                    st.session_state._retur_scan_widget_counter += 1
+                    for k in list(st.session_state.keys()):
+                        if k.startswith("retur_scan_input_") and k != f"retur_scan_input_{st.session_state._retur_scan_widget_counter}":
+                            del st.session_state[k]
+                    
                     st.success(
                         f"✅ **DITERIMA** — `{cleaned}` retur diterima. "
                         f"Penjualan dikurangi, stok dikembalikan (tidak ada kerugian)."
@@ -4760,7 +4787,7 @@ def render_retur_klaim():
         sum_diterima = len(df_retur[df_retur["Status"] == "DITERIMA"]) if "Status" in df_retur.columns else 0
         sum_klaim = len(df_retur[df_retur["Status"] == "KLAIM"]) if "Status" in df_retur.columns else 0
         sum_klaim_berhasil = len(df_retur[(df_retur["Status"] == "KLAIM") & (df_retur["Status Klaim"] == "BERHASIL")]) if "Status" in df_retur.columns and "Status Klaim" in df_retur.columns else 0
-        total_nominal_klaim = sum(r["nominal_klaim"] or 0 for r in rows if r["status"] == "KLAIM" and r.get("status_klaim") == "BERHASIL")
+        total_nominal_klaim = sum(r["nominal_klaim"] or 0 for r in rows if r["status"] == "KLAIM" and (r["status_klaim"] if "status_klaim" in r.keys() else "") == "BERHASIL")
 
         sum_text = f"📊 Menampilkan {len(df_retur)} data | ✅ Diterima: {sum_diterima} | ⚠️ Klaim: {sum_klaim}"
         if sum_klaim_berhasil > 0:
@@ -8104,6 +8131,11 @@ def main():
             if not keterangan_barang and selected_barang == "➕ Tambah Baru...":
                 st.warning("⚠️ Isi nama barang terlebih dahulu sebelum scan.")
 
+        # ── Auto-clear scan input with dynamic key ──
+        if "_scan_ops_widget_counter" not in st.session_state:
+            st.session_state._scan_ops_widget_counter = 0
+        scan_widget_key = f"scan_ops_resi_{st.session_state._scan_ops_widget_counter}"
+
         # ── Scan input ──
         st.markdown("---")
         scan_col1, scan_col2 = st.columns([4, 1])
@@ -8117,7 +8149,7 @@ def main():
             resi_input = st.text_input(
                 "Scan barcode atau ketik nomor resi",
                 placeholder=placeholder_text,
-                key="scan_ops_resi",
+                key=scan_widget_key,
                 label_visibility="collapsed",
             )
         with scan_col2:
@@ -8195,9 +8227,12 @@ def main():
                                 )
                                 extra = f" (No Pesanan: {match_cancel['no_pesanan']})" if match_cancel and cleaned != match_cancel["no_resi"] else ""
                                 st.error(f"❌ **CANCEL!** `{cleaned}`{extra} — nilai penjualan dikurangi.")
+                            st.session_state._scan_ops_widget_counter += 1
+                            # Bersihkan key lama agar session_state tidak menumpuk
+                            for k in list(st.session_state.keys()):
+                                if k.startswith("scan_ops_resi_") and k != f"scan_ops_resi_{st.session_state._scan_ops_widget_counter}":
+                                    del st.session_state[k]
                             st.rerun()
-
-                        # ── PACK mode: cari by no_resi ATAU no_pesanan ──
                         match = db.fetch_one(
                             "SELECT no_resi, no_pesanan, marketplace, nama_produk, sku_terdeteksi, kurir, nama_toko "
                             "FROM penjualan WHERE (no_resi = ? OR no_pesanan = ?) AND status_pesanan != 'CANCEL' LIMIT 1",
@@ -8227,7 +8262,7 @@ def main():
                                 scan_toko = match["nama_toko"] or selected_toko
                                 db.execute(
                                     "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman, marketplace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                    (waktu, tanggal, real_resi, match["kurir"] or "Unknown", scan_toko, "PACKED", kategori, keterangan_barang, tipe_kiriman, match.get("marketplace", "")),
+                                    (waktu, tanggal, real_resi, match["kurir"] or "Unknown", scan_toko, "PACKED", kategori, keterangan_barang, tipe_kiriman, match["marketplace"] if "marketplace" in match.keys() else ""),
                                 )
                                 # Update penjualan — pakai no_resi DAN no_pesanan sekaligus untuk memastikan
                                 db.execute(
@@ -8297,11 +8332,12 @@ def main():
                                         )
                                     except:
                                         pass
+                        st.session_state._scan_ops_widget_counter += 1
+                        # Bersihkan key lama agar session_state tidak menumpuk
+                        for k in list(st.session_state.keys()):
+                            if k.startswith("scan_ops_resi_") and k != f"scan_ops_resi_{st.session_state._scan_ops_widget_counter}":
+                                del st.session_state[k]
                         st.rerun()
-
-        st.markdown("---")
-
-        # ── Scan History Table ──
         st.subheader("📋 Riwayat Scan Packing")
 
         # Filter kategori
