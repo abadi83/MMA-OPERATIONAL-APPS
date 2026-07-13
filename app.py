@@ -3354,6 +3354,21 @@ def _render_marketplace_tab(db, marketplace, mp_key):
                                         new_resi = no_resi if no_resi else old_resi
                                         new_status = status if status else old_status
 
+                                        # Lazada: setiap baris = 1 qty, UPSERT harus MENAMBAH qty (bukan menimpa)
+                                        # Karena Lazada tidak punya kolom Quantity di Excel
+                                        if marketplace == "Lazada":
+                                            # Ambil qty lama dari database untuk ditambahkan
+                                            old_qty_row = db.fetch_one(
+                                                "SELECT qty FROM penjualan WHERE id = ?",
+                                                (existing["id"],),
+                                            )
+                                            old_qty = old_qty_row["qty"] if old_qty_row and old_qty_row["qty"] else 0
+                                            final_qty = old_qty + 1  # setiap baris Lazada = 1 item
+                                            final_total = harga * final_qty
+                                        else:
+                                            final_qty = qty
+                                            final_total = total
+
                                         db.execute(
                                             """UPDATE penjualan SET no_resi = ?, tanggal_pengiriman = ?,
                                                qty = ?, harga_jual = ?, total_harga = ?,
@@ -3361,7 +3376,7 @@ def _render_marketplace_tab(db, marketplace, mp_key):
                                                sku_terdeteksi = ?, nama_toko = ?
                                                WHERE id = ?""",
                                             (new_resi, tgl_kirim if tgl_kirim else None,
-                                             qty, harga, total,
+                                             final_qty, harga, final_total,
                                              kurir if kurir else None, new_status, ket if ket else None,
                                              sku_detected if sku_detected else None, nama_toko_final if nama_toko_final else None,
                                              existing["id"]),
