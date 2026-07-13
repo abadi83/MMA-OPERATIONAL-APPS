@@ -56,6 +56,7 @@ class Database:
 
     def __init__(self):
         self.db_path = Config.DB_PATH
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -7540,6 +7541,16 @@ def render_sidebar():
         if current_main not in visible_map.values():
             current_main = list(visible_map.values())[0]
             st.session_state.main_menu = current_main
+            # Also reset page to default for the new main menu
+            _default_pages = {
+                "Operasional": "Dashboard",
+                "Penjualan": "Sales_Dashboard",
+                "Pembelian": "Purchase_Dashboard",
+                "OPEX": "Opex_Dashboard",
+                "Finance": "Finance_Dashboard",
+                "Admin": "Admin_Users",
+            }
+            st.session_state.page = _default_pages.get(current_main, "Dashboard")
 
         # ── Main Menu Selectbox (sync only when invalid) ──
         selectbox_key = "sidebar_main_menu_select"

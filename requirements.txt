@@ -1,7 +1,7 @@
 # iScan Pro By MMA — Python Dependencies
 # Install: pip install -r requirements.txt
 
-streamlit>=1.55.0
+streamlit==1.56.0
 pandas>=1.4.0
 openpyxl>=3.0.0
 fpdf2>=2.8.0
