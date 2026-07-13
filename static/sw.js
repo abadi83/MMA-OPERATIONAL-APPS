@@ -1,9 +1,8 @@
 // ═══════════════════════════════════════════
 // iScan Pro By MMA — Service Worker
 // ═══════════════════════════════════════════
-const CACHE_NAME = "iscan-pro-v2.0.0";
+const CACHE_NAME = "iscan-pro-v2.1.0";
 const ASSETS_TO_CACHE = [
-  "/",
   "/app/static/manifest.json",
   "/app/static/icon-192.png",
   "/app/static/icon-512.png",
