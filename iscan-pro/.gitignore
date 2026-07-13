@@ -1,0 +1,46 @@
+# Database (NEVER commit production database!)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+DB_Backup/
+Copy of *.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Logs (keep folder structure only)
+logs/*
+!logs/.gitkeep
+
+# Excel output (keep folder structure, ignore xlsx files)
+Gudang_Arsip_Excel/*
+!Gudang_Arsip_Excel/.gitkeep
+Handover_Reports/*
+!Handover_Reports/.gitkeep
+Sales_Reports/*
+!Sales_Reports/.gitkeep
+
+# Data folders (keep folder structure only)
+Packing_Videos/*
+!Packing_Videos/.gitkeep
+DB_Backup/*
+!DB_Backup/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

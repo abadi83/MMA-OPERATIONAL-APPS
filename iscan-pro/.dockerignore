@@ -1,0 +1,42 @@
+# ═══════════════════════════════════════
+# Docker ignore — exclude from build context
+# ═══════════════════════════════════════
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Database (mounted as volume)
+*.db
+DB_Backup/
+
+# Data folders (mounted as volumes)
+logs/
+Gudang_Arsip_Excel/
+Handover_Reports/
+Sales_Reports/
+Packing_Videos/
+
+# Deploy files (not needed in image)
+deploy/
+
+# OS
+Thumbs.db
+.DS_Store
+*.log
+
+# Environment
+.env
+.env.local

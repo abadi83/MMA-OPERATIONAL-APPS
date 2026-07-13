@@ -1,0 +1,40 @@
+[server]
+# ── VPS Production Settings ──
+# Run: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+
+# Bind to all interfaces for VPS (0.0.0.0 = accessible from network)
+address = "0.0.0.0"
+port = 8501
+
+# Static file serving for PWA (manifest, icons, sw.js)
+enableStaticServing = true
+
+# Headless mode — no auto-open browser on VPS
+headless = true
+
+# Performance tuning
+maxUploadSize = 200
+maxMessageSize = 200
+
+# File watcher — disable on VPS for stability
+fileWatcherType = "poll"
+
+# Cross-origin — allow if behind reverse proxy
+enableCORS = true
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+serverAddress = "localhost"
+
+[logger]
+level = "info"
+messageFormat = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+[theme]
+base = "dark"
+primaryColor = "#0A84FF"
+backgroundColor = "#0A0A0A"
+secondaryBackgroundColor = "#1C1C1E"
+textColor = "#FFFFFF"
+font = "sans serif"
