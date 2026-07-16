@@ -311,6 +311,18 @@ class Database:
                 )
             """)
 
+            # ── Auth tokens table (persistent login across refresh) ──
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS auth_tokens (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    token TEXT UNIQUE NOT NULL,
+                    expires_at TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            """)
+
             # ── Operational Expenses (OPEX) table ──
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS opex (
@@ -524,6 +536,73 @@ def authenticate_user(db, username: str, password: str) -> dict | None:
     }
 
 
+def generate_auth_token(db, user_id: int) -> str:
+    """Generate a persistent auth token for the user (valid 7 days)."""
+    import secrets
+    token = secrets.token_hex(32)  # 64-char hex
+    expires_at = datetime.now() + timedelta(days=7)
+    # Clean old tokens for this user
+    db.execute("DELETE FROM auth_tokens WHERE user_id = ?", (user_id,))
+    # Insert new token
+    db.execute(
+        "INSERT INTO auth_tokens (user_id, token, expires_at) VALUES (?, ?, ?)",
+        (user_id, token, expires_at.strftime("%Y-%m-%d %H:%M:%S")),
+    )
+    return token
+
+
+def validate_auth_token(db, token: str) -> dict | None:
+    """Validate an auth token. Returns user dict or None."""
+    row = db.fetch_one(
+        """SELECT u.id, u.username, u.nama_lengkap, u.role, u.active
+           FROM auth_tokens t
+           JOIN users u ON t.user_id = u.id
+           WHERE t.token = ? AND t.expires_at > datetime('now', 'localtime')""",
+        (token,),
+    )
+    if not row or not row["active"]:
+        return None
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "nama_lengkap": row["nama_lengkap"],
+        "role": row["role"],
+    }
+
+
+def invalidate_auth_token(db, token: str = None, user_id: int = None):
+    """Invalidate auth token(s)."""
+    if token:
+        db.execute("DELETE FROM auth_tokens WHERE token = ?", (token,))
+    if user_id:
+        db.execute("DELETE FROM auth_tokens WHERE user_id = ?", (user_id,))
+    # Also clean expired tokens periodically
+    db.execute("DELETE FROM auth_tokens WHERE expires_at <= datetime('now', 'localtime')")
+
+
+def inject_auth_cookie_js(token: str):
+    """Inject JS to persist auth token as a cookie (survives page refresh)."""
+    st.html(f"""
+    <script>
+    (function() {{
+        var token = "{token}";
+        // Set cookie that survives browser restart (7 days)
+        var d = new Date();
+        d.setTime(d.getTime() + (7 * 24 * 60 * 60 * 1000));
+        document.cookie = "iscan_sid=" + token + ";path=/;expires=" + d.toUTCString() + ";SameSite=Lax";
+        // Also save to localStorage for fallback
+        try {{ localStorage.setItem("iscan_auth_token", token); }} catch(e) {{}}
+        // Clean URL if it has auth param
+        var url = new URL(window.location.href);
+        if (url.searchParams.has("auth")) {{
+            url.searchParams.delete("auth");
+            window.history.replaceState({{}}, "", url.toString());
+        }}
+    }})();
+    </script>
+    """)
+
+
 def user_has_access(user_role: str, page: str) -> bool:
     """Check if a role has access to a specific page."""
     role_def = ROLES.get(user_role, {})
@@ -594,6 +673,39 @@ def init_session():
         st.session_state.authenticated = False
     if "user" not in st.session_state:
         st.session_state.user = None
+
+    # ── Auto-login from persistent auth token ──
+    if not st.session_state.authenticated:
+        auth_token = st.query_params.get("auth")
+        # Also try reading from cookie (for direct page loads without redirect)
+        if not auth_token:
+            try:
+                auth_token = st.context.cookies.get("iscan_sid")
+            except Exception:
+                pass
+        if auth_token:
+            user = validate_auth_token(st.session_state.db, auth_token)
+            if user:
+                st.session_state.authenticated = True
+                st.session_state.user = user
+                # Ensure cookie is set for subsequent refreshes
+                inject_auth_cookie_js(auth_token)
+                # Clear query param for clean URL
+                if st.query_params.get("auth"):
+                    st.query_params.clear()
+                logging.info(f"Auto-login via token: {user['username']}")
+                st.rerun()
+            else:
+                # Token invalid — clear from URL and browser
+                if st.query_params.get("auth"):
+                    st.query_params.clear()
+                # Clear stale cookie + localStorage via JS
+                st.html("""<script>
+                document.cookie = "iscan_sid=;path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                try { localStorage.removeItem("iscan_auth_token"); } catch(e) {}
+                try { sessionStorage.removeItem("iscan_auth_redirect"); } catch(e) {}
+                </script>""")
+                st.rerun()
 
     # ── Create default admin if no users exist ──
     db = st.session_state.db
@@ -6453,8 +6565,12 @@ def render_login():
                     db = st.session_state.db
                     user = authenticate_user(db, username.strip(), password.strip())
                     if user:
+                        # Generate persistent auth token
+                        token = generate_auth_token(db, user["id"])
                         st.session_state.authenticated = True
                         st.session_state.user = user
+                        # Inject cookie-setting JS
+                        inject_auth_cookie_js(token)
                         st.success(f"✅ Selamat datang, {user['nama_lengkap']}!")
                         time.sleep(0.5)
                         st.rerun()
@@ -7723,10 +7839,21 @@ def render_sidebar():
 def _render_sidebar_footer():
     """Render the sidebar footer: logout + version."""
     if st.button("🔒 Logout", width="stretch", key="sidebar_logout_btn"):
+        # Invalidate all auth tokens for this user
+        user = st.session_state.get("user")
+        if user:
+            invalidate_auth_token(user_id=user["id"])
         st.session_state.authenticated = False
         st.session_state.user = None
         st.session_state.main_menu = "Operasional"
         st.session_state.page = "Dashboard"
+        # Clear auth cookie via JS
+        st.html("""
+        <script>
+        document.cookie = "iscan_sid=;path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        try { localStorage.removeItem("iscan_auth_token"); } catch(e) {}
+        </script>
+        """)
         st.rerun()
 
     st.caption(f"v{APP_VERSION}")

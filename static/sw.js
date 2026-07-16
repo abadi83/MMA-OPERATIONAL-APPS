@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════
 // iScan Pro By MMA — Service Worker
 // ═══════════════════════════════════════════
-const CACHE_NAME = "iscan-pro-v2.1.0";
+const CACHE_NAME = "iscan-pro-v2.2.0";
 const ASSETS_TO_CACHE = [
   "/app/static/manifest.json",
   "/app/static/icon-192.png",
@@ -47,11 +47,13 @@ self.addEventListener("fetch", (event) => {
   // Skip non-GET requests
   if (event.request.method !== "GET") return;
 
-  // Skip Streamlit WebSocket / health-check / API
+  // Skip Streamlit WebSocket / health-check / internal API
   if (
     url.pathname.startsWith("/_stcore/") ||
     url.pathname.startsWith("/healthz") ||
-    url.pathname.includes("_stcore")
+    url.pathname.includes("_stcore") ||
+    url.pathname.includes("stream") ||
+    url.pathname.includes("ws")
   ) {
     // Streamlit internal — always go network
     return;
@@ -62,7 +64,8 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/app/static/") ||
     url.pathname.endsWith(".png") ||
     url.pathname.endsWith(".woff2") ||
-    url.pathname.endsWith(".css")
+    url.pathname.endsWith(".css") ||
+    url.pathname.endsWith(".js")
   ) {
     event.respondWith(
       caches.match(event.request).then((cached) => {

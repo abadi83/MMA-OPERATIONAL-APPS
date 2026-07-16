@@ -2,8 +2,10 @@
   "name": "iScan Pro By MMA",
   "short_name": "iScan Pro",
   "description": "Aplikasi scanning resi pengiriman oleh MMA (Mitra Mulia Abadi) — Scan, Pack, Track.",
+  "id": "/",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#0A0A0A",
   "theme_color": "#0A84FF",
   "orientation": "any",
@@ -22,15 +24,8 @@
       "purpose": "any maskable"
     }
   ],
-  "screenshots": [
-    {
-      "src": "/app/static/screenshot-desktop.png",
-      "sizes": "1280x800",
-      "type": "image/png",
-      "form_factor": "wide"
-    }
-  ],
   "lang": "id-ID",
   "dir": "ltr",
-  "scope": "/"
+  "scope": "/",
+  "prefer_related_applications": false
 }
