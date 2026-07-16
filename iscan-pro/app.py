@@ -589,7 +589,7 @@ def inject_auth_cookie_js(token: str):
         // Set cookie that survives browser restart (7 days)
         var d = new Date();
         d.setTime(d.getTime() + (7 * 24 * 60 * 60 * 1000));
-        document.cookie = "iscan_sid=" + token + ";path=/;expires=" + d.toUTCString() + ";SameSite=Lax";
+        document.cookie = "iscan_sid=" + encodeURIComponent(token) + ";path=/;expires=" + d.toUTCString() + ";SameSite=Lax;Secure";
         // Also save to localStorage for fallback
         try {{ localStorage.setItem("iscan_auth_token", token); }} catch(e) {{}}
         // Clean URL if it has auth param
@@ -674,36 +674,27 @@ def init_session():
     if "user" not in st.session_state:
         st.session_state.user = None
 
-    # ── Auto-login from persistent auth token ──
+    # ── Auto-login from persistent auth token (query param from JS redirect) ──
     if not st.session_state.authenticated:
         auth_token = st.query_params.get("auth")
-        # Also try reading from cookie (for direct page loads without redirect)
-        if not auth_token:
-            try:
-                auth_token = st.context.cookies.get("iscan_sid")
-            except Exception:
-                pass
         if auth_token:
             user = validate_auth_token(st.session_state.db, auth_token)
             if user:
                 st.session_state.authenticated = True
                 st.session_state.user = user
-                # Ensure cookie is set for subsequent refreshes
+                # Set cookie + localStorage via JS
                 inject_auth_cookie_js(auth_token)
                 # Clear query param for clean URL
-                if st.query_params.get("auth"):
-                    st.query_params.clear()
+                st.query_params.clear()
                 logging.info(f"Auto-login via token: {user['username']}")
                 st.rerun()
             else:
-                # Token invalid — clear from URL and browser
-                if st.query_params.get("auth"):
-                    st.query_params.clear()
-                # Clear stale cookie + localStorage via JS
+                # Token invalid — clear it and clean up client-side
+                st.query_params.clear()
                 st.html("""<script>
-                document.cookie = "iscan_sid=;path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT";
                 try { localStorage.removeItem("iscan_auth_token"); } catch(e) {}
-                try { sessionStorage.removeItem("iscan_auth_redirect"); } catch(e) {}
+                try { sessionStorage.removeItem("iscan_redirect_done"); } catch(e) {}
+                document.cookie = "iscan_sid=;path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT";
                 </script>""")
                 st.rerun()
 
