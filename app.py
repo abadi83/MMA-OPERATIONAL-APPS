@@ -858,18 +858,12 @@ def init_session():
                 st.session_state.user = user
                 src = "query" if st.query_params.get("auth") else "cookie"
                 logging.info(f"[AUTH] Auto-login SUCCESS: {user['username']} (src={src})")
-                if st.query_params.get("auth"):
-                    # Clean URL: clear query param + rerun with clean URL
-                    st.query_params.clear()
-                    st.rerun()
+                # Keep token in URL - it's needed for page refresh persistence
             else:
                 # Invalid token - clean up
                 if st.query_params.get("auth"):
                     st.query_params.clear()
-                st.html("""<script>
-                try { localStorage.removeItem("iscan_auth_token"); } catch(e) {}
-                </script>""")
-                st.rerun()
+                    st.rerun()
 
     # ── Create default admin if no users exist ──
     db = st.session_state.db
@@ -10032,9 +10026,6 @@ def main():
             return  # Still not authenticated - stop here
 
     logging.info(f"[AUTH] main(): authenticated as {st.session_state.user.get('username','?') if st.session_state.user else '?'}")
-    # Clean URL if auth param still lingering (from login redirect)
-    if st.query_params.get("auth"):
-        st.query_params.clear()
 
     # ── Auto-amortisasi bulanan: pinjaman + biaya dibayar di muka ──
     _auto_amortisasi_bulanan(st.session_state.db)
