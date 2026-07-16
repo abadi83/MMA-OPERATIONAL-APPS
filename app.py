@@ -822,26 +822,37 @@ def init_session():
     if "user" not in st.session_state:
         st.session_state.user = None
 
-    # ── Auto-login from persistent auth token (query param from JS redirect) ──
+    # ── Auto-login from persistent auth token ──
     if not st.session_state.authenticated:
+        auth_token = None
+        # 1) Check query param (from fresh login with ?auth=TOKEN)
         auth_token = st.query_params.get("auth")
+        # 2) Check Cookie header (from page refresh — browser sends cookie)
+        if not auth_token:
+            import re
+            try:
+                cookie_header = st.context.headers.get("Cookie", "")
+                match = re.search(r'(?:^|;\s*)iscan_sid=([^;]+)', cookie_header)
+                if match:
+                    auth_token = match.group(1)
+            except Exception:
+                pass
         if auth_token:
             user = validate_auth_token(st.session_state.db, auth_token)
             if user:
                 st.session_state.authenticated = True
                 st.session_state.user = user
-                # Set cookie + localStorage via JS
-                inject_auth_cookie_js(auth_token)
-                # Clear query param for clean URL
-                st.query_params.clear()
+                inject_auth_cookie_js(auth_token)  # refresh cookie expiry
+                if st.query_params.get("auth"):
+                    st.query_params.clear()
                 logging.info(f"Auto-login via token: {user['username']}")
                 st.rerun()
             else:
-                # Token invalid — clear it and clean up client-side
-                st.query_params.clear()
+                # Invalid token — clean up
+                if st.query_params.get("auth"):
+                    st.query_params.clear()
                 st.html("""<script>
                 try { localStorage.removeItem("iscan_auth_token"); } catch(e) {}
-                try { sessionStorage.removeItem("iscan_redirect_done"); } catch(e) {}
                 document.cookie = "iscan_sid=;path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT";
                 </script>""")
                 st.rerun()
