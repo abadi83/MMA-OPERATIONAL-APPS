@@ -6384,9 +6384,9 @@ def _render_handover_tab(db, tipe_kiriman: str):
     items = db.fetch_all(
         f"SELECT s.id as scan_id, s.waktu, s.tanggal, s.resi, s.kategori, s.keterangan_barang, s.tipe_kiriman, "
         "p.marketplace, p.no_pesanan, "
-        "GROUP_CONCAT(DISTINCT p.nama_produk, ' | ') as nama_produk, "
+        "GROUP_CONCAT(p.nama_produk, ' | ') as nama_produk, "
         "p.kurir, p.nama_toko, "
-        "GROUP_CONCAT(DISTINCT p.sku_terdeteksi, ', ') as sku_terdeteksi, "
+        "GROUP_CONCAT(p.sku_terdeteksi, ', ') as sku_terdeteksi, "
         "SUM(p.qty) as total_qty "
         "FROM scan_aktif s JOIN penjualan p ON s.resi = p.no_resi "
         f"WHERE {where_clause} {kurir_where} "
