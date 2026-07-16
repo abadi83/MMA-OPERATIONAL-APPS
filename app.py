@@ -10171,21 +10171,20 @@ def main():
         db = st.session_state.db
         cache = st.session_state.cache
 
-        # ── Stats operasional (cached 5 detik biar ga lag) ──
-        @st.cache_data(ttl=5, show_spinner=False)
-        def _get_scan_stats():
-            return {
-                "packed": db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED'")["cnt"],
-                "pending": db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PENDING'")["cnt"],
-                "cancel": db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'CANCEL'")["cnt"],
-                "resi": db.fetch_one("SELECT COUNT(DISTINCT no_resi) as cnt FROM penjualan WHERE no_resi != ''")["cnt"],
-                "orders": db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan")["cnt"],
-                "tanpa_resi": db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan WHERE no_resi = '' OR no_resi IS NULL")["cnt"],
-            }
+        # ── Stats operasional ──
+        packed = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED'")
+        pending_scan = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PENDING'")
+        cancel_scan = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'CANCEL'")
+        total_resi_unique = db.fetch_one("SELECT COUNT(DISTINCT no_resi) as cnt FROM penjualan WHERE no_resi != ''")
+        total_orders_all = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan")
+        orders_tanpa_resi = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan WHERE no_resi = '' OR no_resi IS NULL")
 
-        s = _get_scan_stats()
-        packed_cnt, pending_cnt, cancel_cnt = s["packed"], s["pending"], s["cancel"]
-        orders_cnt, resi_cnt, tanpa_cnt = s["orders"], s["resi"], s["tanpa_resi"]
+        orders_cnt = total_orders_all["cnt"] if total_orders_all else 0
+        resi_cnt = total_resi_unique["cnt"] if total_resi_unique else 0
+        tanpa_cnt = orders_tanpa_resi["cnt"] if orders_tanpa_resi else 0
+        packed_cnt = packed["cnt"] if packed else 0
+        cancel_cnt = cancel_scan["cnt"] if cancel_scan else 0
+        pending_cnt = pending_scan["cnt"] if pending_scan else 0
         belum_scan = max(0, resi_cnt - packed_cnt - cancel_cnt)
 
         # Row 1: Total Orders, Total Resi, Packed, Tanpa Resi
