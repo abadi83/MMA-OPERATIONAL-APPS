@@ -10511,7 +10511,7 @@ def main():
                                 scan_toko = match["nama_toko"] or selected_toko
                                 db.execute(
                                     "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman, marketplace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                    (waktu, tanggal, real_resi, match["kurir"] or "Unknown", scan_toko, "PACKED", kategori, keterangan_barang, tipe_kiriman, match.get("marketplace", "")),
+                                    (waktu, tanggal, real_resi, match["kurir"] or "Unknown", scan_toko, "PACKED", kategori, keterangan_barang, tipe_kiriman, match["marketplace"] if "marketplace" in match.keys() else ""),
                                 )
                                 # Update penjualan - pakai no_resi DAN no_pesanan sekaligus untuk memastikan
                                 db.execute(
