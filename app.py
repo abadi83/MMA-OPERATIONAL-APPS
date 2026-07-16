@@ -40,14 +40,17 @@ st.set_page_config(
 
 # ==================== PWA INJECTION ====================
 def inject_pwa():
-    """Inject PWA initialization script.
-
-    NOTE: Streamlit sanitizes inline scripts for security. The <script src>
-    approach below is a best-effort client-side fallback. For full PWA support
-    (manifest in <head>, service worker, A2HS), deploy behind Nginx with
-    sub_filter enabled - see deploy/nginx-iscan.conf.
-    """
-    st.html('<script src="/app/static/pwa-init.js"></script>')
+    """Inject PWA manifest + meta tags. st.html() allows <link>/<meta>, only strips <script>."""
+    st.html('''
+    <link rel="manifest" href="/app/static/manifest.json" crossorigin="use-credentials">
+    <meta name="theme-color" content="#0A84FF">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="iScan Pro">
+    <meta name="application-name" content="iScan Pro By MMA">
+    <link rel="apple-touch-icon" href="/app/static/icon-192.png">
+    ''')
 
 
 # ==================== DATABASE ====================
