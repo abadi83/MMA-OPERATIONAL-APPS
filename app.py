@@ -726,29 +726,6 @@ def invalidate_auth_token(db, token: str = None, user_id: int = None):
     db.execute("DELETE FROM auth_tokens WHERE expires_at <= datetime('now', 'localtime')")
 
 
-def inject_auth_cookie_js(token: str):
-    """Inject JS to persist auth token as a cookie (survives page refresh)."""
-    st.html(f"""
-    <script>
-    (function() {{
-        var token = "{token}";
-        // Set cookie that survives browser restart (7 days)
-        var d = new Date();
-        d.setTime(d.getTime() + (7 * 24 * 60 * 60 * 1000));
-        document.cookie = "iscan_sid=" + encodeURIComponent(token) + ";path=/;expires=" + d.toUTCString() + ";SameSite=Lax;Secure";
-        // Also save to localStorage for fallback
-        try {{ localStorage.setItem("iscan_auth_token", token); }} catch(e) {{}}
-        // Clean URL if it has auth param
-        var url = new URL(window.location.href);
-        if (url.searchParams.has("auth")) {{
-            url.searchParams.delete("auth");
-            window.history.replaceState({{}}, "", url.toString());
-        }}
-    }})();
-    </script>
-    """)
-
-
 def user_has_access(user_role: str, page: str) -> bool:
     """Check if a role has access to a specific page."""
     role_def = ROLES.get(user_role, {})
@@ -10004,13 +9981,8 @@ def _render_sidebar_footer():
         st.session_state.user = None
         st.session_state.main_menu = "Operasional"
         st.session_state.page = "Dashboard"
-        # Clear auth cookie via JS
-        st.html("""
-        <script>
-        document.cookie = "iscan_sid=;path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT";
-        try { localStorage.removeItem("iscan_auth_token"); } catch(e) {}
-        </script>
-        """)
+        # Clear all query params (auth, menu, page)
+        st.query_params.clear()
         st.rerun()
 
     st.caption(f"v{APP_VERSION}")

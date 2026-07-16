@@ -1,0 +1,17 @@
+# Force UTF-8 for all text files
+* text=auto eol=lf
+
+# Python files must be UTF-8
+*.py text diff=python
+
+# Config files
+*.toml text
+*.json text
+*.yml text
+*.yaml text
+*.sh text eol=lf
+
+# Static files
+*.js text
+*.css text
+*.html text
