@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════
 // iScan Pro By MMA — Service Worker
 // ═══════════════════════════════════════════
-const CACHE_NAME = "iscan-pro-v2.2.0";
+const CACHE_NAME = "iscan-pro-v2.3.0";
 const ASSETS_TO_CACHE = [
   "/",
   "/app/static/manifest.json",
@@ -48,26 +48,20 @@ self.addEventListener("fetch", (event) => {
   // Skip non-GET requests
   if (event.request.method !== "GET") return;
 
-  // Skip Streamlit WebSocket / health-check / internal API
+  // ── Streamlit internal paths — always network, NEVER cache ──
   if (
     url.pathname.startsWith("/_stcore/") ||
     url.pathname.startsWith("/healthz") ||
+    url.pathname.startsWith("/static/") ||        // Streamlit's own JS/CSS
     url.pathname.includes("_stcore") ||
     url.pathname.includes("stream") ||
     url.pathname.includes("ws")
   ) {
-    // Streamlit internal — always go network
-    return;
+    return;  // Let browser handle normally (no SW interception)
   }
 
-  // Static assets: cache-first
-  if (
-    url.pathname.startsWith("/app/static/") ||
-    url.pathname.endsWith(".png") ||
-    url.pathname.endsWith(".woff2") ||
-    url.pathname.endsWith(".css") ||
-    url.pathname.endsWith(".js")
-  ) {
+  // ── PWA static assets only — cache-first ──
+  if (url.pathname.startsWith("/app/static/")) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
         return cached || fetch(event.request).then((response) => {
@@ -82,51 +76,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Main app (Streamlit HTML): network-first with cache fallback
+  // ── Main app HTML — network-first ──
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        if (response.ok) {
+        if (response.ok && response.headers.get("content-type")?.includes("text/html")) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
       })
       .catch(() => {
-        return caches.match(event.request).then((cached) => {
-          if (cached) {
-            console.log("[SW] Serving from cache:", url.pathname);
-            return cached;
-          }
-          // Offline fallback page
-          return new Response(
-            `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>iScan Pro — Offline</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0A0A0A; color: #FFF; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; text-align: center; }
-    h1 { color: #0A84FF; margin-bottom: 8px; }
-    p { color: #AEAEB2; margin: 4px 0; }
-    .icon { font-size: 64px; margin-bottom: 16px; }
-    button { margin-top: 20px; padding: 12px 24px; background: #0A84FF; color: #FFF; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
-  </style>
-</head>
-<body>
-  <div>
-    <div class="icon">📡</div>
-    <h1>iScan Pro — Offline</h1>
-    <p>Tidak ada koneksi internet.</p>
-    <p>Aplikasi ini memerlukan koneksi ke server untuk bekerja.</p>
-    <button onclick="location.reload()">🔄 Coba Lagi</button>
-  </div>
-</body>
-</html>`,
-            { headers: { "Content-Type": "text/html; charset=utf-8" } }
-          );
-        });
+        return caches.match(event.request);
       })
   );
 });
