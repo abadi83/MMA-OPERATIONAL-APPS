@@ -867,7 +867,6 @@ def init_session():
                 </script>""")
                 if st.query_params.get("auth"):
                     st.query_params.clear()
-                </script>""")
 
     # ── Create default admin if no users exist ──
     db = st.session_state.db
