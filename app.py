@@ -856,17 +856,20 @@ def init_session():
             if user:
                 st.session_state.authenticated = True
                 st.session_state.user = user
-                inject_auth_cookie_js(auth_token)  # refresh cookie expiry
-                logging.info(f"[AUTH] Auto-login SUCCESS: {user['username']} (src={'query' if st.query_params.get('auth') else 'cookie'})")
-                # No st.rerun(), no query_params.clear() - let main() render dashboard
+                src = "query" if st.query_params.get("auth") else "cookie"
+                logging.info(f"[AUTH] Auto-login SUCCESS: {user['username']} (src={src})")
+                if st.query_params.get("auth"):
+                    # Clean URL: clear query param + rerun with clean URL
+                    st.query_params.clear()
+                    st.rerun()
             else:
-                # Invalid token - clean up client-side only
-                st.html("""<script>
-                try { localStorage.removeItem("iscan_auth_token"); } catch(e) {}
-                document.cookie = "iscan_sid=;path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT";
-                </script>""")
+                # Invalid token - clean up
                 if st.query_params.get("auth"):
                     st.query_params.clear()
+                st.html("""<script>
+                try { localStorage.removeItem("iscan_auth_token"); } catch(e) {}
+                </script>""")
+                st.rerun()
 
     # ── Create default admin if no users exist ──
     db = st.session_state.db
@@ -6766,17 +6769,12 @@ def render_login():
                     if user:
                         # Generate persistent auth token
                         token = generate_auth_token(db, user["id"])
-                        logging.info(f"[AUTH] Login SUCCESS: {user['username']}, token={token[:8]}...")
-                        # Full-page redirect with token -> cookie sent in next HTTP request
-                        st.html(f"""
-                        <script>
-                        var d = new Date();
-                        d.setTime(d.getTime() + 7*24*60*60*1000);
-                        document.cookie = "iscan_sid=" + encodeURIComponent("{token}") + ";path=/;expires=" + d.toUTCString() + ";SameSite=Lax;Secure";
-                        try {{ localStorage.setItem("iscan_auth_token", "{token}"); }} catch(e) {{}}
-                        window.location.replace("/?auth={token}");
-                        </script>
-                        """)
+                        st.session_state.authenticated = True
+                        st.session_state.user = user
+                        # Store token in URL so it survives page refresh
+                        st.query_params["auth"] = token
+                        logging.info(f"[AUTH] Login SUCCESS: {user['username']}, redirecting to dashboard...")
+                        st.rerun()
                     else:
                         st.error("❌ Username atau password salah, atau akun tidak aktif.")
 
@@ -10034,6 +10032,9 @@ def main():
             return  # Still not authenticated - stop here
 
     logging.info(f"[AUTH] main(): authenticated as {st.session_state.user.get('username','?') if st.session_state.user else '?'}")
+    # Clean URL if auth param still lingering (from login redirect)
+    if st.query_params.get("auth"):
+        st.query_params.clear()
 
     # ── Auto-amortisasi bulanan: pinjaman + biaya dibayar di muka ──
     _auto_amortisasi_bulanan(st.session_state.db)
