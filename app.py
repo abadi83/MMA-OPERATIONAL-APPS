@@ -9980,7 +9980,7 @@ def _render_sidebar_footer():
         # Invalidate all auth tokens for this user
         user = st.session_state.get("user")
         if user:
-            invalidate_auth_token(user_id=user["id"])
+            invalidate_auth_token(st.session_state.db, user_id=user["id"])
         st.session_state.authenticated = False
         st.session_state.user = None
         st.session_state.main_menu = "Operasional"
