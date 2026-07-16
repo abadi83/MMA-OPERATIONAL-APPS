@@ -824,19 +824,26 @@ def init_session():
 
     # ── Auto-login from persistent auth token ──
     if not st.session_state.authenticated:
+        logging.info(f"[AUTH] Not authenticated, checking token sources...")
         auth_token = None
         # 1) Check query param (from fresh login with ?auth=TOKEN)
         auth_token = st.query_params.get("auth")
+        if auth_token:
+            logging.info(f"[AUTH] Found token in query params (len={len(auth_token)})")
         # 2) Check Cookie header (from page refresh — browser sends cookie)
         if not auth_token:
             import re
             try:
                 cookie_header = st.context.headers.get("Cookie", "")
+                logging.info(f"[AUTH] Cookie header: {cookie_header[:100] if cookie_header else '(empty)'}")
                 match = re.search(r'(?:^|;\s*)iscan_sid=([^;]+)', cookie_header)
                 if match:
                     auth_token = match.group(1)
-            except Exception:
-                pass
+                    logging.info(f"[AUTH] Found token in cookie (len={len(auth_token)})")
+                else:
+                    logging.info(f"[AUTH] No iscan_sid token in cookie")
+            except Exception as e:
+                logging.error(f"[AUTH] Error reading Cookie header: {e}")
         if auth_token:
             user = validate_auth_token(st.session_state.db, auth_token)
             if user:
@@ -6759,8 +6766,9 @@ def render_login():
                         st.session_state.user = user
                         # Inject cookie-setting JS
                         inject_auth_cookie_js(token)
+                        logging.info(f"[AUTH] Login SUCCESS: {user['username']}, token={token[:8]}..., calling st.rerun()")
                         st.success(f"✅ Selamat datang, {user['nama_lengkap']}!")
-                        time.sleep(0.5)
+                        time.sleep(0.3)
                         st.rerun()
                     else:
                         st.error("❌ Username atau password salah, atau akun tidak aktif.")
@@ -10012,8 +10020,11 @@ def main():
 
     # ── Auth guard ──
     if not st.session_state.get("authenticated", False):
+        logging.info(f"[AUTH] main(): NOT authenticated, showing login")
         render_login()
         return
+
+    logging.info(f"[AUTH] main(): authenticated as {st.session_state.user.get('username','?') if st.session_state.user else '?'}")
 
     # ── Auto-amortisasi bulanan: pinjaman + biaya dibayar di muka ──
     _auto_amortisasi_bulanan(st.session_state.db)
