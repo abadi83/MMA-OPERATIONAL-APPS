@@ -788,11 +788,6 @@ def init_session():
         st.session_state.cache = ExpeditionCache(st.session_state.db)
 
     # ── Auth state ──
-    # Track rerun count (silent - for debugging only)
-    if "_rerun_count" not in st.session_state:
-        st.session_state._rerun_count = 0
-    st.session_state._rerun_count += 1
-    
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
     if "user" not in st.session_state:
@@ -811,46 +806,35 @@ def init_session():
             import re
             try:
                 cookie_header = st.context.headers.get("Cookie", "")
-                logging.info(f"[AUTH] Cookie header: {cookie_header[:100] if cookie_header else '(empty)'}")
                 match = re.search(r'(?:^|;\s*)iscan_sid=([^;]+)', cookie_header)
                 if match:
                     auth_token = match.group(1)
-                    logging.info(f"[AUTH] Found token in cookie (len={len(auth_token)})")
-                else:
-                    logging.info(f"[AUTH] No iscan_sid token in cookie")
-            except Exception as e:
-                logging.error(f"[AUTH] Error reading Cookie header: {e}")
+            except Exception:
+                pass
         if auth_token:
             user = validate_auth_token(st.session_state.db, auth_token)
             if user:
                 st.session_state.authenticated = True
                 st.session_state.user = user
-                src = "query" if st.query_params.get("auth") else "cookie"
-                logging.info(f"[AUTH] Auto-login SUCCESS: {user['username']} (src={src})")
-                # Keep token in URL - it's needed for page refresh persistence
             else:
-                # Invalid token - clean up
                 if st.query_params.get("auth"):
                     st.query_params.clear()
                     st.rerun()
 
-    # ── Create default admin if no users exist ──
-    db = st.session_state.db
-    user_count = db.fetch_one("SELECT COUNT(*) as cnt FROM users")
-    if user_count and user_count["cnt"] == 0:
-        db.execute(
-            "INSERT INTO users (username, password_hash, nama_lengkap, role) VALUES (?, ?, ?, ?)",
-            ("admin", hash_password("admin123"), "Administrator", "admin"),
-        )
-        logging.info("Default admin user created (admin / admin123)")
+    # ── Create default admin (once) ──
+    if not st.session_state.get("_db_checked"):
+        st.session_state._db_checked = True
+        db = st.session_state.db
+        user_count = db.fetch_one("SELECT COUNT(*) as cnt FROM users")
+        if user_count and user_count["cnt"] == 0:
+            db.execute(
+                "INSERT INTO users (username, password_hash, nama_lengkap, role) VALUES (?, ?, ?, ?)",
+                ("admin", hash_password("admin123"), "Administrator", "admin"),
+            )
+            logging.info("Default admin user created (admin / admin123)")
 
-    if "scan_mode" not in st.session_state:
-        st.session_state.scan_mode = "KIRIM"  # KIRIM or RETUR
     if "selected_store" not in st.session_state:
-        stores = st.session_state.db.fetch_all("SELECT nama FROM toko ORDER BY nama")
-        st.session_state.selected_store = stores[0]["nama"] if stores else "Mitra Mulia Abadi"
-    if "last_scan" not in st.session_state:
-        st.session_state.last_scan = None
+        st.session_state.selected_store = "Mitra Mulia Abadi"  # default, avoid DB query every rerun
     if "main_menu" not in st.session_state:
         st.session_state.main_menu = "Operasional"
     if "page" not in st.session_state:
@@ -6734,9 +6718,7 @@ def render_login():
                         token = generate_auth_token(db, user["id"])
                         st.session_state.authenticated = True
                         st.session_state.user = user
-                        # Store token in URL so it survives page refresh
                         st.query_params["auth"] = token
-                        logging.info(f"[AUTH] Login SUCCESS: {user['username']}, redirecting to dashboard...")
                         st.rerun()
                     else:
                         st.error("❌ Username atau password salah, atau akun tidak aktif.")
