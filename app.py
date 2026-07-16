@@ -794,7 +794,7 @@ def init_session():
         st.session_state.cache = ExpeditionCache(st.session_state.db)
 
     # ── Auth state ──
-    # Track rerun count to debug session state persistence
+    # Track rerun count (silent - for debugging only)
     if "_rerun_count" not in st.session_state:
         st.session_state._rerun_count = 0
     st.session_state._rerun_count += 1
@@ -803,8 +803,6 @@ def init_session():
         st.session_state.authenticated = False
     if "user" not in st.session_state:
         st.session_state.user = None
-
-    logging.info(f"[AUTH] Rerun #{st.session_state._rerun_count}, auth={st.session_state.authenticated}")
 
     # ── Auto-login from persistent auth token ──
     if not st.session_state.authenticated:
@@ -860,18 +858,9 @@ def init_session():
     if "last_scan" not in st.session_state:
         st.session_state.last_scan = None
     if "main_menu" not in st.session_state:
-        st.session_state.main_menu = st.query_params.get("menu", "Operasional")
+        st.session_state.main_menu = "Operasional"
     if "page" not in st.session_state:
-        st.session_state.page = st.query_params.get("page", "Dashboard")
-
-    # ── Persist current menu/page to URL only when changed ──
-    if st.session_state.get("authenticated"):
-        cur_menu = st.session_state.main_menu
-        cur_page = st.session_state.page
-        if st.query_params.get("menu") != cur_menu:
-            st.query_params["menu"] = cur_menu
-        if st.query_params.get("page") != cur_page:
-            st.query_params["page"] = cur_page
+        st.session_state.page = "Dashboard"
 
 
 # ==================== HELPER FUNCTIONS ====================
