@@ -6777,7 +6777,6 @@ def render_login():
                         window.location.replace("/?auth={token}");
                         </script>
                         """)
-                        st.stop()
                     else:
                         st.error("❌ Username atau password salah, atau akun tidak aktif.")
 
