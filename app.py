@@ -1,4 +1,4 @@
-"""
+﻿"""
 iScan Pro - Streamlit Edition
 Aplikasi scanning resi pengiriman oleh MMA (Mitra Mulia Abadi)
 """
@@ -265,6 +265,37 @@ class Database:
                 )
             """)
 
+            # ── Master Data tables ──
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS supplier (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nama TEXT NOT NULL UNIQUE,
+                    kontak TEXT DEFAULT '',
+                    alamat TEXT DEFAULT '',
+                    keterangan TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS kategori_produk (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nama TEXT NOT NULL UNIQUE,
+                    keterangan TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS gudang (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nama TEXT NOT NULL UNIQUE,
+                    lokasi TEXT DEFAULT '',
+                    keterangan TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS penjualan (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -296,6 +327,107 @@ class Database:
                 cursor.execute("ALTER TABLE penjualan ADD COLUMN kurir TEXT DEFAULT ''")
             except sqlite3.OperationalError:
                 pass
+
+            # Migration: settlement reconciliation columns
+            try:
+                cursor.execute("ALTER TABLE penjualan ADD COLUMN potongan_marketplace REAL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("ALTER TABLE penjualan ADD COLUMN status_settlement TEXT DEFAULT 'UNSETTLED'")
+            except sqlite3.OperationalError:
+                pass
+            # Set default for existing rows
+            try:
+                cursor.execute("UPDATE penjualan SET status_settlement = 'UNSETTLED' WHERE status_settlement IS NULL OR status_settlement = ''")
+            except:
+                pass
+
+            # ── Aset Tetap & Modal tables ──
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS aset_tetap (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nama_aset TEXT NOT NULL,
+                    kategori TEXT DEFAULT '',
+                    tanggal_perolehan TEXT NOT NULL,
+                    harga_perolehan REAL NOT NULL DEFAULT 0,
+                    masa_manfaat INTEGER DEFAULT 4,
+                    metode_depresiasi TEXT DEFAULT 'GARIS_LURUS',
+                    nilai_sisa REAL DEFAULT 0,
+                    akumulasi_depresiasi REAL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS modal (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    jenis TEXT NOT NULL DEFAULT 'AWAL',
+                    tanggal TEXT NOT NULL,
+                    jumlah REAL NOT NULL DEFAULT 0,
+                    keterangan TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Default modal awal if empty
+            try:
+                cursor.execute("SELECT COUNT(*) FROM modal")
+                if cursor.fetchone()[0] == 0:
+                    cursor.execute(
+                        "INSERT INTO modal (jenis, tanggal, jumlah, keterangan) VALUES (?, ?, ?, ?)",
+                        ("AWAL", datetime.now().strftime("%d-%m-%Y"), 0, "Modal awal — isi dengan jumlah sebenarnya"),
+                    )
+            except:
+                pass
+
+            # ── Pinjaman / Utang Bank ──
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS pinjaman (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nama_bank TEXT NOT NULL,
+                    pokok REAL NOT NULL DEFAULT 0,
+                    bunga_persen REAL DEFAULT 0,
+                    tenor_bulan INTEGER DEFAULT 12,
+                    cicilan_per_bulan REAL DEFAULT 0,
+                    tanggal_mulai TEXT NOT NULL,
+                    sisa_pokok REAL DEFAULT 0,
+                    total_bunga_dibayar REAL DEFAULT 0,
+                    status TEXT DEFAULT 'AKTIF',
+                    keterangan TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # ── Biaya Dibayar di Muka ──
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS biaya_dibayar_dimuka (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    deskripsi TEXT NOT NULL,
+                    kategori TEXT DEFAULT 'Sewa',
+                    jumlah_total REAL NOT NULL DEFAULT 0,
+                    jumlah_per_bulan REAL DEFAULT 0,
+                    bulan_mulai TEXT NOT NULL,
+                    bulan_selesai TEXT NOT NULL,
+                    sisa_belum_diakui REAL DEFAULT 0,
+                    status TEXT DEFAULT 'AKTIF',
+                    keterangan TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # ── Jurnal Amortisasi (Bunga + Sewa Dimuka) ──
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS amortisasi (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    jenis TEXT NOT NULL,
+                    id_ref INTEGER NOT NULL,
+                    periode_bulan TEXT NOT NULL,
+                    jumlah REAL NOT NULL DEFAULT 0,
+                    keterangan TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
             # ── Users & Roles table ──
             cursor.execute("""
@@ -335,6 +467,18 @@ class Database:
             try:
                 cursor.execute("ALTER TABLE opex ADD COLUMN no_faktur TEXT DEFAULT ''")
             except sqlite3.OperationalError:
+                pass
+
+            # Migration: add tipe column (VARIABLE / TETAP)
+            try:
+                cursor.execute("ALTER TABLE opex ADD COLUMN tipe TEXT DEFAULT 'VARIABLE'")
+            except sqlite3.OperationalError:
+                pass
+
+            # Migration: set default tipe for existing rows
+            try:
+                cursor.execute("UPDATE opex SET tipe = 'VARIABLE' WHERE tipe IS NULL OR tipe = ''")
+            except:
                 pass
 
             # ── Retur & Klaim table ──
@@ -449,13 +593,13 @@ ROLES = {
     "admin": {
         "label": "Admin",
         "desc": "Full access — semua menu termasuk manajemen user",
-        "menus": ["Operasional", "Penjualan", "Pembelian", "OPEX", "Finance", "Admin"],
+        "menus": ["Operasional", "Penjualan", "Pembelian", "OPEX", "Finance", "Akuntansi", "Master_Data", "Admin"],
     },
     "supervisor": {
         "label": "Supervisor",
         "desc": "Monitoring — dashboard, AI supervisor, reports",
         "menus": ["Operasional"],
-        "pages": ["Dashboard", "AI_Supervisor", "Reports", "Handover", "Ekspedisi", "Toko", "Retur_Klaim"],
+        "pages": ["Dashboard", "AI_Supervisor", "Reports", "Handover", "Ekspedisi", "Retur_Klaim"],
     },
     "operator": {
         "label": "Operator",
@@ -465,19 +609,21 @@ ROLES = {
     },
     "gudang": {
         "label": "Gudang",
-        "desc": "Warehouse — SKU, barang besar, pembelian SKU & OPEX",
-        "menus": ["Operasional", "Pembelian", "OPEX"],
-        "pages": ["Dashboard", "Barang_Besar",
-                  "Purchase_Dashboard", "Purchase_SKU", "Purchase_Input", "Purchase_History",
+        "desc": "Warehouse — Master Data, pembelian SKU & OPEX",
+        "menus": ["Operasional", "Master_Data", "Pembelian", "OPEX"],
+        "pages": ["Dashboard",
+                  "Master_SKU", "Master_Supplier", "Master_Kategori", "Master_Toko", "Master_Barang_Besar", "Master_Gudang",
+                  "Purchase_Dashboard", "Purchase_Input", "Purchase_History",
                   "Opex_Dashboard", "Opex_Input", "Opex_History"],
     },
     "finance": {
         "label": "Finance",
-        "desc": "Keuangan — konfirmasi bayar SKU & OPEX, dashboard finance",
-        "menus": ["Pembelian", "OPEX", "Finance"],
+        "desc": "Keuangan — konfirmasi bayar SKU & OPEX, dashboard finance, akuntansi",
+        "menus": ["Pembelian", "OPEX", "Finance", "Akuntansi"],
         "pages": ["Purchase_Dashboard", "Purchase_History",
                   "Opex_Dashboard", "Opex_History",
-                  "Finance_Dashboard", "Finance_SKU", "Finance_OPEX", "Finance_History"],
+                  "Finance_Dashboard", "Finance_SKU", "Finance_OPEX", "Finance_History",
+                  "Rekonsiliasi", "Laba_Rugi_Neraca", "Aset_Modal"],
     },
 }
 
@@ -537,12 +683,14 @@ def user_has_access(user_role: str, page: str) -> bool:
     # Check menu-level access
     menu_map = {
         "Operasional": ["Dashboard", "Scan_Operasional", "Sales_Input", "Retur_Klaim", "AI_Supervisor",
-                        "Handover", "Ekspedisi", "Toko", "Barang_Besar", "Reports"],
+                        "Handover", "Ekspedisi", "Reports"],
         "Penjualan": ["Sales_Dashboard", "Sales_History", "Sales_Archive"],
-        "Pembelian": ["Purchase_Dashboard", "Purchase_SKU", "Purchase_Input",
+        "Pembelian": ["Purchase_Dashboard", "Purchase_Input",
                       "Purchase_History", "Purchase_Archive"],
         "OPEX": ["Opex_Dashboard", "Opex_Input", "Opex_History"],
         "Finance": ["Finance_Dashboard", "Finance_SKU", "Finance_OPEX", "Finance_History", "Laba_Rugi", "Cashflow"],
+        "Akuntansi": ["Rekonsiliasi", "Laba_Rugi_Neraca", "Aset_Modal"],
+        "Master_Data": ["Master_SKU", "Master_Supplier", "Master_Kategori", "Master_Toko", "Master_Barang_Besar", "Master_Gudang"],
         "Admin": ["Admin_Users"],
     }
     allowed_menus = role_def.get("menus", [])
@@ -3393,8 +3541,8 @@ def render_sales_input():
     # ── Stats ──
     st.markdown("---")
     st.markdown("### 📊 Data Penjualan Saat Ini")
-    stats_sales = db.fetch_one("SELECT COUNT(*) as rows, COUNT(DISTINCT no_pesanan) as orders, COALESCE(SUM(total_harga), 0) as total FROM penjualan")
-    sku_matched = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan WHERE sku_terdeteksi != ''")
+    stats_sales = db.fetch_one("SELECT COUNT(*) as rows, COUNT(DISTINCT no_pesanan) as orders, COALESCE(SUM(total_harga), 0) as total FROM penjualan WHERE status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')")
+    sku_matched = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan WHERE sku_terdeteksi != '' AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')")
 
     col_st1, col_st2, col_st3, col_st4, col_st5 = st.columns(5)
     with col_st1:
@@ -3491,7 +3639,7 @@ def render_sales_daily_report():
         )
 
     # ── Build query ──
-    query = "SELECT * FROM penjualan WHERE 1=1"
+    query = "SELECT * FROM penjualan WHERE 1=1 AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')"
     params = []
 
     if mp_filter != "Semua":
@@ -3577,7 +3725,7 @@ def render_sales_daily_report():
             sku_summary = db.fetch_all(
                 "SELECT sku_terdeteksi, nama_produk, COUNT(*) as jml_pesanan, SUM(qty) as total_qty, "
                 "SUM(total_harga) as total, marketplace "
-                "FROM penjualan WHERE sku_terdeteksi != ''" +
+                "FROM penjualan WHERE sku_terdeteksi != '' AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')" +
                 (" AND marketplace = ?" if mp_filter != "Semua" else "") + (" AND nama_toko = ?" if toko_filter != "Semua" else "") +
                 (" AND tanggal_pesanan = ?" if rpt_date_str else "") +
                 " GROUP BY sku_terdeteksi ORDER BY total DESC",
@@ -3599,7 +3747,7 @@ def render_sales_daily_report():
                 "SELECT marketplace, COUNT(*) as jml_pesanan, SUM(qty) as total_qty, "
                 "SUM(total_harga) as total, "
                 "SUM(CASE WHEN sku_terdeteksi != '' THEN 1 ELSE 0 END) as sku_matched "
-                "FROM penjualan WHERE 1=1" +
+                "FROM penjualan WHERE 1=1 AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')" +
                 (" AND marketplace = ?" if mp_filter != "Semua" else "") + (" AND nama_toko = ?" if toko_filter != "Semua" else "") +
                 (" AND tanggal_pesanan = ?" if rpt_date_str else "") +
                 " GROUP BY marketplace ORDER BY total DESC",
@@ -3620,7 +3768,7 @@ def render_sales_daily_report():
                 "SELECT nama_toko, COUNT(*) as jml_pesanan, SUM(qty) as total_qty, "
                 "SUM(total_harga) as total, "
                 "SUM(CASE WHEN sku_terdeteksi != '' THEN 1 ELSE 0 END) as sku_matched "
-                "FROM penjualan WHERE 1=1" +
+                "FROM penjualan WHERE 1=1 AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')" +
                 (" AND marketplace = ?" if mp_filter != "Semua" else "") + (" AND nama_toko = ?" if toko_filter != "Semua" else "") +
                 (" AND tanggal_pesanan = ?" if rpt_date_str else "") +
                 " GROUP BY nama_toko ORDER BY total DESC",
@@ -3640,7 +3788,7 @@ def render_sales_daily_report():
             prod_summary = db.fetch_all(
                 "SELECT nama_produk, COUNT(*) as jml_pesanan, SUM(qty) as total_qty, "
                 "SUM(total_harga) as total, marketplace "
-                "FROM penjualan WHERE 1=1" +
+                "FROM penjualan WHERE 1=1 AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')" +
                 (" AND marketplace = ?" if mp_filter != "Semua" else "") + (" AND nama_toko = ?" if toko_filter != "Semua" else "") +
                 (" AND tanggal_pesanan = ?" if rpt_date_str else "") +
                 " GROUP BY nama_produk ORDER BY total DESC LIMIT 30",
@@ -3654,6 +3802,51 @@ def render_sales_daily_report():
                 })
                 df_prod["Total"] = df_prod["Total"].apply(lambda x: f"Rp {x:,.0f}")
                 st.dataframe(df_prod, width="stretch", hide_index=True)
+
+        # ── Pendapatan Lain: Hasil Klaim (jurnal koreksi) ──
+        st.markdown("---")
+        st.markdown("### 💰 Pendapatan Lain — Hasil Klaim (Jurnal Koreksi)")
+
+        klaim_params = []
+        if mp_filter != "Semua":
+            klaim_params.append(mp_filter)
+        if toko_filter != "Semua":
+            klaim_params.append(toko_filter)
+
+        klaim_income = db.fetch_all(
+            "SELECT tanggal, no_resi, no_pesanan, marketplace, nama_toko, sku, nama_produk, "
+            "qty, alasan_klaim, nominal_klaim, operator, waktu "
+            "FROM retur_klaim WHERE status = 'KLAIM' AND status_klaim = 'BERHASIL' AND nominal_klaim > 0"
+            + (" AND marketplace = ?" if mp_filter != "Semua" else "")
+            + (" AND nama_toko = ?" if toko_filter != "Semua" else "")
+            + (" AND tanggal = ?" if rpt_date_str else "")
+            + " ORDER BY id DESC",
+            klaim_params if klaim_params else [],
+        )
+
+        if klaim_income:
+            total_klaim = sum(k["nominal_klaim"] or 0 for k in klaim_income)
+            col_k1, col_k2 = st.columns([3, 1])
+            with col_k1:
+                st.info(
+                    f"📋 **{len(klaim_income)} klaim berhasil** — Pendapatan hasil klaim dari marketplace "
+                    f"yang sudah disetujui dan dicairkan."
+                )
+            with col_k2:
+                st.metric("💰 Total Hasil Klaim", f"Rp {total_klaim:,.0f}")
+
+            df_klaim = pd.DataFrame([dict(k) for k in klaim_income])
+            df_klaim = df_klaim.rename(columns={
+                "tanggal": "Tgl Klaim", "no_resi": "No Resi", "no_pesanan": "No Pesanan",
+                "marketplace": "MP", "nama_toko": "Toko", "sku": "SKU",
+                "nama_produk": "Produk", "qty": "Qty", "alasan_klaim": "Alasan",
+                "nominal_klaim": "Nominal", "operator": "Operator", "waktu": "Waktu",
+            })
+            df_klaim["Nominal"] = df_klaim["Nominal"].apply(lambda x: f"Rp {x:,.0f}")
+            display_klaim = [c for c in ["Tgl Klaim", "No Resi", "No Pesanan", "MP", "Toko", "SKU", "Produk", "Qty", "Alasan", "Nominal", "Operator"] if c in df_klaim.columns]
+            st.dataframe(df_klaim[display_klaim], width="stretch", height=250, hide_index=True)
+        else:
+            st.caption("📭 Tidak ada klaim berhasil untuk periode ini.")
 
         # ── Export ──
         st.markdown("---")
@@ -4585,12 +4778,12 @@ def render_retur_klaim():
                         ),
                     )
 
-                    # ── Update penjualan: kurangi pendapatan karena retur ──
+                    # ── Update penjualan: hanya ubah status, jangan zero-out nilai ──
+                    # Data penjualan asli tetap utuh. Koreksi dicatat di jurnal retur_klaim.
                     if match:
                         db.execute(
                             "UPDATE penjualan SET status_pesanan = 'RETUR', "
-                            "qty = 0, total_harga = 0, harga_jual = 0, "
-                            "keterangan = 'Retur diterima — stok dikembalikan' "
+                            "keterangan = 'Retur diterima — stok dikembalikan (nilai asli tetap)' "
                             "WHERE no_pesanan = ? OR no_resi = ?",
                             (match["no_pesanan"], match["no_resi"]),
                         )
@@ -4633,7 +4826,7 @@ def render_retur_klaim():
 
                     st.success(
                         f"✅ **DITERIMA** — `{cleaned}` retur diterima. "
-                        f"Penjualan dikurangi, stok dikembalikan (tidak ada kerugian)."
+                        f"Stok dikembalikan. Transaksi asli tetap utuh, koreksi tercatat di jurnal retur."
                     )
                     st.rerun()
 
@@ -4904,12 +5097,19 @@ def render_laba_rugi():
     # Biaya per resi (unique)
     total_biaya_resi = len(unique_resi) * biaya_per_resi
 
-    # Net Profit
-    net_profit = total_gross - total_fee_pct - total_biaya_resi - total_modal
+    # ── Biaya Packing Variable Harian (dari OPEX tipe VARIABLE) ──
+    opex_var_harian = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE tipe = 'VARIABLE' AND tanggal = ? AND status_bayar = 'LUNAS'",
+        (tgl_str,),
+    )
+    total_opex_var = opex_var_harian["total"] if opex_var_harian else 0
+
+    # Net Profit = Gross - Fee MP - Biaya/Resi - Modal (HPP) - Packing Variable
+    net_profit = total_gross - total_fee_pct - total_biaya_resi - total_modal - total_opex_var
 
     # ── Summary Cards ──
     st.markdown("### 📊 Ringkasan Laba Rugi")
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
     with col1:
         st.metric("💰 Gross Omset", f"Rp {total_gross:,.0f}")
     with col2:
@@ -4922,10 +5122,13 @@ def render_laba_rugi():
         st.metric("📋 Harga Modal", f"Rp {total_modal:,.0f}",
                  help="HPP = qty × harga_beli dari SKU")
     with col5:
+        st.metric("📦 Packing Variable", f"Rp {total_opex_var:,.0f}",
+                 help="Biaya packing harian: bubble, kardus, lakban, bensin (dari OPEX VARIABLE LUNAS)")
+    with col6:
         pct_margin = (net_profit / total_gross * 100) if total_gross > 0 else 0
         st.metric("✅ Net Profit", f"Rp {net_profit:,.0f}",
                  delta=f"{pct_margin:.1f}% margin")
-    with col6:
+    with col7:
         st.metric("📦 Total Resi", len(unique_resi))
 
     if sku_missing_modal:
@@ -4942,9 +5145,29 @@ def render_laba_rugi():
         fee_pct = total_fee_pct / total_gross * 100
         biaya_pct = total_biaya_resi / total_gross * 100
         modal_pct = total_modal / total_gross * 100
+        opex_var_pct = total_opex_var / total_gross * 100
         profit_pct = max(0, net_profit / total_gross * 100)
 
-        st.caption(f"💡 **Komposisi Omset**: Fee MP {fee_pct:.1f}% | Biaya/Resi {biaya_pct:.1f}% | Modal {modal_pct:.1f}% | Profit {profit_pct:.1f}%")
+        st.caption(f"💡 **Komposisi Omset**: Fee MP {fee_pct:.1f}% | Biaya/Resi {biaya_pct:.1f}% | Modal {modal_pct:.1f}% | Packing Var {opex_var_pct:.1f}% | Profit {profit_pct:.1f}%")
+        if total_opex_var > 0:
+            st.caption(f"📦 Biaya packing variable hari ini: **Rp {total_opex_var:,.0f}** (bubble, kardus, lakban, bensin, dll.)")
+
+    # ── Monthly OPEX Tetap Info ──
+    st.markdown("---")
+    this_month_str = datetime.now().strftime("%m-%Y")
+    opex_tetap_bulan = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE tipe = 'TETAP' AND tanggal LIKE ? AND status_bayar = 'LUNAS'",
+        (f"%{this_month_str}%",),
+    )
+    tetap_val = opex_tetap_bulan["total"] if opex_tetap_bulan else 0
+    hari_dalam_bulan = datetime.now().day
+    total_hari_bulan = 30  # approximate
+    tetap_per_hari = tetap_val / total_hari_bulan if tetap_val > 0 else 0
+
+    st.info(
+        f"🏢 **OPEX Tetap Bulanan**: Rp {tetap_val:,.0f}/bulan (≈ Rp {tetap_per_hari:,.0f}/hari). "
+        f"OPEX tetap (Gaji, Listrik, Internet, Sewa, dll.) akan dihitung penuh di **Laba Rugi Bulanan** pada Dashboard Finance."
+    )
 
     # ── Per Marketplace Breakdown ──
     st.markdown("---")
@@ -4993,10 +5216,17 @@ def render_laba_rugi():
                     sk = r["sku_terdeteksi"]
                     if sk and sk in sku_harga:
                         day_modal += (sku_harga[sk]["harga_beli"] or 0) * (r["qty"] or 1)
-            day_net = day_gross - day_fee - day_biaya - day_modal
+            # Daily variable OPEX (packing)
+            day_opex_var = db.fetch_one(
+                "SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE tipe = 'VARIABLE' AND tanggal = ? AND status_bayar = 'LUNAS'",
+                (d_str,),
+            )
+            day_opex_val = day_opex_var["total"] if day_opex_var else 0
+            day_net = day_gross - day_fee - day_biaya - day_modal - day_opex_val
             last_7.append({
                 "Tanggal": d_str,
                 "Gross": day_gross,
+                "Packing Var": day_opex_val,
                 "Net Profit": day_net,
                 "Resi": len(day_resi),
                 "Margin": f"{(day_net / day_gross * 100):.1f}%" if day_gross > 0 else "0%",
@@ -5005,6 +5235,7 @@ def render_laba_rugi():
     if last_7:
         df_trend = pd.DataFrame(last_7)
         df_trend["Gross"] = df_trend["Gross"].apply(lambda x: f"Rp {x:,.0f}")
+        df_trend["Packing Var"] = df_trend["Packing Var"].apply(lambda x: f"Rp {x:,.0f}")
         df_trend["Net Profit"] = df_trend["Net Profit"].apply(lambda x: f"Rp {x:,.0f}")
         st.dataframe(df_trend, width="stretch", hide_index=True)
     else:
@@ -6424,10 +6655,22 @@ def render_login():
 
 
 # ==================== OPEX (Operational Expenses) ====================
-OPEX_CATEGORIES = [
-    "Listrik", "Internet", "Packing (Lakban/Kardus/Bubble)", "ATK",
-    "Transport", "Maintenance", "Sewa", "Gaji/Upah", "Lainnya",
+# ── Tipe OPEX ──
+OPEX_TIPE = ["📦 Biaya Packing Variable (Harian)", "🏢 OPEX Tetap (Bulanan)"]
+
+# ── Kategori per Tipe ──
+OPEX_VARIABLE_CATEGORIES = [
+    "Bubble Wrap", "Kardus", "Lakban / Selotip", "Bensin / Transport Harian",
+    "Packing Lainnya",
 ]
+
+OPEX_TETAP_CATEGORIES = [
+    "Gaji / Upah", "Internet", "Listrik", "Air", "Sewa Tempat",
+    "Maintenance", "ATK", "Lainnya",
+]
+
+# ── Legacy (backward compatible, digabung untuk filter) ──
+OPEX_CATEGORIES = OPEX_VARIABLE_CATEGORIES + OPEX_TETAP_CATEGORIES
 
 
 def _generate_opex_faktur(db) -> str:
@@ -6445,11 +6688,11 @@ def _generate_opex_faktur(db) -> str:
 
 
 def render_opex_input():
-    """Render form input biaya operasional (OPEX)."""
+    """Render form input biaya operasional (OPEX) — Variable Harian & Tetap Bulanan."""
     db = st.session_state.db
 
     st.subheader("📝 Input Biaya Operasional (OPEX)")
-    st.caption("Catat biaya operasional tetap: listrik, internet, packing, ATK, dll.")
+    st.caption("Pisahkan biaya packing variable harian (bubble, kardus, lakban, bensin) dan OPEX tetap bulanan (gaji, listrik, internet, dll).")
 
     # ── Init session state ──
     if "opex_cart" not in st.session_state:
@@ -6458,16 +6701,43 @@ def render_opex_input():
         st.session_state.opex_supplier = ""
     if "opex_faktur" not in st.session_state:
         st.session_state.opex_faktur = _generate_opex_faktur(db)
+    if "opex_tipe" not in st.session_state:
+        st.session_state.opex_tipe = "📦 Biaya Packing Variable (Harian)"
     if "opex_kategori" not in st.session_state:
-        st.session_state.opex_kategori = OPEX_CATEGORIES[0]
+        st.session_state.opex_kategori = OPEX_VARIABLE_CATEGORIES[0]
 
     cart = st.session_state.opex_cart
+
+    # ── Tipe OPEX ──
+    st.markdown("### ⚡ Tipe Biaya")
+    tipe_col1, tipe_col2 = st.columns([2, 2])
+    with tipe_col1:
+        opex_tipe = st.radio(
+            "Pilih Tipe OPEX",
+            OPEX_TIPE,
+            index=0 if st.session_state.opex_tipe.startswith("📦") else 1,
+            key="opex_tipe_radio",
+            horizontal=True,
+            help="📦 Variable = biaya harian (bubble, kardus, bensin) | 🏢 Tetap = biaya bulanan (gaji, listrik, internet)",
+        )
+        st.session_state.opex_tipe = opex_tipe
+    with tipe_col2:
+        if opex_tipe.startswith("📦"):
+            st.info("📦 **Variable Harian** — biaya packing & operasional yang berubah tiap hari.")
+        else:
+            st.info("🏢 **Tetap Bulanan** — biaya rutin yang dibayar per bulan.")
+
+    is_variable = opex_tipe.startswith("📦")
 
     # ── Header ──
     col_h1, col_h2, col_h3 = st.columns([2, 2, 1])
     with col_h1:
-        kategori = st.selectbox("Kategori *", OPEX_CATEGORIES,
-                                index=OPEX_CATEGORIES.index(st.session_state.opex_kategori) if st.session_state.opex_kategori in OPEX_CATEGORIES else 0,
+        cat_list = OPEX_VARIABLE_CATEGORIES if is_variable else OPEX_TETAP_CATEGORIES
+        # Ensure kategori is valid for current tipe
+        if st.session_state.opex_kategori not in cat_list:
+            st.session_state.opex_kategori = cat_list[0]
+        kategori = st.selectbox("Kategori *", cat_list,
+                                index=cat_list.index(st.session_state.opex_kategori) if st.session_state.opex_kategori in cat_list else 0,
                                 key="opex_kategori_select")
         st.session_state.opex_kategori = kategori
     with col_h2:
@@ -6488,13 +6758,18 @@ def render_opex_input():
     st.markdown("### ➕ Tambah Biaya")
     col_i1, col_i2, col_i3, col_i4, col_i5 = st.columns([3, 1, 1, 1, 1])
     with col_i1:
-        deskripsi = st.text_input("Deskripsi", placeholder="Contoh: Bayar listrik bulan Juli...", key="opex_desc")
+        desc_placeholder = "Bayar listrik bulan Juli..." if not is_variable else "Bubble wrap 5 roll..."
+        deskripsi = st.text_input("Deskripsi", placeholder=desc_placeholder, key="opex_desc")
     with col_i2:
         supplier = st.text_input("Supplier/Vendor", placeholder="PLN/Telkom...", key="opex_supplier_input")
     with col_i3:
         qty = st.number_input("Qty", min_value=1, value=1, step=1, key="opex_qty")
     with col_i4:
-        satuan = st.selectbox("Satuan", ["pcs", "bulan", "liter", "kg", "paket", "unit", "kali"], key="opex_satuan")
+        default_satuan = "bulan" if not is_variable else "pcs"
+        satuan_list = ["bulan", "pcs", "liter", "kg", "paket", "unit", "kali", "roll", "buah"]
+        satuan = st.selectbox("Satuan", satuan_list,
+                              index=satuan_list.index(default_satuan) if default_satuan in satuan_list else 1,
+                              key="opex_satuan")
     with col_i5:
         harga_satuan = st.number_input("Harga/Unit", min_value=0, value=0, step=10000, key="opex_harga")
 
@@ -6512,6 +6787,7 @@ def render_opex_input():
                 "satuan": satuan,
                 "harga_satuan": harga_satuan,
                 "total_harga": qty * harga_satuan,
+                "tipe": "VARIABLE" if is_variable else "TETAP",
             })
             st.success(f"✅ '{deskripsi}' ditambahkan!")
             st.rerun()
@@ -6527,22 +6803,33 @@ def render_opex_input():
         df_cart["No"] = range(1, len(cart) + 1)
         df_cart["Harga/Unit"] = df_cart["harga_satuan"].apply(lambda x: f"Rp {x:,.0f}")
         df_cart["Total"] = df_cart["total_harga"].apply(lambda x: f"Rp {x:,.0f}")
-        df_display = df_cart[["No", "kategori", "deskripsi", "supplier", "qty", "satuan", "Harga/Unit", "Total"]]
+        df_cart["Tipe"] = df_cart["tipe"].apply(lambda x: "📦 Variable" if x == "VARIABLE" else "🏢 Tetap")
+        df_display = df_cart[["No", "Tipe", "kategori", "deskripsi", "supplier", "qty", "satuan", "Harga/Unit", "Total"]]
         df_display = df_display.rename(columns={
             "kategori": "Kategori", "deskripsi": "Deskripsi",
             "supplier": "Supplier", "qty": "Qty", "satuan": "Satuan",
         })
         st.dataframe(df_display, width="stretch", hide_index=True)
 
+        var_total = sum(item["total_harga"] for item in cart if item.get("tipe") == "VARIABLE")
+        tetap_total = sum(item["total_harga"] for item in cart if item.get("tipe") == "TETAP")
         grand_total = sum(item["total_harga"] for item in cart)
-        st.markdown(f"### 💰 Total OPEX: Rp {grand_total:,.0f} | 📋 {len(cart)} item")
+
+        t_col1, t_col2, t_col3 = st.columns(3)
+        with t_col1:
+            st.metric("📦 Variable", f"Rp {var_total:,.0f}")
+        with t_col2:
+            st.metric("🏢 Tetap", f"Rp {tetap_total:,.0f}")
+        with t_col3:
+            st.metric("💰 Total OPEX", f"Rp {grand_total:,.0f}")
+        st.caption(f"📋 {len(cart)} item dalam daftar")
 
         # Remove item
         col_r1, col_r2 = st.columns([3, 1])
         with col_r1:
             remove_idx = st.selectbox(
                 "Hapus item",
-                [f"{i+1}. {item['deskripsi']} ({item['kategori']}) — Rp {item['total_harga']:,.0f}" for i, item in enumerate(cart)],
+                [f"{i+1}. [{item.get('tipe','?')}] {item['deskripsi']} ({item['kategori']}) — Rp {item['total_harga']:,.0f}" for i, item in enumerate(cart)],
                 key="opex_remove",
             )
         with col_r2:
@@ -6571,12 +6858,12 @@ def render_opex_input():
                         db.execute(
                             """INSERT INTO opex (kategori, deskripsi, supplier, qty, satuan,
                                harga_satuan, total_harga, tanggal, no_faktur,
-                               metode_bayar, status_bayar, keterangan)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                               metode_bayar, status_bayar, keterangan, tipe)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                             (item["kategori"], item["deskripsi"], item["supplier"],
                              item["qty"], item["satuan"], item["harga_satuan"],
                              item["total_harga"], today_str, faktur.strip(),
-                             metode_bayar, "PENDING", ket.strip()),
+                             metode_bayar, "PENDING", ket.strip(), item.get("tipe", "VARIABLE")),
                         )
                         saved += 1
                     st.success(f"✅ {saved} biaya OPEX tersimpan! Status: PENDING (menunggu konfirmasi Finance)")
@@ -6606,70 +6893,117 @@ def render_opex_history():
     st.markdown("---")
 
     # Per kategori
+    st.markdown("### 📊 Breakdown per Kategori & Tipe")
     kat_rows = db.fetch_all(
-        "SELECT kategori, COUNT(*) as cnt, SUM(total_harga) as total FROM opex GROUP BY kategori ORDER BY total DESC"
+        "SELECT tipe, kategori, COUNT(*) as cnt, SUM(total_harga) as total FROM opex GROUP BY tipe, kategori ORDER BY tipe, total DESC"
     )
     if kat_rows:
-        st.markdown("### 📊 Breakdown per Kategori")
         df_kat = pd.DataFrame([dict(r) for r in kat_rows])
+        df_kat["Tipe"] = df_kat["tipe"].apply(lambda x: "📦 Variable" if x == "VARIABLE" else "🏢 Tetap")
         df_kat["Total"] = df_kat["total"].apply(lambda x: f"Rp {x:,.0f}")
         df_kat = df_kat.rename(columns={"kategori": "Kategori", "cnt": "Jumlah", "total": "_total"})
-        st.dataframe(df_kat[["Kategori", "Jumlah", "Total"]], width="stretch", hide_index=True)
+        st.dataframe(df_kat[["Tipe", "Kategori", "Jumlah", "Total"]], width="stretch", hide_index=True)
 
     # Detail
     st.markdown("---")
     st.markdown("### 📋 Detail Transaksi OPEX")
     faktur_rows = db.fetch_all(
-        "SELECT no_faktur, tanggal, kategori, metode_bayar, status_bayar, "
+        "SELECT no_faktur, tanggal, tipe, kategori, metode_bayar, status_bayar, "
         "COUNT(*) as items, SUM(total_harga) as total "
         "FROM opex GROUP BY no_faktur ORDER BY created_at DESC LIMIT 100"
     )
     if faktur_rows:
         df_f = pd.DataFrame([dict(r) for r in faktur_rows])
+        df_f["Tipe"] = df_f["tipe"].apply(lambda x: "📦 Var" if x == "VARIABLE" else "🏢 Tetap")
         df_f["Total"] = df_f["total"].apply(lambda x: f"Rp {x:,.0f}")
         df_f = df_f.rename(columns={
             "no_faktur": "No Ref", "tanggal": "Tanggal", "kategori": "Kategori",
             "metode_bayar": "Metode Bayar", "status_bayar": "Status Bayar",
             "items": "Item", "total": "_total",
         })
-        st.dataframe(df_f[["No Ref", "Tanggal", "Kategori", "Metode Bayar", "Status Bayar", "Item", "Total"]],
+        st.dataframe(df_f[["No Ref", "Tanggal", "Tipe", "Kategori", "Metode Bayar", "Status Bayar", "Item", "Total"]],
                      width="stretch", hide_index=True)
 
 
 def render_opex_dashboard():
-    """Dashboard ringkasan OPEX."""
+    """Dashboard ringkasan OPEX — Variable Harian vs Tetap Bulanan."""
     db = st.session_state.db
     st.subheader("📊 Dashboard Biaya Operasional")
+    st.caption("Biaya Packing Variable (harian) + OPEX Tetap (bulanan) — masuk ke perhitungan laba rugi.")
 
-    total_opex = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex")
+    # ── Totals ──
+    total_var = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE tipe = 'VARIABLE'")
+    total_tetap = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE tipe = 'TETAP'")
+    total_all = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex")
     pending = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE status_bayar = 'PENDING'")
     this_month = datetime.now().strftime("%m-%Y")
-    bulan_ini = db.fetch_one(
-        "SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE tanggal LIKE ?",
+
+    var_bulan = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE tipe = 'VARIABLE' AND tanggal LIKE ?",
+        (f"%{this_month}%",),
+    )
+    tetap_bulan = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE tipe = 'TETAP' AND tanggal LIKE ?",
         (f"%{this_month}%",),
     )
 
-    col1, col2, col3, col4 = st.columns(4)
+    # ── Summary Cards ──
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
-        st.metric("💰 Total OPEX", f"Rp {total_opex['total']:,.0f}" if total_opex else "Rp 0")
+        st.metric("📦 Variable (All-Time)", f"Rp {total_var['total']:,.0f}" if total_var else "Rp 0")
     with col2:
-        st.metric("📌 Pending Bayar", f"Rp {pending['total']:,.0f}" if pending else "Rp 0")
+        st.metric("🏢 Tetap (All-Time)", f"Rp {total_tetap['total']:,.0f}" if total_tetap else "Rp 0")
     with col3:
-        st.metric("📅 Bulan Ini", f"Rp {bulan_ini['total']:,.0f}" if bulan_ini else "Rp 0")
+        st.metric("💰 Total OPEX", f"Rp {total_all['total']:,.0f}" if total_all else "Rp 0")
     with col4:
-        trx_count = db.fetch_one("SELECT COUNT(DISTINCT no_faktur) as cnt FROM opex")
-        st.metric("📋 Transaksi", trx_count["cnt"] if trx_count else 0)
+        st.metric("📌 Pending Bayar", f"Rp {pending['total']:,.0f}" if pending else "Rp 0")
+    with col5:
+        st.metric("📅 Variable Bulan Ini", f"Rp {var_bulan['total']:,.0f}" if var_bulan else "Rp 0")
+    with col6:
+        st.metric("📅 Tetap Bulan Ini", f"Rp {tetap_bulan['total']:,.0f}" if tetap_bulan else "Rp 0")
 
     st.markdown("---")
-    # Per kategori chart
-    kat_rows = db.fetch_all(
-        "SELECT kategori, SUM(total_harga) as total FROM opex GROUP BY kategori ORDER BY total DESC"
+
+    # ── Variable vs Tetap breakdown ──
+    col_left, col_right = st.columns(2)
+
+    with col_left:
+        st.markdown("### 📦 Biaya Packing Variable")
+        var_kat = db.fetch_all(
+            "SELECT kategori, SUM(total_harga) as total FROM opex WHERE tipe = 'VARIABLE' GROUP BY kategori ORDER BY total DESC"
+        )
+        if var_kat:
+            for r in var_kat:
+                pct = (r["total"] / total_var["total"] * 100) if total_var and total_var["total"] > 0 else 0
+                st.progress(min(pct / 100, 1.0), text=f"{r['kategori']}: Rp {r['total']:,.0f} ({pct:.1f}%)")
+        else:
+            st.caption("Belum ada biaya variable.")
+
+    with col_right:
+        st.markdown("### 🏢 OPEX Tetap Bulanan")
+        tetap_kat = db.fetch_all(
+            "SELECT kategori, SUM(total_harga) as total FROM opex WHERE tipe = 'TETAP' GROUP BY kategori ORDER BY total DESC"
+        )
+        if tetap_kat:
+            for r in tetap_kat:
+                pct = (r["total"] / total_tetap["total"] * 100) if total_tetap and total_tetap["total"] > 0 else 0
+                st.progress(min(pct / 100, 1.0), text=f"{r['kategori']}: Rp {r['total']:,.0f} ({pct:.1f}%)")
+        else:
+            st.caption("Belum ada biaya tetap.")
+
+    # ── Monthly trend ──
+    st.markdown("---")
+    st.markdown("### 📈 Tren Bulanan (6 Bulan Terakhir)")
+    monthly_rows = db.fetch_all(
+        "SELECT SUBSTR(tanggal, 4, 7) as bulan, tipe, SUM(total_harga) as total "
+        "FROM opex GROUP BY bulan, tipe ORDER BY bulan DESC LIMIT 12"
     )
-    if kat_rows:
-        st.markdown("### 📊 Pengeluaran per Kategori")
-        for r in kat_rows:
-            pct = (r["total"] / total_opex["total"] * 100) if total_opex and total_opex["total"] > 0 else 0
-            st.progress(min(pct / 100, 1.0), text=f"{r['kategori']}: Rp {r['total']:,.0f} ({pct:.1f}%)")
+    if monthly_rows:
+        df_monthly = pd.DataFrame([dict(r) for r in monthly_rows])
+        df_monthly["Tipe"] = df_monthly["tipe"].apply(lambda x: "📦 Variable" if x == "VARIABLE" else "🏢 Tetap")
+        df_monthly["Total"] = df_monthly["total"].apply(lambda x: f"Rp {x:,.0f}")
+        df_monthly = df_monthly.rename(columns={"bulan": "Bulan", "total": "_total"})
+        st.dataframe(df_monthly[["Bulan", "Tipe", "Total"]], width="stretch", hide_index=True)
 
 
 # ==================== FINANCE ====================
@@ -6917,12 +7251,22 @@ def render_finance_dashboard():
     )
     bln_klaim_val = bln_klaim["tot"] if bln_klaim else 0
 
-    # OPEX + Pembelian bulan ini (LUNAS)
+    # OPEX + Pembelian bulan ini (LUNAS) — split Variable vs Tetap
     bln_opex = db.fetch_one(
         "SELECT COALESCE(SUM(total_harga), 0) as tot FROM opex WHERE status_bayar='LUNAS' AND tanggal >= ?",
         (month_start,),
     )
     bln_opex_val = bln_opex["tot"] if bln_opex else 0
+    bln_opex_var = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as tot FROM opex WHERE tipe = 'VARIABLE' AND status_bayar='LUNAS' AND tanggal >= ?",
+        (month_start,),
+    )
+    bln_opex_var_val = bln_opex_var["tot"] if bln_opex_var else 0
+    bln_opex_tetap = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as tot FROM opex WHERE tipe = 'TETAP' AND status_bayar='LUNAS' AND tanggal >= ?",
+        (month_start,),
+    )
+    bln_opex_tetap_val = bln_opex_tetap["tot"] if bln_opex_tetap else 0
     bln_pemb = db.fetch_one(
         "SELECT COALESCE(SUM(total_harga), 0) as tot FROM pembelian WHERE status_bayar='LUNAS' AND tanggal >= ?",
         (month_start,),
@@ -7162,7 +7506,8 @@ def render_finance_dashboard():
         st.metric("🔻 Fee Marketplace", f"Rp {bln_fee:,.0f}")
         st.metric("📦 Biaya / Resi", f"Rp {bln_biaya:,.0f}")
         st.metric("📋 Harga Modal", f"Rp {bln_modal:,.0f}")
-        st.metric("📝 OPEX", f"Rp {bln_opex_val:,.0f}")
+        st.metric("📝 OPEX", f"Rp {bln_opex_val:,.0f}",
+                 help=f"Variable (packing): Rp {bln_opex_var_val:,.0f} | Tetap (gaji/listrik/dll): Rp {bln_opex_tetap_val:,.0f}")
         st.metric("🛒 Pembelian", f"Rp {bln_pemb_val:,.0f}")
 
     with col_q3:
@@ -7439,6 +7784,1827 @@ def render_admin_users():
         st.info("Belum ada user terdaftar.")
 
 
+# ==================== MASTER DATA PAGE ====================
+def render_master_data():
+    """Render halaman Master Data dengan tab: SKU, Supplier, Kategori, Toko, Barang Besar, Gudang."""
+    db = st.session_state.db
+
+    st.title("📦 Master Data")
+    st.caption("Kelola semua data master: barang, supplier, kategori, toko, barang besar & gudang.")
+
+    tabs = st.tabs([
+        "🏷️ Database Barang (SKU)",
+        "🏪 Supplier",
+        "📂 Kategori",
+        "🏬 Toko",
+        "📦 Barang Besar",
+        "🏭 Gudang / Lokasi",
+    ])
+
+    # ═══════════════════ TAB 1: DATABASE BARANG (SKU) ═══════════════════
+    with tabs[0]:
+        st.subheader("🏷️ Manajemen Database Barang (SKU)")
+        st.caption("Master data barang: tambah, edit, hapus, update harga, upload massal.")
+
+        # ── Stats Ringkasan ──
+        total_sku = db.fetch_one("SELECT COUNT(*) as cnt FROM sku")
+        total_stok = db.fetch_one("SELECT COALESCE(SUM(stok), 0) as total FROM sku")
+        total_value = db.fetch_one("SELECT COALESCE(SUM(stok * harga_beli), 0) as total FROM sku")
+        low_stock = db.fetch_one("SELECT COUNT(*) as cnt FROM sku WHERE stok <= 10 AND stok > 0")
+        no_harga = db.fetch_one("SELECT COUNT(*) as cnt FROM sku WHERE harga_beli = 0 OR harga_beli IS NULL")
+
+        col_s1, col_s2, col_s3, col_s4, col_s5 = st.columns(5)
+        with col_s1:
+            st.metric("📦 Total SKU", f"{total_sku['cnt']:,}" if total_sku else "0")
+        with col_s2:
+            st.metric("📊 Total Stok", f"{total_stok['total']:,}" if total_stok else "0")
+        with col_s3:
+            st.metric("💰 Nilai Inventaris", f"Rp {total_value['total']:,.0f}" if total_value else "Rp 0")
+        with col_s4:
+            st.metric("⚠️ Stok Menipis", f"{low_stock['cnt']:,}" if low_stock else "0")
+        with col_s5:
+            st.metric("❌ Tanpa Harga Beli", f"{no_harga['cnt']:,}" if no_harga else "0")
+
+        # ── Upload Massal SKU ──
+        with st.expander("📥 Upload Massal SKU dari Excel", expanded=False):
+            st.caption("Upload file Excel (.xlsx/.xls) dengan kolom: Kode SKU, Nama Barang, Kategori, Stok, Satuan, Supplier, Harga Beli, Harga Jual, Keterangan.")
+            uploaded_sku = st.file_uploader("Pilih file Excel", type=["xlsx", "xls"], key="master_sku_upload")
+            if uploaded_sku:
+                try:
+                    df_excel = pd.read_excel(uploaded_sku)
+                    st.write("📋 Preview data:")
+                    st.dataframe(df_excel.head(10), width="stretch", hide_index=True)
+                    col_map = {}
+                    target_cols = ["Kode SKU", "Nama Barang", "Kategori", "Stok", "Satuan", "Supplier", "Harga Beli", "Harga Jual", "Keterangan"]
+                    for col_name, target in [
+                        ("kode_sku", "Kode SKU"), ("nama_barang", "Nama Barang"), ("kategori", "Kategori"),
+                        ("stok", "Stok"), ("satuan", "Satuan"), ("supplier", "Supplier"),
+                        ("harga_beli", "Harga Beli"), ("harga_jual", "Harga Jual"), ("keterangan", "Keterangan"),
+                    ]:
+                        col_map[col_name] = st.selectbox(
+                            f"Kolom untuk '{target}'", ["-- Pilih --"] + list(df_excel.columns),
+                            key=f"master_sku_map_{col_name}",
+                        )
+                    only_filled = st.checkbox("Hanya update field yang terisi (kosongkan field lain yang tidak di-upload)", value=True, key="master_sku_only_filled")
+                    if st.button("🚀 Proses Upload SKU", type="primary", key="master_sku_proses"):
+                        upserted = 0
+                        for _, row in df_excel.iterrows():
+                            kode = str(row[col_map["kode_sku"]]).strip() if col_map["kode_sku"] != "-- Pilih --" and pd.notna(row[col_map["kode_sku"]]) else ""
+                            if not kode:
+                                continue
+                            nama = str(row[col_map["nama_barang"]]).strip() if col_map["nama_barang"] != "-- Pilih --" and pd.notna(row[col_map["nama_barang"]]) else ""
+                            existing = db.fetch_one("SELECT id FROM sku WHERE kode_sku = ?", (kode,))
+                            if existing:
+                                updates = []
+                                params = []
+                                if col_map["nama_barang"] != "-- Pilih --" and nama:
+                                    updates.append("nama_barang = ?"); params.append(nama)
+                                if col_map["kategori"] != "-- Pilih --" and pd.notna(row[col_map["kategori"]]):
+                                    updates.append("kategori = ?"); params.append(str(row[col_map["kategori"]]).strip())
+                                if col_map["stok"] != "-- Pilih --" and pd.notna(row[col_map["stok"]]):
+                                    updates.append("stok = ?"); params.append(int(float(row[col_map["stok"]])))
+                                if col_map["satuan"] != "-- Pilih --" and pd.notna(row[col_map["satuan"]]):
+                                    updates.append("satuan = ?"); params.append(str(row[col_map["satuan"]]).strip())
+                                if col_map["supplier"] != "-- Pilih --" and pd.notna(row[col_map["supplier"]]):
+                                    updates.append("supplier = ?"); params.append(str(row[col_map["supplier"]]).strip())
+                                if col_map["harga_beli"] != "-- Pilih --" and pd.notna(row[col_map["harga_beli"]]):
+                                    updates.append("harga_beli = ?"); params.append(float(row[col_map["harga_beli"]]))
+                                if col_map["harga_jual"] != "-- Pilih --" and pd.notna(row[col_map["harga_jual"]]):
+                                    updates.append("harga_jual = ?"); params.append(float(row[col_map["harga_jual"]]))
+                                if col_map["keterangan"] != "-- Pilih --" and pd.notna(row[col_map["keterangan"]]):
+                                    updates.append("keterangan = ?"); params.append(str(row[col_map["keterangan"]]).strip())
+                                if updates:
+                                    updates.append("updated_at = CURRENT_TIMESTAMP")
+                                    params.append(kode)
+                                    db.execute(f"UPDATE sku SET {', '.join(updates)} WHERE kode_sku = ?", params)
+                                    upserted += 1
+                            else:
+                                if not nama:
+                                    continue
+                                db.execute(
+                                    "INSERT INTO sku (kode_sku, nama_barang, kategori, stok, satuan, supplier, harga_beli, harga_jual, keterangan) "
+                                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                    (
+                                        kode, nama,
+                                        str(row[col_map["kategori"]]).strip() if col_map["kategori"] != "-- Pilih --" and pd.notna(row[col_map["kategori"]]) else "",
+                                        int(float(row[col_map["stok"]])) if col_map["stok"] != "-- Pilih --" and pd.notna(row[col_map["stok"]]) else 0,
+                                        str(row[col_map["satuan"]]).strip() if col_map["satuan"] != "-- Pilih --" and pd.notna(row[col_map["satuan"]]) else "pcs",
+                                        str(row[col_map["supplier"]]).strip() if col_map["supplier"] != "-- Pilih --" and pd.notna(row[col_map["supplier"]]) else "",
+                                        float(row[col_map["harga_beli"]]) if col_map["harga_beli"] != "-- Pilih --" and pd.notna(row[col_map["harga_beli"]]) else 0,
+                                        float(row[col_map["harga_jual"]]) if col_map["harga_jual"] != "-- Pilih --" and pd.notna(row[col_map["harga_jual"]]) else 0,
+                                        str(row[col_map["keterangan"]]).strip() if col_map["keterangan"] != "-- Pilih --" and pd.notna(row[col_map["keterangan"]]) else "",
+                                    ),
+                                )
+                                upserted += 1
+                        st.success(f"✅ {upserted} SKU berhasil diproses!")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Gagal membaca file: {e}")
+
+        # ── Tambah SKU Baru ──
+        with st.expander("➕ Tambah SKU Baru", expanded=False):
+            col_a, col_b = st.columns(2)
+            with col_a:
+                kode_baru = st.text_input("Kode SKU *", placeholder="SKU-001", key="master_sku_kode")
+                nama_baru = st.text_input("Nama Barang *", placeholder="Nama produk", key="master_sku_nama")
+                # ── Dropdown dari master kategori ──
+                kat_list = db.fetch_all("SELECT nama FROM kategori_produk ORDER BY nama")
+                kat_opts = [k["nama"] for k in kat_list] if kat_list else []
+                kat_input = st.selectbox(
+                    "Kategori", ["-- Pilih Kategori --"] + kat_opts + ["✚ Tambah Baru..."],
+                    key="master_sku_kat_select",
+                )
+                if kat_input == "✚ Tambah Baru...":
+                    kat_input = st.text_input("Nama Kategori Baru", placeholder="Contoh: Elektronik", key="master_sku_kat_new")
+                stok_awal = st.number_input("Stok Awal", min_value=0, value=0, step=1, key="master_sku_stok")
+                satuan = st.selectbox("Satuan", ["pcs", "box", "lusin", "kg", "liter", "meter", "pack", "set", "unit"], key="master_sku_satuan")
+            with col_b:
+                # ── Dropdown dari master supplier ──
+                sup_list = db.fetch_all("SELECT nama FROM supplier ORDER BY nama")
+                sup_opts = [s["nama"] for s in sup_list] if sup_list else []
+                sup_input = st.selectbox(
+                    "Supplier", ["-- Pilih Supplier --"] + sup_opts + ["✚ Tambah Baru..."],
+                    key="master_sku_sup_select",
+                )
+                if sup_input == "✚ Tambah Baru...":
+                    sup_input = st.text_input("Nama Supplier Baru", placeholder="Contoh: PT Sumber Jaya", key="master_sku_sup_new")
+                harga_beli = st.number_input("Harga Beli (Rp)", min_value=0, value=0, step=1000, key="master_sku_hbeli")
+                harga_jual = st.number_input("Harga Jual (Rp)", min_value=0, value=0, step=1000, key="master_sku_hjual")
+                keterangan = st.text_area("Keterangan", placeholder="Catatan tambahan...", key="master_sku_ket", height=100)
+
+            if st.button("💾 Simpan SKU Baru", type="primary", key="master_sku_simpan"):
+                if not kode_baru.strip() or not nama_baru.strip():
+                    st.error("Kode SKU dan Nama Barang wajib diisi!")
+                else:
+                    existing = db.fetch_one("SELECT id FROM sku WHERE kode_sku = ?", (kode_baru.strip(),))
+                    if existing:
+                        st.error(f"Kode SKU '{kode_baru.strip()}' sudah ada!")
+                    else:
+                        # Auto-save kategori baru
+                        final_kat = kat_input if kat_input not in ("-- Pilih Kategori --", "✚ Tambah Baru...") else ""
+                        if kat_input and kat_input not in ("-- Pilih Kategori --", "✚ Tambah Baru..."):
+                            try:
+                                db.execute("INSERT OR IGNORE INTO kategori_produk (nama) VALUES (?)", (kat_input,))
+                            except:
+                                pass
+                        # Auto-save supplier baru
+                        final_sup = sup_input if sup_input not in ("-- Pilih Supplier --", "✚ Tambah Baru...") else ""
+                        if sup_input and sup_input not in ("-- Pilih Supplier --", "✚ Tambah Baru..."):
+                            try:
+                                db.execute("INSERT OR IGNORE INTO supplier (nama) VALUES (?)", (sup_input,))
+                            except:
+                                pass
+                        db.execute(
+                            "INSERT INTO sku (kode_sku, nama_barang, kategori, stok, satuan, supplier, harga_beli, harga_jual, keterangan) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (kode_baru.strip(), nama_baru.strip(), final_kat, stok_awal, satuan, final_sup, harga_beli, harga_jual, keterangan),
+                        )
+                        st.success(f"✅ SKU '{kode_baru.strip()}' berhasil ditambahkan!")
+                        st.rerun()
+
+        st.markdown("---")
+
+        # ── Daftar SKU dengan filter ──
+        st.subheader("📋 Daftar SKU")
+
+        filt_c1, filt_c2, filt_c3, filt_c4 = st.columns(4)
+        with filt_c1:
+            search_sku = st.text_input("🔍 Cari Kode/Nama", placeholder="Ketik...", key="master_sku_search")
+        with filt_c2:
+            kat_filter_list = db.fetch_all("SELECT DISTINCT kategori FROM sku WHERE kategori != '' ORDER BY kategori")
+            kat_filter_opts = ["Semua"] + [k["kategori"] for k in kat_filter_list]
+            kat_filter = st.selectbox("Filter Kategori", kat_filter_opts, key="master_sku_filt_kat")
+        with filt_c3:
+            sup_filter_list = db.fetch_all("SELECT DISTINCT supplier FROM sku WHERE supplier != '' ORDER BY supplier")
+            sup_filter_opts = ["Semua"] + [s["supplier"] for s in sup_filter_list]
+            sup_filter = st.selectbox("Filter Supplier", sup_filter_opts, key="master_sku_filt_sup")
+        with filt_c4:
+            stok_filter = st.selectbox("Filter Stok", ["Semua", "Stok Menipis (≤10)", "Stok Habis (0)", "Tersedia (>0)", "Tanpa Harga Beli"], key="master_sku_filt_stok")
+
+        query = "SELECT * FROM sku WHERE 1=1"
+        params = []
+        if search_sku:
+            query += " AND (kode_sku LIKE ? OR nama_barang LIKE ?)"
+            params.extend([f"%{search_sku}%", f"%{search_sku}%"])
+        if kat_filter != "Semua":
+            query += " AND kategori = ?"
+            params.append(kat_filter)
+        if sup_filter != "Semua":
+            query += " AND supplier = ?"
+            params.append(sup_filter)
+        if stok_filter == "Stok Menipis (≤10)":
+            query += " AND stok <= 10 AND stok > 0"
+        elif stok_filter == "Stok Habis (0)":
+            query += " AND stok = 0"
+        elif stok_filter == "Tersedia (>0)":
+            query += " AND stok > 0"
+        elif stok_filter == "Tanpa Harga Beli":
+            query += " AND (harga_beli = 0 OR harga_beli IS NULL)"
+        query += " ORDER BY kode_sku ASC LIMIT 200"
+
+        rows = db.fetch_all(query, params)
+
+        if not rows:
+            st.info("📭 Tidak ada SKU ditemukan.")
+        else:
+            df_sku = pd.DataFrame([dict(r) for r in rows])
+
+            def color_sku_row(row):
+                styles = [""] * len(row)
+                if row.get("stok", 0) == 0:
+                    return ["background-color: #f8d7da; color: #721c24"] * len(row)
+                if row.get("stok", 0) <= 10:
+                    return ["background-color: #fff3cd; color: #856404"] * len(row)
+                if row.get("harga_beli", 0) == 0:
+                    styles[df_sku.columns.get_loc("harga_beli") if "harga_beli" in df_sku.columns else 0] = "background-color: #f8d7da; color: #721c24"
+                    return styles
+                return styles
+
+            df_sku = df_sku.rename(columns={
+                "kode_sku": "Kode SKU", "nama_barang": "Nama Barang", "kategori": "Kategori",
+                "stok": "Stok", "satuan": "Satuan", "harga_beli": "Harga Beli",
+                "harga_jual": "Harga Jual", "supplier": "Supplier", "keterangan": "Ket",
+            })
+            df_sku["Harga Beli"] = df_sku["Harga Beli"].apply(lambda x: f"Rp {x:,.0f}" if x else "Rp 0")
+            df_sku["Harga Jual"] = df_sku["Harga Jual"].apply(lambda x: f"Rp {x:,.0f}" if x else "Rp 0")
+
+            display = ["Kode SKU", "Nama Barang", "Kategori", "Stok", "Satuan", "Harga Beli", "Harga Jual", "Supplier"]
+            available = [c for c in display if c in df_sku.columns]
+            styled = df_sku[available].style.apply(color_sku_row, axis=1)
+            st.dataframe(styled, width="stretch", height=400, hide_index=True, key="master_sku_table")
+
+        # ── Update Harga / Edit SKU ──
+        st.markdown("---")
+        st.subheader("⚙️ Update Harga & Edit SKU")
+
+        all_sku_list = db.fetch_all("SELECT kode_sku, nama_barang, kategori, stok, satuan, supplier, harga_beli, harga_jual, keterangan, id FROM sku ORDER BY kode_sku")
+        sku_options = [f"{s['kode_sku']} — {s['nama_barang'][:40]}" for s in all_sku_list]
+        sku_map = {f"{s['kode_sku']} — {s['nama_barang'][:40]}": s for s in all_sku_list}
+
+        edit_col1, edit_col2 = st.columns([3, 1])
+        with edit_col1:
+            selected_sku_label = st.selectbox("Pilih SKU untuk di-edit", [""] + sku_options, key="master_sku_edit_select")
+        with edit_col2:
+            st.write("")
+            if selected_sku_label and st.button("🗑️ Hapus SKU", type="secondary", key="master_sku_delete"):
+                sku_data = sku_map.get(selected_sku_label)
+                if sku_data:
+                    db.execute("DELETE FROM sku WHERE id = ?", (sku_data["id"],))
+                    st.success(f"🗑️ SKU '{sku_data['kode_sku']}' dihapus!")
+                    st.rerun()
+
+        if selected_sku_label:
+            sku_data = sku_map.get(selected_sku_label)
+            if sku_data:
+                with st.form("master_sku_edit_form"):
+                    st.markdown(f"**Edit: `{sku_data['kode_sku']}` — {sku_data['nama_barang']}**")
+                    ec1, ec2, ec3 = st.columns(3)
+                    with ec1:
+                        new_kode = st.text_input("Kode SKU", value=sku_data["kode_sku"], key="master_sku_ekode")
+                        new_nama = st.text_input("Nama Barang", value=sku_data["nama_barang"], key="master_sku_enama")
+                        # Kategori dropdown
+                        kat_edit_list = db.fetch_all("SELECT nama FROM kategori_produk ORDER BY nama")
+                        kat_edit_opts = [k["nama"] for k in kat_edit_list]
+                        current_kat = sku_data["kategori"] if sku_data["kategori"] in kat_edit_opts else ""
+                        kat_edit_opts_disp = (["-- Pilih --"] if not current_kat else []) + kat_edit_opts + (["✚ Tambah..."] if current_kat not in kat_edit_opts else [])
+                        if current_kat and current_kat in kat_edit_opts:
+                            kat_idx = kat_edit_opts.index(current_kat) + (1 if not current_kat else 0)
+                        else:
+                            kat_idx = 0
+                        new_kat = st.selectbox("Kategori", kat_edit_opts_disp, key="master_sku_ekat",
+                                               index=min(kat_idx, len(kat_edit_opts_disp)-1) if kat_edit_opts_disp else 0)
+                        if new_kat == "✚ Tambah...":
+                            new_kat = st.text_input("Kategori Baru", value=current_kat, key="master_sku_ekat_new")
+                    with ec2:
+                        new_stok = st.number_input("Stok", value=int(sku_data["stok"]) if sku_data["stok"] else 0, step=1, key="master_sku_estok")
+                        new_satuan = st.selectbox("Satuan", ["pcs", "box", "lusin", "kg", "liter", "meter", "pack", "set", "unit"],
+                                                  index=["pcs", "box", "lusin", "kg", "liter", "meter", "pack", "set", "unit"].index(sku_data["satuan"]) if sku_data["satuan"] in ["pcs", "box", "lusin", "kg", "liter", "meter", "pack", "set", "unit"] else 0,
+                                                  key="master_sku_esatuan")
+                        # Supplier dropdown
+                        sup_edit_list = db.fetch_all("SELECT nama FROM supplier ORDER BY nama")
+                        sup_edit_opts = [s["nama"] for s in sup_edit_list]
+                        current_sup = sku_data["supplier"] if sku_data["supplier"] in sup_edit_opts else ""
+                        sup_edit_disp = (["-- Pilih --"] if not current_sup else []) + sup_edit_opts + (["✚ Tambah..."] if current_sup not in sup_edit_opts else [])
+                        if current_sup and current_sup in sup_edit_opts:
+                            sup_idx = sup_edit_opts.index(current_sup) + (1 if not current_sup else 0)
+                        else:
+                            sup_idx = 0
+                        new_sup = st.selectbox("Supplier", sup_edit_disp, key="master_sku_esup",
+                                               index=min(sup_idx, len(sup_edit_disp)-1) if sup_edit_disp else 0)
+                        if new_sup == "✚ Tambah...":
+                            new_sup = st.text_input("Supplier Baru", value=current_sup, key="master_sku_esup_new")
+                    with ec3:
+                        new_hbeli = st.number_input("Harga Beli (Rp)", value=int(float(sku_data["harga_beli"] or 0)), step=1000, key="master_sku_ehbeli")
+                        new_hjual = st.number_input("Harga Jual (Rp)", value=int(float(sku_data["harga_jual"] or 0)), step=1000, key="master_sku_ehjual")
+                        new_ket = st.text_area("Keterangan", value=sku_data["keterangan"] or "", key="master_sku_eket", height=68)
+
+                    # Quick Stock Adjustment
+                    adj_col1, adj_col2 = st.columns(2)
+                    with adj_col1:
+                        st.caption(f"📦 Stok saat ini: **{sku_data['stok']}**")
+                    with adj_col2:
+                        adj_qty = st.number_input("Tambah (+) / Kurangi (−) Stok", value=0, step=1, key="master_sku_adj")
+                    final_stok = max(0, int(new_stok) + int(adj_qty))
+
+                    if st.form_submit_button("💾 Simpan Perubahan", type="primary"):
+                        # Auto-save kategori & supplier baru
+                        if new_kat and new_kat not in ("-- Pilih --", "✚ Tambah..."):
+                            try:
+                                db.execute("INSERT OR IGNORE INTO kategori_produk (nama) VALUES (?)", (new_kat,))
+                            except:
+                                pass
+                        if new_sup and new_sup not in ("-- Pilih Supplier --", "-- Pilih --", "✚ Tambah..."):
+                            try:
+                                db.execute("INSERT OR IGNORE INTO supplier (nama) VALUES (?)", (new_sup,))
+                            except:
+                                pass
+                        db.execute(
+                            "UPDATE sku SET kode_sku = ?, nama_barang = ?, kategori = ?, stok = ?, satuan = ?, "
+                            "supplier = ?, harga_beli = ?, harga_jual = ?, keterangan = ?, updated_at = CURRENT_TIMESTAMP "
+                            "WHERE id = ?",
+                            (new_kode.strip(), new_nama.strip(), new_kat if new_kat not in ("-- Pilih --", "✚ Tambah...") else "",
+                             final_stok, new_satuan,
+                             new_sup if new_sup not in ("-- Pilih Supplier --", "-- Pilih --", "✚ Tambah...") else "",
+                             new_hbeli, new_hjual, new_ket, sku_data["id"]),
+                        )
+                        st.success(f"✅ SKU '{new_kode.strip()}' berhasil diupdate!")
+                        st.rerun()
+
+        # ── Update Harga Massal ──
+        st.markdown("---")
+        with st.expander("💲 Update Harga Massal (Beli / Jual)", expanded=False):
+            st.caption("Update harga beli atau harga jual untuk banyak SKU sekaligus berdasarkan filter.")
+            mass_c1, mass_c2, mass_c3 = st.columns(3)
+            with mass_c1:
+                mass_kat = st.selectbox("Filter Kategori", ["Semua"] + kat_filter_opts[1:], key="master_mass_kat")
+            with mass_c2:
+                mass_sup = st.selectbox("Filter Supplier", ["Semua"] + sup_filter_opts[1:], key="master_mass_sup")
+            with mass_c3:
+                mass_type = st.radio("Update", ["Harga Beli", "Harga Jual"], key="master_mass_type", horizontal=True)
+            mass_val = st.number_input(f"{mass_type} Baru (Rp)", min_value=0, value=0, step=1000, key="master_mass_val")
+            mass_pct = st.checkbox("Gunakan persentase kenaikan/penurunan (%)", key="master_mass_pct")
+            mass_pct_val = st.number_input("Persentase (%)", value=0.0, step=0.5, key="master_mass_pct_val") if mass_pct else None
+
+            if st.button("🚀 Update Harga Massal", type="primary", key="master_mass_btn"):
+                mq = "SELECT id, kode_sku, nama_barang, harga_beli, harga_jual FROM sku WHERE 1=1"
+                mp = []
+                if mass_kat != "Semua":
+                    mq += " AND kategori = ?"; mp.append(mass_kat)
+                if mass_sup != "Semua":
+                    mq += " AND supplier = ?"; mp.append(mass_sup)
+                mrows = db.fetch_all(mq, mp)
+                updated = 0
+                field = "harga_beli" if mass_type == "Harga Beli" else "harga_jual"
+                for r in mrows:
+                    if mass_pct and mass_pct_val:
+                        old_val = r[field] or 0
+                        new_val = old_val * (1 + mass_pct_val / 100)
+                    else:
+                        new_val = mass_val
+                    db.execute(f"UPDATE sku SET {field} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_val, r["id"]))
+                    updated += 1
+                st.success(f"✅ {updated} SKU berhasil diupdate {mass_type}-nya!")
+                st.rerun()
+
+    # ═══════════════════ TAB 2: SUPPLIER ═══════════════════
+    with tabs[1]:
+        st.subheader("🏪 Database Supplier")
+        st.caption("Kelola daftar supplier/pemasok. Terhubung dengan modul SKU & Pembelian.")
+
+        # ── Form Tambah Supplier ──
+        with st.expander("➕ Tambah Supplier Baru", expanded=False):
+            s_col1, s_col2 = st.columns(2)
+            with s_col1:
+                sup_nama = st.text_input("Nama Supplier *", placeholder="PT Sumber Jaya", key="master_sup_nama")
+                sup_kontak = st.text_input("Kontak (Telp/WA)", placeholder="0812-xxxx-xxxx", key="master_sup_kontak")
+            with s_col2:
+                sup_alamat = st.text_area("Alamat", placeholder="Alamat lengkap...", key="master_sup_alamat", height=100)
+                sup_ket = st.text_input("Keterangan", placeholder="Catatan...", key="master_sup_ket")
+            if st.button("💾 Simpan Supplier", type="primary", key="master_sup_simpan"):
+                if not sup_nama.strip():
+                    st.error("Nama supplier wajib diisi!")
+                else:
+                    try:
+                        db.execute(
+                            "INSERT INTO supplier (nama, kontak, alamat, keterangan) VALUES (?, ?, ?, ?)",
+                            (sup_nama.strip(), sup_kontak.strip(), sup_alamat.strip(), sup_ket.strip()),
+                        )
+                        st.success(f"✅ Supplier '{sup_nama.strip()}' ditambahkan!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal: {e}")
+
+        st.markdown("---")
+
+        # ── Daftar Supplier ──
+        st.subheader("📋 Daftar Supplier")
+        sup_search = st.text_input("🔍 Cari Supplier", placeholder="Ketik nama...", key="master_sup_search2")
+        sup_query = "SELECT s.*, (SELECT COUNT(*) FROM sku WHERE supplier = s.nama) as jml_sku, (SELECT COUNT(DISTINCT no_faktur) FROM pembelian WHERE supplier = s.nama) as jml_pembelian FROM supplier s WHERE 1=1"
+        sup_params = []
+        if sup_search:
+            sup_query += " AND s.nama LIKE ?"
+            sup_params.append(f"%{sup_search}%")
+        sup_query += " ORDER BY s.nama"
+
+        sup_rows = db.fetch_all(sup_query, sup_params)
+
+        if not sup_rows:
+            st.info("📭 Belum ada supplier. Tambahkan di atas.")
+        else:
+            for s in sup_rows:
+                with st.container(border=True):
+                    sc1, sc2, sc3, sc4 = st.columns([3, 1, 1, 1])
+                    with sc1:
+                        st.markdown(f"**🏪 {s['nama']}**")
+                        details = []
+                        if s["kontak"]:
+                            details.append(f"📞 {s['kontak']}")
+                        if s["alamat"]:
+                            details.append(f"📍 {s['alamat'][:60]}")
+                        if details:
+                            st.caption(" | ".join(details))
+                    with sc2:
+                        st.metric("SKU", s["jml_sku"] or 0)
+                    with sc3:
+                        st.metric("Pembelian", s["jml_pembelian"] or 0)
+                    with sc4:
+                        if st.button("✏️ Edit", key=f"master_sup_edit_{s['id']}"):
+                            st.session_state[f"edit_sup_{s['id']}"] = True
+                        if st.button("🗑️", key=f"master_sup_del_{s['id']}", help="Hapus supplier"):
+                            db.execute("DELETE FROM supplier WHERE id = ?", (s["id"],))
+                            st.success(f"🗑️ Supplier '{s['nama']}' dihapus.")
+                            st.rerun()
+                    if st.session_state.get(f"edit_sup_{s['id']}"):
+                        with st.form(f"master_sup_edit_form_{s['id']}"):
+                            ec1, ec2 = st.columns(2)
+                            with ec1:
+                                e_nama = st.text_input("Nama", value=s["nama"], key=f"master_sup_en_{s['id']}")
+                                e_kontak = st.text_input("Kontak", value=s["kontak"] or "", key=f"master_sup_ek_{s['id']}")
+                            with ec2:
+                                e_alamat = st.text_area("Alamat", value=s["alamat"] or "", key=f"master_sup_ea_{s['id']}")
+                                e_ket = st.text_input("Keterangan", value=s["keterangan"] or "", key=f"master_sup_ekt_{s['id']}")
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                if st.form_submit_button("💾 Simpan"):
+                                    db.execute(
+                                        "UPDATE supplier SET nama = ?, kontak = ?, alamat = ?, keterangan = ? WHERE id = ?",
+                                        (e_nama.strip(), e_kontak.strip(), e_alamat.strip(), e_ket.strip(), s["id"]),
+                                    )
+                                    st.session_state[f"edit_sup_{s['id']}"] = False
+                                    st.success("✅ Supplier diupdate!")
+                                    st.rerun()
+                            with c2:
+                                if st.form_submit_button("❌ Batal"):
+                                    st.session_state[f"edit_sup_{s['id']}"] = False
+                                    st.rerun()
+
+    # ═══════════════════ TAB 3: KATEGORI ═══════════════════
+    with tabs[2]:
+        st.subheader("📂 Database Kategori")
+        st.caption("Kelola kategori produk. Terhubung dengan modul SKU & inventaris.")
+
+        with st.expander("➕ Tambah Kategori Baru", expanded=False):
+            kat_nama = st.text_input("Nama Kategori *", placeholder="Elektronik, Pakaian, dll.", key="master_kat_nama")
+            kat_ket = st.text_input("Keterangan", placeholder="Deskripsi kategori...", key="master_kat_ket")
+            if st.button("💾 Simpan Kategori", type="primary", key="master_kat_simpan"):
+                if not kat_nama.strip():
+                    st.error("Nama kategori wajib diisi!")
+                else:
+                    try:
+                        db.execute("INSERT INTO kategori_produk (nama, keterangan) VALUES (?, ?)", (kat_nama.strip(), kat_ket.strip()))
+                        st.success(f"✅ Kategori '{kat_nama.strip()}' ditambahkan!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal: {e}")
+
+        st.markdown("---")
+        kat_rows = db.fetch_all(
+            "SELECT k.*, (SELECT COUNT(*) FROM sku WHERE kategori = k.nama) as jml_sku, "
+            "(SELECT COALESCE(SUM(stok), 0) FROM sku WHERE kategori = k.nama) as total_stok "
+            "FROM kategori_produk k ORDER BY k.nama"
+        )
+
+        if not kat_rows:
+            st.info("📭 Belum ada kategori. Tambahkan di atas.")
+        else:
+            total_sku_all = sum(k["jml_sku"] or 0 for k in kat_rows)
+            st.caption(f"📊 Total: {len(kat_rows)} kategori | {total_sku_all} SKU terhubung")
+
+            for k in kat_rows:
+                with st.container(border=True):
+                    kc1, kc2, kc3, kc4 = st.columns([3, 1, 1, 1])
+                    with kc1:
+                        st.markdown(f"**📂 {k['nama']}**")
+                        if k["keterangan"]:
+                            st.caption(f"📝 {k['keterangan']}")
+                    with kc2:
+                        st.metric("SKU", k["jml_sku"] or 0)
+                    with kc3:
+                        st.metric("Total Stok", f"{k['total_stok'] or 0:,}")
+                    with kc4:
+                        if st.button("✏️ Edit", key=f"master_kat_edit_{k['id']}"):
+                            st.session_state[f"edit_kat_{k['id']}"] = True
+                        if st.button("🗑️", key=f"master_kat_del_{k['id']}", help="Hapus kategori"):
+                            db.execute("DELETE FROM kategori_produk WHERE id = ?", (k["id"],))
+                            st.success(f"🗑️ Kategori '{k['nama']}' dihapus.")
+                            st.rerun()
+                    if st.session_state.get(f"edit_kat_{k['id']}"):
+                        with st.form(f"master_kat_edit_form_{k['id']}"):
+                            e_nama = st.text_input("Nama", value=k["nama"], key=f"master_kat_en_{k['id']}")
+                            e_ket = st.text_input("Keterangan", value=k["keterangan"] or "", key=f"master_kat_ekt_{k['id']}")
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                if st.form_submit_button("💾 Simpan"):
+                                    db.execute("UPDATE kategori_produk SET nama = ?, keterangan = ? WHERE id = ?", (e_nama.strip(), e_ket.strip(), k["id"]))
+                                    st.session_state[f"edit_kat_{k['id']}"] = False
+                                    st.success("✅ Kategori diupdate!")
+                                    st.rerun()
+                            with c2:
+                                if st.form_submit_button("❌ Batal"):
+                                    st.session_state[f"edit_kat_{k['id']}"] = False
+                                    st.rerun()
+
+    # ═══════════════════ TAB 4: TOKO ═══════════════════
+    with tabs[3]:
+        st.subheader("🏬 Database Toko Marketplace")
+        st.caption("Kelola daftar toko di marketplace. Terhubung dengan scan operasional & penjualan.")
+
+        with st.expander("➕ Tambah Toko Baru", expanded=False):
+            toko_baru = st.text_input("Nama Toko", placeholder="Contoh: MMA Official Store", key="master_toko_nama")
+            if st.button("💾 Simpan Toko", type="primary", key="master_toko_simpan"):
+                if toko_baru.strip():
+                    try:
+                        db.execute("INSERT INTO toko (nama) VALUES (?)", (toko_baru.strip(),))
+                        st.success(f"✅ Toko '{toko_baru.strip()}' ditambahkan!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal: {e}")
+                else:
+                    st.warning("Nama toko tidak boleh kosong.")
+
+        st.markdown("---")
+        all_toko = db.fetch_all("SELECT * FROM toko ORDER BY nama")
+
+        if not all_toko:
+            st.info("📭 Belum ada toko.")
+        else:
+            for t in all_toko:
+                packed_cnt = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE toko = ? AND status = 'PACKED' AND kategori = 'REGULER'", (t["nama"],))
+                instant_cnt = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE toko = ? AND status = 'PACKED' AND tipe_kiriman = 'INSTANT'", (t["nama"],))
+                pending_cnt = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE toko = ? AND status = 'PENDING'", (t["nama"],))
+                cancel_cnt = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE toko = ? AND status = 'CANCEL'", (t["nama"],))
+                penj_cnt = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan WHERE nama_toko = ?", (t["nama"],))
+
+                with st.container(border=True):
+                    tc1, tc2, tc3 = st.columns([3, 1, 1])
+                    with tc1:
+                        st.markdown(f"**🏪 {t['nama']}**")
+                        p = packed_cnt["cnt"] if packed_cnt else 0
+                        i = instant_cnt["cnt"] if instant_cnt else 0
+                        pe = pending_cnt["cnt"] if pending_cnt else 0
+                        c = cancel_cnt["cnt"] if cancel_cnt else 0
+                        pj = penj_cnt["cnt"] if penj_cnt else 0
+                        st.caption(f"📦 Packed: {p} | 🚀 Instant: {i} | ⏳ Pending: {pe} | ❌ Cancel: {c} | 🛒 Orders: {pj}")
+                    with tc2:
+                        if st.button("✏️ Edit", key=f"master_toko_edit_{t['id']}"):
+                            st.session_state[f"edit_toko_{t['id']}"] = True
+                    with tc3:
+                        if t["nama"] != "Mitra Mulia Abadi":
+                            if st.button("🗑️", key=f"master_toko_del_{t['id']}", help="Hapus toko"):
+                                has_scans = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE toko = ?", (t["nama"],))
+                                if has_scans and has_scans["cnt"] > 0:
+                                    st.warning(f"⚠️ Toko '{t['nama']}' punya {has_scans['cnt']} data scan. Tidak bisa dihapus.")
+                                else:
+                                    db.execute("DELETE FROM toko WHERE id = ?", (t["id"],))
+                                    st.success(f"🗑️ Toko '{t['nama']}' dihapus.")
+                                    st.rerun()
+                    if st.session_state.get(f"edit_toko_{t['id']}"):
+                        with st.form(f"master_toko_edit_form_{t['id']}"):
+                            e_nama = st.text_input("Nama Toko", value=t["nama"], key=f"master_toko_en_{t['id']}")
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                if st.form_submit_button("💾 Simpan"):
+                                    db.execute("UPDATE toko SET nama = ? WHERE id = ?", (e_nama.strip(), t["id"]))
+                                    st.session_state[f"edit_toko_{t['id']}"] = False
+                                    if st.session_state.get("selected_store") == t["nama"]:
+                                        st.session_state.selected_store = e_nama.strip()
+                                    st.success("✅ Toko diupdate!")
+                                    st.rerun()
+                            with c2:
+                                if st.form_submit_button("❌ Batal"):
+                                    st.session_state[f"edit_toko_{t['id']}"] = False
+                                    st.rerun()
+
+    # ═══════════════════ TAB 5: BARANG BESAR ═══════════════════
+    with tabs[4]:
+        st.subheader("📦 Daftar Barang Besar")
+        st.caption("Kelola daftar barang besar untuk keperluan scan packing (bak cuci, wastafel, gerobak, dll).")
+
+        with st.expander("➕ Tambah Barang Besar Baru", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                nama_baru = st.text_input("Nama Barang", placeholder="Contoh: Bak Cuci Piring", key="master_bb_nama")
+            with col2:
+                ket_baru = st.text_input("Keterangan (opsional)", placeholder="Ukuran, bahan, dll", key="master_bb_ket")
+            if st.button("💾 Simpan", type="primary", key="master_bb_simpan"):
+                if nama_baru.strip():
+                    try:
+                        db.execute("INSERT INTO daftar_barang_besar (nama_barang, keterangan) VALUES (?, ?)", (nama_baru.strip(), ket_baru.strip()))
+                        st.success(f"✅ '{nama_baru.strip()}' ditambahkan!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal: {e}")
+                else:
+                    st.warning("Nama barang tidak boleh kosong.")
+
+        st.markdown("---")
+        daftar = db.fetch_all("SELECT id, nama_barang, keterangan, created_at FROM daftar_barang_besar ORDER BY nama_barang")
+
+        if not daftar:
+            st.info("📭 Belum ada daftar barang besar.")
+        else:
+            st.subheader(f"📋 Daftar Barang Besar ({len(daftar)} items)")
+            for item in daftar:
+                col1, col2, col3 = st.columns([3, 1, 1])
+                with col1:
+                    st.markdown(f"**{item['nama_barang']}**")
+                    if item["keterangan"]:
+                        st.caption(f"📝 {item['keterangan']}")
+                with col2:
+                    st.caption(f"🕐 {item['created_at'][:10] if item['created_at'] else '-'}")
+                with col3:
+                    if st.button("🗑️", key=f"master_del_besar_{item['id']}", help=f"Hapus {item['nama_barang']}"):
+                        db.execute("DELETE FROM daftar_barang_besar WHERE id = ?", (item["id"],))
+                        st.success(f"🗑️ '{item['nama_barang']}' dihapus.")
+                        st.rerun()
+
+        st.markdown("---")
+        st.subheader("📊 Statistik Scan Barang Besar")
+        besar_scans = db.fetch_all(
+            "SELECT s.keterangan_barang, s.kategori, COUNT(*) as cnt "
+            "FROM scan_aktif s WHERE s.kategori = 'BESAR' AND s.keterangan_barang != '' "
+            "GROUP BY s.keterangan_barang ORDER BY cnt DESC"
+        )
+        if besar_scans:
+            df_bs = pd.DataFrame([dict(r) for r in besar_scans])
+            df_bs = df_bs.rename(columns={"keterangan_barang": "Nama Barang", "kategori": "Kategori", "cnt": "Jumlah Scan"})
+            st.dataframe(df_bs, width="stretch", hide_index=True)
+        else:
+            st.caption("Belum ada data scan barang besar.")
+
+    # ═══════════════════ TAB 6: GUDANG / LOKASI ═══════════════════
+    with tabs[5]:
+        st.subheader("🏭 Database Gudang / Lokasi Stok")
+        st.caption("Kelola lokasi gudang penyimpanan barang. Untuk tracking stok per lokasi.")
+
+        with st.expander("➕ Tambah Gudang Baru", expanded=False):
+            g_col1, g_col2 = st.columns(2)
+            with g_col1:
+                gud_nama = st.text_input("Nama Gudang *", placeholder="Gudang Utama", key="master_gud_nama")
+            with g_col2:
+                gud_lokasi = st.text_input("Lokasi / Alamat", placeholder="Jl. Raya...", key="master_gud_lokasi")
+            gud_ket = st.text_area("Keterangan", placeholder="Kapasitas, jenis barang, dll.", key="master_gud_ket", height=68)
+            if st.button("💾 Simpan Gudang", type="primary", key="master_gud_simpan"):
+                if not gud_nama.strip():
+                    st.error("Nama gudang wajib diisi!")
+                else:
+                    try:
+                        db.execute("INSERT INTO gudang (nama, lokasi, keterangan) VALUES (?, ?, ?)", (gud_nama.strip(), gud_lokasi.strip(), gud_ket.strip()))
+                        st.success(f"✅ Gudang '{gud_nama.strip()}' ditambahkan!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal: {e}")
+
+        st.markdown("---")
+        gud_rows = db.fetch_all("SELECT * FROM gudang ORDER BY nama")
+
+        if not gud_rows:
+            st.info("📭 Belum ada data gudang. Tambahkan di atas.")
+        else:
+            for g in gud_rows:
+                with st.container(border=True):
+                    gc1, gc2, gc3 = st.columns([3, 1, 1])
+                    with gc1:
+                        st.markdown(f"**🏭 {g['nama']}**")
+                        details = []
+                        if g["lokasi"]:
+                            details.append(f"📍 {g['lokasi']}")
+                        if g["keterangan"]:
+                            details.append(f"📝 {g['keterangan']}")
+                        if details:
+                            st.caption(" | ".join(details))
+                    with gc2:
+                        st.caption(f"🕐 {g['created_at'][:10] if g['created_at'] else '-'}")
+                    with gc3:
+                        if st.button("✏️ Edit", key=f"master_gud_edit_{g['id']}"):
+                            st.session_state[f"edit_gud_{g['id']}"] = True
+                        if st.button("🗑️", key=f"master_gud_del_{g['id']}", help="Hapus gudang"):
+                            db.execute("DELETE FROM gudang WHERE id = ?", (g["id"],))
+                            st.success(f"🗑️ Gudang '{g['nama']}' dihapus.")
+                            st.rerun()
+                    if st.session_state.get(f"edit_gud_{g['id']}"):
+                        with st.form(f"master_gud_edit_form_{g['id']}"):
+                            e_nama = st.text_input("Nama Gudang", value=g["nama"], key=f"master_gud_en_{g['id']}")
+                            e_lokasi = st.text_input("Lokasi", value=g["lokasi"] or "", key=f"master_gud_el_{g['id']}")
+                            e_ket = st.text_area("Keterangan", value=g["keterangan"] or "", key=f"master_gud_ekt_{g['id']}")
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                if st.form_submit_button("💾 Simpan"):
+                                    db.execute("UPDATE gudang SET nama = ?, lokasi = ?, keterangan = ? WHERE id = ?", (e_nama.strip(), e_lokasi.strip(), e_ket.strip(), g["id"]))
+                                    st.session_state[f"edit_gud_{g['id']}"] = False
+                                    st.success("✅ Gudang diupdate!")
+                                    st.rerun()
+                            with c2:
+                                if st.form_submit_button("❌ Batal"):
+                                    st.session_state[f"edit_gud_{g['id']}"] = False
+                                    st.rerun()
+
+
+# ==================== AKUNTANSI: REKONSILIASI & LABA RUGI NERACA ====================
+def render_rekonsiliasi():
+    """Halaman Rekonsiliasi Marketplace — cocokkan penjualan dengan settlement file."""
+    db = st.session_state.db
+
+    st.title("📋 Rekonsiliasi Marketplace")
+    st.caption("Upload file settlement dari Shopee/TikTok/Lazada, cocokkan dengan data penjualan, dan update potongan marketplace.")
+
+    # ── Pilih Marketplace ──
+    mp = st.selectbox("Pilih Marketplace", ["Shopee", "TikTok", "Lazada"], key="rek_mp")
+
+    # ── Upload File Settlement ──
+    with st.expander("📤 Upload File Settlement (CSV/Excel)", expanded=True):
+        st.caption(f"Upload file settlement dari **{mp}**. Kolom harus berisi: No Pesanan, Tanggal, Jumlah, Potongan, Biaya Layanan, dll.")
+        uploaded_file = st.file_uploader("Pilih file", type=["csv", "xlsx", "xls"], key="rek_file")
+
+        if uploaded_file:
+            try:
+                if uploaded_file.name.endswith(".csv"):
+                    df_raw = pd.read_csv(uploaded_file)
+                else:
+                    df_raw = pd.read_excel(uploaded_file)
+
+                st.write("📋 Preview data:")
+                st.dataframe(df_raw.head(10), width="stretch", hide_index=True)
+
+                # ── Column Mapping ──
+                st.markdown("### 🔗 Mapping Kolom")
+                col_names = list(df_raw.columns)
+                map_no_pesanan = st.selectbox("Kolom No Pesanan *", ["-- Pilih --"] + col_names, key="rek_map_order")
+                map_tanggal = st.selectbox("Kolom Tanggal", ["-- Pilih --"] + col_names, key="rek_map_tgl")
+                map_jumlah = st.selectbox("Kolom Jumlah (Rp)", ["-- Pilih --"] + col_names, key="rek_map_jml")
+                map_potongan = st.selectbox("Kolom Potongan (Rp)", ["-- Pilih --"] + col_names, key="rek_map_pot")
+                map_biaya = st.selectbox("Kolom Biaya Layanan (opsional)", ["-- Pilih --"] + col_names, key="rek_map_biaya")
+
+                if st.button("🚀 Proses Rekonsiliasi", type="primary", key="rek_proses"):
+                    if map_no_pesanan == "-- Pilih --":
+                        st.error("Kolom No Pesanan wajib dipilih!")
+                    else:
+                        matched = []
+                        unmatched = []
+                        updated = 0
+                        total_potongan = 0.0
+
+                        for _, row in df_raw.iterrows():
+                            no_pesanan = str(row[map_no_pesanan]).strip() if pd.notna(row[map_no_pesanan]) else ""
+                            if not no_pesanan:
+                                continue
+
+                            # Parse numeric values safely
+                            def _parse_num(val):
+                                if val is None or (isinstance(val, float) and pd.isna(val)):
+                                    return 0.0
+                                try:
+                                    s = str(val).replace("Rp", "").replace(".", "").replace(",", ".").strip()
+                                    return float(s)
+                                except:
+                                    return 0.0
+
+                            jumlah = _parse_num(row[map_jumlah]) if map_jumlah != "-- Pilih --" else 0
+                            potongan = _parse_num(row[map_potongan]) if map_potongan != "-- Pilih --" else 0
+                            biaya = _parse_num(row[map_biaya]) if map_biaya != "-- Pilih --" else 0
+                            total_pot = potongan + biaya
+
+                            # Cari di penjualan
+                            found = db.fetch_one(
+                                "SELECT id, no_pesanan, total_harga, marketplace, nama_produk, potongan_marketplace, status_settlement "
+                                "FROM penjualan WHERE no_pesanan = ? LIMIT 1",
+                                (no_pesanan,),
+                            )
+
+                            if found:
+                                # Update potongan & settlement status
+                                db.execute(
+                                    "UPDATE penjualan SET potongan_marketplace = ?, status_settlement = 'SETTLED' WHERE id = ?",
+                                    (total_pot, found["id"]),
+                                )
+                                total_potongan += total_pot
+                                updated += 1
+                                matched.append({
+                                    "No Pesanan": no_pesanan,
+                                    "Produk": found["nama_produk"][:50] if found["nama_produk"] else "-",
+                                    "Total Penjualan": found["total_harga"] or 0,
+                                    "Potongan (File)": total_pot,
+                                    "Status": "✓ Matched & Updated",
+                                })
+                            else:
+                                unmatched.append({
+                                    "No Pesanan": no_pesanan,
+                                    "Jumlah (File)": jumlah,
+                                    "Potongan (File)": total_pot,
+                                    "Status": "✗ Tidak Ditemukan",
+                                })
+
+                        # ── Results ──
+                        st.markdown("---")
+                        st.markdown("### 📊 Hasil Rekonsiliasi")
+                        res_col1, res_col2, res_col3 = st.columns(3)
+                        with res_col1:
+                            st.metric("✓ Matched & Updated", updated)
+                        with res_col2:
+                            st.metric("✗ Unmatched", len(unmatched))
+                        with res_col3:
+                            st.metric("💰 Total Potongan", f"Rp {total_potongan:,.0f}")
+
+                        if matched:
+                            st.markdown("#### ✅ Data Matched")
+                            df_m = pd.DataFrame(matched)
+                            st.dataframe(df_m, width="stretch", height=300, hide_index=True)
+
+                        if unmatched:
+                            st.markdown("#### ⚠️ Unmatched — Perlu Investigasi")
+                            st.warning(f"{len(unmatched)} pesanan dari file settlement tidak ditemukan di database penjualan.")
+                            df_u = pd.DataFrame(unmatched)
+                            st.dataframe(df_u, width="stretch", height=250, hide_index=True)
+
+                if st.button("🔄 Reset Form", key="rek_reset"):
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"❌ Gagal membaca file: {e}")
+
+    # ── Status Rekonsiliasi Saat Ini ──
+    st.markdown("---")
+    st.markdown("### 📊 Status Settlement Saat Ini")
+
+    settled = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan WHERE status_settlement = 'SETTLED'")
+    unsettled = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan WHERE status_settlement = 'UNSETTLED'")
+    total_pot = db.fetch_one("SELECT COALESCE(SUM(potongan_marketplace), 0) as tot FROM penjualan WHERE status_settlement = 'SETTLED'")
+
+    s_col1, s_col2, s_col3 = st.columns(3)
+    with s_col1:
+        st.metric("✅ Settled", f"{settled['cnt']:,}" if settled else "0")
+    with s_col2:
+        st.metric("⏳ Unsettled", f"{unsettled['cnt']:,}" if unsettled else "0")
+    with s_col3:
+        st.metric("💰 Total Potongan MP", f"Rp {total_pot['tot']:,.0f}" if total_pot else "Rp 0")
+
+    # ── Rekap: Penjualan vs Pencairan vs Potongan ──
+    st.markdown("---")
+    st.markdown("### 📋 Rekap: Penjualan vs Pencairan vs Potongan")
+
+    total_penj = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as tot FROM penjualan "
+        "INNER JOIN scan_aktif ON penjualan.no_resi = scan_aktif.resi "
+        "WHERE scan_aktif.status = 'PACKED'"
+    )
+    total_cair = db.fetch_one("SELECT COALESCE(SUM(jumlah), 0) as tot FROM pencairan")
+    total_pot_all = db.fetch_one("SELECT COALESCE(SUM(potongan_marketplace), 0) as tot FROM penjualan")
+    selisih = (total_penj["tot"] if total_penj else 0) - (total_cair["tot"] if total_cair else 0) - (total_pot_all["tot"] if total_pot_all else 0)
+
+    rec_col1, rec_col2, rec_col3, rec_col4 = st.columns(4)
+    with rec_col1:
+        st.metric("📦 Total Penjualan PACKED", f"Rp {total_penj['tot']:,.0f}" if total_penj else "Rp 0")
+    with rec_col2:
+        st.metric("💵 Total Pencairan", f"Rp {total_cair['tot']:,.0f}" if total_cair else "Rp 0")
+    with rec_col3:
+        st.metric("🔻 Total Potongan", f"Rp {total_pot_all['tot']:,.0f}" if total_pot_all else "Rp 0")
+    with rec_col4:
+        st.metric("📊 Selisih", f"Rp {selisih:,.0f}",
+                 delta="✅ Seimbang" if abs(selisih) < 100 else "⚠️ Perlu Cek",
+                 delta_color="normal" if abs(selisih) < 100 else "inverse")
+
+
+def render_laba_rugi_neraca():
+    """Halaman Laba Rugi & Neraca — dashboard akuntansi terintegrasi."""
+    db = st.session_state.db
+
+    st.title("📊 Laba Rugi & Neraca")
+    st.caption("Dashboard akuntansi ringkas — menggabungkan data penjualan, OPEX, pencairan, dan inventaris.")
+
+    # ── Filter Tanggal ──
+    st.markdown("### 📅 Periode Laporan")
+    today = datetime.now()
+    f_col1, f_col2, f_col3 = st.columns([2, 2, 1])
+    with f_col1:
+        start_date = st.date_input("Dari Tanggal", value=today.replace(day=1).date(), key="lr_start")
+    with f_col2:
+        end_date = st.date_input("Sampai Tanggal", value=today.date(), key="lr_end")
+    with f_col3:
+        st.write("")
+        if st.button("🔄 Refresh", width="stretch", key="lr_refresh"):
+            st.rerun()
+
+    start_str = start_date.strftime("%d-%m-%Y") if start_date else today.replace(day=1).strftime("%d-%m-%Y")
+    end_str = end_date.strftime("%d-%m-%Y") if end_date else today.strftime("%d-%m-%Y")
+
+    # ═══════════════════ LABA RUGI (INCOME STATEMENT) ═══════════════════
+    st.markdown("---")
+    st.markdown("## 💰 Laporan Laba Rugi")
+    st.caption(f"Periode: {start_str} — {end_str}")
+
+    # ── Pendapatan: Penjualan PACKED ──
+    pendapatan_rows = db.fetch_all(
+        "SELECT p.id, p.no_pesanan, p.total_harga, p.qty, p.sku_terdeteksi, p.potongan_marketplace "
+        "FROM penjualan p INNER JOIN scan_aktif s ON p.no_resi = s.resi "
+        "WHERE s.status = 'PACKED' AND s.tanggal >= ? AND s.tanggal <= ?",
+        (start_str, end_str),
+    )
+    total_pendapatan = sum(r["total_harga"] or 0 for r in pendapatan_rows)
+    total_potongan = sum(r["potongan_marketplace"] or 0 for r in pendapatan_rows)
+    pendapatan_bersih = total_pendapatan - total_potongan
+
+    # ── HPP (Harga Pokok Penjualan) ──
+    sku_codes = list(set(r["sku_terdeteksi"] for r in pendapatan_rows if r["sku_terdeteksi"]))
+    sku_harga = {}
+    if sku_codes:
+        ph = ",".join(["?" for _ in sku_codes])
+        for sr in db.fetch_all(f"SELECT kode_sku, harga_beli FROM sku WHERE kode_sku IN ({ph})", sku_codes):
+            sku_harga[sr["kode_sku"]] = sr["harga_beli"] or 0
+
+    total_hpp = 0.0
+    hpp_fallback_count = 0
+    for r in pendapatan_rows:
+        sku = r["sku_terdeteksi"]
+        qty = r["qty"] or 1
+        if sku and sku in sku_harga and sku_harga[sku] > 0:
+            total_hpp += sku_harga[sku] * qty
+        else:
+            # Fallback: 40% dari total_harga
+            total_hpp += (r["total_harga"] or 0) * 0.4
+            if sku:
+                hpp_fallback_count += 1
+
+    # ── OPEX Variable (LUNAS) ──
+    opex_var = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as tot FROM opex "
+        "WHERE tipe = 'VARIABLE' AND status_bayar = 'LUNAS' AND tanggal >= ? AND tanggal <= ?",
+        (start_str, end_str),
+    )
+    total_opex_var = opex_var["tot"] if opex_var else 0
+
+    # ── OPEX Tetap (LUNAS) — proporsional ──
+    opex_tetap = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as tot FROM opex "
+        "WHERE tipe = 'TETAP' AND status_bayar = 'LUNAS' AND tanggal >= ? AND tanggal <= ?",
+        (start_str, end_str),
+    )
+    total_opex_tetap = opex_tetap["tot"] if opex_tetap else 0
+
+    # ── Beban Depresiasi Aset Tetap ──
+    depr_data = db.fetch_all("SELECT akumulasi_depresiasi FROM aset_tetap")
+    total_depresiasi_akum = sum(d["akumulasi_depresiasi"] or 0 for d in depr_data) if depr_data else 0
+    # Depresiasi dalam periode = akumulasi saat ini (sudah termasuk bulan ini via tombol Hitung)
+
+    # ── Beban Bunga Pinjaman (dari OPEX kategori Beban Bunga, LUNAS) ──
+    beban_bunga = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as tot FROM opex "
+        "WHERE kategori = 'Beban Bunga' AND status_bayar = 'LUNAS' AND tanggal >= ? AND tanggal <= ?",
+        (start_str, end_str),
+    )
+    total_beban_bunga = beban_bunga["tot"] if beban_bunga else 0
+
+    # ── Biaya Kirim / Retur ──
+    biaya_kirim = db.fetch_one(
+        "SELECT COALESCE(SUM(nominal_klaim), 0) as tot FROM retur_klaim "
+        "WHERE status = 'KLAIM' AND status_klaim = 'BERHASIL' AND tanggal >= ? AND tanggal <= ?",
+        (start_str, end_str),
+    )
+    total_biaya_kirim = biaya_kirim["tot"] if biaya_kirim else 0
+
+    total_biaya = total_hpp + total_opex_var + total_opex_tetap + total_biaya_kirim + total_depresiasi_akum + total_beban_bunga
+
+    # ── Laba Bersih ──
+    laba_bersih = pendapatan_bersih - total_biaya
+    margin_pct = (laba_bersih / pendapatan_bersih * 100) if pendapatan_bersih > 0 else 0
+
+    # ═══════════ DISPLAY LABA RUGI ═══════════
+    lr_col1, lr_col2, lr_col3 = st.columns(3)
+
+    with lr_col1:
+        st.markdown("### 📈 Pendapatan")
+        st.metric("Total Pendapatan (Gross)", f"Rp {total_pendapatan:,.0f}")
+        st.metric("Potongan Marketplace", f"Rp {total_potongan:,.0f}")
+        st.metric("✅ Pendapatan Bersih", f"Rp {pendapatan_bersih:,.0f}")
+
+    with lr_col2:
+        st.markdown("### 📉 Biaya")
+        st.metric("HPP (Harga Pokok)", f"Rp {total_hpp:,.0f}",
+                 help=f"{hpp_fallback_count} item pakai estimasi 40%" if hpp_fallback_count > 0 else "Semua dari SKU")
+        st.metric("OPEX Variable (Packing)", f"Rp {total_opex_var:,.0f}")
+        st.metric("OPEX Tetap (Bulanan)", f"Rp {total_opex_tetap:,.0f}")
+        st.metric("Biaya Kirim/Retur", f"Rp {total_biaya_kirim:,.0f}")
+        st.metric("Beban Depresiasi", f"Rp {total_depresiasi_akum:,.0f}",
+                 help="Akumulasi depresiasi aset tetap (garis lurus)")
+        st.metric("Beban Bunga Pinjaman", f"Rp {total_beban_bunga:,.0f}",
+                 help="Bunga pinjaman bank bulanan (dari amortisasi otomatis)")
+        st.metric("📊 Total Biaya", f"Rp {total_biaya:,.0f}")
+
+    with lr_col3:
+        st.markdown("### 💎 Hasil")
+        st.metric("💰 Laba Bersih", f"Rp {laba_bersih:,.0f}",
+                 delta=f"{margin_pct:.1f}% margin",
+                 delta_color="normal" if laba_bersih >= 0 else "inverse")
+
+    # Progress bar: expense ratio
+    if pendapatan_bersih > 0:
+        exp_ratio = total_biaya / pendapatan_bersih
+        ratio_pct = exp_ratio * 100
+        st.progress(min(exp_ratio, 1.0),
+                    text=f"📊 Expense Ratio: {ratio_pct:.1f}% (Biaya / Pendapatan Bersih)")
+        if ratio_pct > 90:
+            st.warning("⚠️ Expense ratio di atas 90% — margin sangat tipis!")
+        elif ratio_pct < 50:
+            st.success("✅ Expense ratio sehat di bawah 50%.")
+
+    # ═══════════════════ NERACA (BALANCE SHEET) LENGKAP ═══════════════════
+    st.markdown("---")
+    st.markdown("## 📊 Neraca Keuangan Lengkap")
+    st.caption(f"Posisi per: {end_str} — mencakup Aset Lancar, Aset Tetap, Kewajiban, dan Ekuitas.")
+
+    # ── ASET LANCAR ──
+    # Inventaris (stok)
+    inv_val = db.fetch_one("SELECT COALESCE(SUM(stok * harga_beli), 0) as tot FROM sku")
+    total_inventaris = inv_val["tot"] if inv_val else 0
+
+    # Kas = Total Pencairan (all-time)
+    all_kas = db.fetch_one("SELECT COALESCE(SUM(jumlah), 0) as tot FROM pencairan")
+    # Kas periode
+    kas_periode = db.fetch_one(
+        "SELECT COALESCE(SUM(jumlah), 0) as tot FROM pencairan WHERE tanggal >= ? AND tanggal <= ?",
+        (start_str, end_str),
+    )
+    total_kas = all_kas["tot"] if all_kas else 0  # All-time for neraca position
+
+    # Piutang Marketplace = Penjualan PACKED - Pencairan - Potongan
+    all_packed_val = db.fetch_one(
+        "SELECT COALESCE(SUM(p.total_harga), 0) as tot FROM penjualan p "
+        "INNER JOIN scan_aktif s ON p.no_resi = s.resi WHERE s.status = 'PACKED'"
+    )
+    all_pot_val = db.fetch_one("SELECT COALESCE(SUM(potongan_marketplace), 0) as tot FROM penjualan")
+    piutang = (all_packed_val["tot"] if all_packed_val else 0) - (all_kas["tot"] if all_kas else 0) - (all_pot_val["tot"] if all_pot_val else 0)
+    piutang = max(0, piutang)
+
+    # Sewa Dibayar di Muka (aset lancar)
+    sewa_dimuka = db.fetch_one("SELECT COALESCE(SUM(sisa_belum_diakui), 0) as tot FROM biaya_dibayar_dimuka WHERE status = 'AKTIF'")
+    total_sewa_dimuka = sewa_dimuka["tot"] if sewa_dimuka else 0
+
+    total_aset_lancar = total_inventaris + total_kas + piutang + total_sewa_dimuka
+
+    # ── ASET TETAP ──
+    aset_data = db.fetch_all("SELECT harga_perolehan, akumulasi_depresiasi FROM aset_tetap")
+    total_harga_aset = sum(a["harga_perolehan"] or 0 for a in aset_data) if aset_data else 0
+    total_akum_depr = sum(a["akumulasi_depresiasi"] or 0 for a in aset_data) if aset_data else 0
+    nilai_buku_aset = total_harga_aset - total_akum_depr
+
+    # ── TOTAL ASET ──
+    total_aset = total_aset_lancar + nilai_buku_aset
+
+    # ── KEWAJIBAN ──
+    utang_pemb = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as tot FROM pembelian "
+        "WHERE status_bayar IN ('PENDING', 'KONTRA BON')"
+    )
+    utang_opex = db.fetch_one(
+        "SELECT COALESCE(SUM(total_harga), 0) as tot FROM opex WHERE status_bayar = 'PENDING'"
+    )
+    # Utang Bank (sisa pokok pinjaman AKTIF)
+    utang_bank = db.fetch_one("SELECT COALESCE(SUM(sisa_pokok), 0) as tot FROM pinjaman WHERE status = 'AKTIF'")
+    total_utang = (utang_pemb["tot"] if utang_pemb else 0) + (utang_opex["tot"] if utang_opex else 0) + (utang_bank["tot"] if utang_bank else 0)
+
+    # ── EKUITAS ──
+    # Modal awal + tambahan
+    modal_awal = db.fetch_one("SELECT COALESCE(SUM(jumlah), 0) as tot FROM modal WHERE jenis = 'AWAL'")
+    modal_tambahan = db.fetch_one("SELECT COALESCE(SUM(jumlah), 0) as tot FROM modal WHERE jenis = 'TAMBAHAN'")
+    total_modal_disetor = (modal_awal["tot"] if modal_awal else 0) + (modal_tambahan["tot"] if modal_tambahan else 0)
+
+    # Laba Ditahan = Laba Bersih Kumulatif (all-time)
+    # Hitung all-time net profit dari penjualan PACKED
+    all_packed_alltime = db.fetch_one(
+        "SELECT COALESCE(SUM(p.total_harga), 0) as tot FROM penjualan p "
+        "INNER JOIN scan_aktif s ON p.no_resi = s.resi WHERE s.status = 'PACKED'"
+    )
+    all_gross_alltime = all_packed_alltime["tot"] if all_packed_alltime else 0
+
+    all_pot_alltime = db.fetch_one("SELECT COALESCE(SUM(potongan_marketplace), 0) as tot FROM penjualan")
+    all_pot_val_alltime = all_pot_alltime["tot"] if all_pot_alltime else 0
+
+    all_opex_alltime = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as tot FROM opex WHERE status_bayar = 'LUNAS'")
+    all_opex_val_alltime = all_opex_alltime["tot"] if all_opex_alltime else 0
+
+    all_pemb_lunas_alltime = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as tot FROM pembelian WHERE status_bayar = 'LUNAS'")
+    all_pemb_val_alltime = all_pemb_lunas_alltime["tot"] if all_pemb_lunas_alltime else 0
+
+    # HPP all-time (estimasi)
+    all_hpp_alltime = all_gross_alltime * 0.4  # rough estimate
+
+    all_klaim_alltime = db.fetch_one(
+        "SELECT COALESCE(SUM(nominal_klaim), 0) as tot FROM retur_klaim WHERE status_klaim = 'BERHASIL'"
+    )
+    all_klaim_val_alltime = all_klaim_alltime["tot"] if all_klaim_alltime else 0
+
+    laba_ditahan = all_gross_alltime - all_pot_val_alltime - all_hpp_alltime - all_opex_val_alltime - all_pemb_val_alltime + all_klaim_val_alltime - total_akum_depr
+
+    total_ekuitas = total_modal_disetor + laba_ditahan
+
+    # ── Keseimbangan Neraca ──
+    total_pasiva = total_utang + total_ekuitas
+    selisih_neraca = total_aset - total_pasiva
+
+    # ═══════════ DISPLAY NERACA ═══════════
+    ner_col1, ner_col2 = st.columns(2)
+
+    with ner_col1:
+        st.markdown("### 🏦 ASET")
+        st.markdown("#### 💵 Aset Lancar")
+        st.metric("📦 Nilai Inventaris", f"Rp {total_inventaris:,.0f}")
+        st.metric("💵 Kas (Pencairan All-Time)", f"Rp {total_kas:,.0f}")
+        st.metric("🪙 Piutang Marketplace", f"Rp {piutang:,.0f}")
+        st.metric("📅 Sewa Dibayar di Muka", f"Rp {total_sewa_dimuka:,.0f}",
+                 help="Biaya yang sudah dibayar di muka, diamortisasi per bulan")
+        st.caption(f"Aset Lancar: Rp {total_aset_lancar:,.0f}")
+
+        st.markdown("#### 🏭 Aset Tetap")
+        st.metric("🏗️ Harga Perolehan", f"Rp {total_harga_aset:,.0f}")
+        st.metric("📉 Akum. Depresiasi", f"Rp {total_akum_depr:,.0f}")
+        st.metric("📊 Nilai Buku", f"Rp {nilai_buku_aset:,.0f}")
+
+        st.markdown("---")
+        st.metric("### 📊 TOTAL ASET", f"Rp {total_aset:,.0f}",
+                 help="Aset Lancar + Aset Tetap")
+
+    with ner_col2:
+        st.markdown("### 📋 KEWAJIBAN")
+        st.metric("🛒 Utang Pembelian SKU", f"Rp {utang_pemb['tot']:,.0f}" if utang_pemb else "Rp 0")
+        st.metric("📝 Utang OPEX", f"Rp {utang_opex['tot']:,.0f}" if utang_opex else "Rp 0")
+        st.metric("🏦 Utang Bank / Pinjaman", f"Rp {utang_bank['tot']:,.0f}" if utang_bank else "Rp 0",
+                 help="Sisa pokok pinjaman yang masih AKTIF")
+        st.markdown("---")
+        st.metric("### 📊 TOTAL KEWAJIBAN", f"Rp {total_utang:,.0f}")
+
+        st.markdown("---")
+        st.markdown("### 💎 EKUITAS")
+        st.metric("🏁 Modal Disetor", f"Rp {total_modal_disetor:,.0f}",
+                 help=f"Awal: Rp {modal_awal['tot']:,.0f} | Tambahan: Rp {modal_tambahan['tot']:,.0f}" if modal_awal and modal_tambahan else "")
+        st.metric("📈 Laba Ditahan (All-Time)", f"Rp {laba_ditahan:,.0f}",
+                 help="Akumulasi laba bersih semua periode (estimasi HPP 40%)")
+        st.markdown("---")
+        st.metric("### 💰 TOTAL EKUITAS", f"Rp {total_ekuitas:,.0f}")
+
+    # ── NERACA BALANCE CHECK ──
+    st.markdown("---")
+    bal_col1, bal_col2, bal_col3 = st.columns(3)
+    with bal_col1:
+        st.metric("📊 Total Aset", f"Rp {total_aset:,.0f}")
+    with bal_col2:
+        st.metric("📋 Total Kewajiban + Ekuitas", f"Rp {total_pasiva:,.0f}")
+    with bal_col3:
+        if abs(selisih_neraca) < 100:
+            st.success(f"✅ Neraca Seimbang (selisih Rp {selisih_neraca:,.0f})")
+        else:
+            st.error(f"❌ Ada Selisih Rp {selisih_neraca:,.0f} — Perlu audit!")
+            st.caption("Selisih bisa disebabkan: HPP estimasi 40%, data pencairan belum lengkap, atau transaksi belum direkonsiliasi.")
+
+    # ── Quick Ratio ──
+    if total_utang > 0:
+        quick_ratio = (total_kas + piutang) / total_utang
+        ratio_color = "🟢" if quick_ratio >= 1.5 else ("🟡" if quick_ratio >= 1.0 else "🔴")
+        st.info(
+            f"{ratio_color} **Quick Ratio: {quick_ratio:.2f}** "
+            f"(Kas + Piutang / Utang). "
+            f"{'Sehat — mampu bayar kewajiban jangka pendek.' if quick_ratio >= 1.5 else ('Cukup — perhatikan cashflow.' if quick_ratio >= 1.0 else '⚠️ Risiko likuiditas — kas & piutang tidak cukup menutup utang.')}"
+        )
+
+    # ── Export ──
+    st.markdown("---")
+    if st.button("📊 Export Laporan Laba Rugi & Neraca (Excel)", type="primary", key="lr_export"):
+        data = {
+            "Komponen": [
+                "Pendapatan Gross", "Potongan Marketplace", "Pendapatan Bersih",
+                "HPP", "OPEX Variable", "OPEX Tetap", "Biaya Kirim/Retur", "Beban Depresiasi", "Total Biaya",
+                "LABA BERSIH", "",
+                "ASET LANCAR", "Nilai Inventaris", "Kas (Pencairan)", "Piutang Marketplace",
+                "ASET TETAP", "Harga Perolehan", "Akum. Depresiasi", "Nilai Buku",
+                "TOTAL ASET", "",
+                "KEWAJIBAN", "Utang Pembelian", "Utang OPEX",
+                "EKUITAS", "Modal Disetor", "Laba Ditahan",
+                "TOTAL KEWAJIBAN + EKUITAS", "SELISIH NERACA",
+            ],
+            "Jumlah (Rp)": [
+                total_pendapatan, total_potongan, pendapatan_bersih,
+                total_hpp, total_opex_var, total_opex_tetap, total_biaya_kirim, total_depresiasi_akum, total_biaya,
+                laba_bersih, "",
+                total_aset_lancar, total_inventaris, total_kas, piutang,
+                nilai_buku_aset, total_harga_aset, total_akum_depr, nilai_buku_aset,
+                total_aset, "",
+                total_utang, utang_pemb["tot"] if utang_pemb else 0, utang_opex["tot"] if utang_opex else 0,
+                total_ekuitas, total_modal_disetor, laba_ditahan,
+                total_pasiva, selisih_neraca,
+            ],
+        }
+        df_export = pd.DataFrame(data)
+        filename = f"Laba_Rugi_Neraca_{start_str}_sd_{end_str}.xlsx"
+        filepath = os.path.join(Config.SALES_FOLDER, filename)
+        with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
+            df_export.to_excel(writer, index=False, sheet_name="Laba Rugi & Neraca")
+        with open(filepath, "rb") as fp:
+            st.download_button(
+                "⬇️ Download Laporan",
+                fp,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        st.success(f"✅ Laporan tersimpan: {filename}")
+
+
+def _auto_amortisasi_bulanan(db):
+    """Auto-proses amortisasi pinjaman & biaya dibayar di muka setiap bulan baru.
+    Dijalankan sekali saat app startup. Gunakan tabel pengaturan untuk tracking."""
+    today = datetime.now()
+    bln_ini = today.strftime("%m-%Y")
+    last_run = _get_setting(db, "last_amortisasi", "")
+
+    # Already processed this month
+    if last_run == bln_ini:
+        return
+
+    tgl_str = today.strftime("%d-%m-%Y")
+    processed_loans = 0
+    processed_prepaid = 0
+
+    # ── Proses semua pinjaman AKTIF ──
+    pinj_rows = db.fetch_all("SELECT * FROM pinjaman WHERE status = 'AKTIF' AND sisa_pokok > 0")
+    for p in pinj_rows:
+        existing = db.fetch_one(
+            "SELECT id FROM amortisasi WHERE jenis = 'PINJAMAN' AND id_ref = ? AND periode_bulan = ?",
+            (p["id"], bln_ini),
+        )
+        if existing:
+            continue
+        bunga_bln_pct = (p["bunga_persen"] or 0) / 100 / 12
+        bunga_bln_ini = p["sisa_pokok"] * bunga_bln_pct
+        cicilan_pokok_bln = min((p["cicilan_per_bulan"] or 0) - bunga_bln_ini, p["sisa_pokok"])
+        if cicilan_pokok_bln <= 0:
+            cicilan_pokok_bln = p["sisa_pokok"]
+        total_bayar = cicilan_pokok_bln + bunga_bln_ini
+
+        db.execute(
+            "INSERT INTO amortisasi (jenis, id_ref, periode_bulan, jumlah, keterangan) VALUES (?, ?, ?, ?, ?)",
+            ("PINJAMAN", p["id"], bln_ini, round(total_bayar, 2),
+             f"Auto: Cicilan {p['nama_bank']} — Pokok Rp {cicilan_pokok_bln:,.0f} + Bunga Rp {bunga_bln_ini:,.0f}"),
+        )
+        new_sisa = max(0, p["sisa_pokok"] - cicilan_pokok_bln)
+        new_status = "LUNAS" if new_sisa <= 0 else "AKTIF"
+        db.execute(
+            "UPDATE pinjaman SET sisa_pokok = ?, total_bunga_dibayar = total_bunga_dibayar + ?, status = ? WHERE id = ?",
+            (round(new_sisa, 2), round(bunga_bln_ini, 2), new_status, p["id"]),
+        )
+        if bunga_bln_ini > 0:
+            faktur = f"BUNGA-{today.strftime('%Y%m%d')}-{p['id']:03d}"
+            if not db.fetch_one("SELECT id FROM opex WHERE no_faktur = ?", (faktur,)):
+                db.execute(
+                    "INSERT INTO opex (kategori, deskripsi, qty, satuan, harga_satuan, total_harga, tanggal, no_faktur, metode_bayar, status_bayar, tipe) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    ("Beban Bunga", f"Auto: Bunga {p['nama_bank']} ({bln_ini})",
+                     1, "bulan", round(bunga_bln_ini, 2), round(bunga_bln_ini, 2),
+                     tgl_str, faktur, "Transfer", "LUNAS", "TETAP"),
+                )
+        processed_loans += 1
+
+    # ── Proses semua biaya dibayar di muka AKTIF ──
+    bdm_rows = db.fetch_all("SELECT * FROM biaya_dibayar_dimuka WHERE status = 'AKTIF' AND sisa_belum_diakui > 0")
+    for b in bdm_rows:
+        existing = db.fetch_one(
+            "SELECT id FROM amortisasi WHERE jenis = 'SEWA_DIMUKA' AND id_ref = ? AND periode_bulan = ?",
+            (b["id"], bln_ini),
+        )
+        if existing:
+            continue
+        beban_bln = min(b["jumlah_per_bulan"], b["sisa_belum_diakui"])
+        new_sisa = b["sisa_belum_diakui"] - beban_bln
+        new_status = "AKTIF" if new_sisa > 0 else "SELESAI"
+
+        db.execute(
+            "INSERT INTO amortisasi (jenis, id_ref, periode_bulan, jumlah, keterangan) VALUES (?, ?, ?, ?, ?)",
+            ("SEWA_DIMUKA", b["id"], bln_ini, round(beban_bln, 2),
+             f"Auto: Amortisasi {b['deskripsi']} ({bln_ini})"),
+        )
+        db.execute(
+            "UPDATE biaya_dibayar_dimuka SET sisa_belum_diakui = ?, status = ? WHERE id = ?",
+            (round(new_sisa, 2), new_status, b["id"]),
+        )
+        faktur = f"AMORT-{today.strftime('%Y%m%d')}-{b['id']:03d}"
+        if not db.fetch_one("SELECT id FROM opex WHERE no_faktur = ?", (faktur,)):
+            db.execute(
+                "INSERT INTO opex (kategori, deskripsi, qty, satuan, harga_satuan, total_harga, tanggal, no_faktur, metode_bayar, status_bayar, tipe) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (f"Amortisasi {b['kategori']}", f"Auto: Amortisasi {b['deskripsi']} ({bln_ini})",
+                 1, "bulan", round(beban_bln, 2), round(beban_bln, 2),
+                 tgl_str, faktur, "Transfer", "LUNAS", "TETAP"),
+            )
+        processed_prepaid += 1
+
+    # ── Simpan tracking ──
+    _save_setting(db, "last_amortisasi", bln_ini)
+
+    if processed_loans > 0 or processed_prepaid > 0:
+        # Log silently — user will see results in Laba Rugi & Neraca
+        pass  # No toast needed on startup, just process
+
+
+def render_aset_modal():
+    """Halaman Manajemen Aset Tetap & Modal — neraca lengkap."""
+    db = st.session_state.db
+
+    st.title("🏗️ Aset & Modal")
+    st.caption("Kelola aset tetap, modal, pinjaman bank, dan biaya dibayar di muka untuk laporan keuangan profesional.")
+
+    tab1, tab2, tab3, tab4 = st.tabs(["🏭 Aset Tetap", "💰 Modal Usaha", "🏦 Pinjaman / Utang Bank", "📅 Biaya Dibayar di Muka"])
+
+    # ═══════════════════ TAB 1: ASET TETAP ═══════════════════
+    with tab1:
+        st.subheader("🏭 Manajemen Aset Tetap")
+        st.caption("Catat aset tetap (kendaraan, peralatan, bangunan) dan hitung depresiasi otomatis.")
+
+        # ── Form Tambah Aset ──
+        with st.expander("➕ Tambah Aset Baru", expanded=False):
+            a_col1, a_col2 = st.columns(2)
+            with a_col1:
+                nama_aset = st.text_input("Nama Aset *", placeholder="Motor Operasional, Laptop, Printer...", key="aset_nama")
+                kategori = st.selectbox("Kategori", ["Kendaraan", "Peralatan", "Elektronik", "Bangunan", "Lainnya"], key="aset_kat")
+                tgl_perolehan = st.date_input("Tanggal Perolehan", value=datetime.now().date(), key="aset_tgl")
+            with a_col2:
+                harga = st.number_input("Harga Perolehan (Rp) *", min_value=0, value=0, step=100000, key="aset_harga")
+                masa = st.number_input("Masa Manfaat (Tahun)", min_value=1, value=4, step=1, key="aset_masa")
+                nilai_sisa = st.number_input("Nilai Sisa (Rp)", min_value=0, value=0, step=10000, key="aset_sisa",
+                                             help="Nilai aset di akhir masa manfaat")
+
+            if st.button("💾 Simpan Aset", type="primary", key="aset_simpan"):
+                if not nama_aset.strip():
+                    st.error("Nama aset wajib diisi!")
+                elif harga <= 0:
+                    st.error("Harga perolehan harus > 0!")
+                else:
+                    db.execute(
+                        "INSERT INTO aset_tetap (nama_aset, kategori, tanggal_perolehan, harga_perolehan, masa_manfaat, nilai_sisa) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (nama_aset.strip(), kategori, tgl_perolehan.strftime("%d-%m-%Y"), harga, masa, nilai_sisa),
+                    )
+                    st.success(f"✅ Aset '{nama_aset.strip()}' ditambahkan!")
+                    st.rerun()
+
+        st.markdown("---")
+
+        # ── Daftar Aset ──
+        aset_rows = db.fetch_all("SELECT * FROM aset_tetap ORDER BY created_at DESC")
+        if not aset_rows:
+            st.info("📭 Belum ada aset tetap terdaftar.")
+        else:
+            st.subheader(f"📋 Daftar Aset Tetap ({len(aset_rows)} aset)")
+
+            total_harga = sum(a["harga_perolehan"] or 0 for a in aset_rows)
+            total_akum = sum(a["akumulasi_depresiasi"] or 0 for a in aset_rows)
+            total_buku = total_harga - total_akum
+
+            sc1, sc2, sc3 = st.columns(3)
+            with sc1:
+                st.metric("💰 Total Harga Perolehan", f"Rp {total_harga:,.0f}")
+            with sc2:
+                st.metric("📉 Total Akum. Depresiasi", f"Rp {total_akum:,.0f}")
+            with sc3:
+                st.metric("📊 Total Nilai Buku", f"Rp {total_buku:,.0f}")
+
+            for a in aset_rows:
+                nilai_buku = (a["harga_perolehan"] or 0) - (a["akumulasi_depresiasi"] or 0)
+                with st.container(border=True):
+                    ac1, ac2, ac3, ac4 = st.columns([3, 1, 1, 1])
+                    with ac1:
+                        st.markdown(f"**🏭 {a['nama_aset']}**")
+                        st.caption(f"📂 {a['kategori']} | 📅 Perolehan: {a['tanggal_perolehan']} | ⏳ {a['masa_manfaat']} thn | Nilai Sisa: Rp {a['nilai_sisa']:,.0f}")
+                    with ac2:
+                        st.metric("Harga", f"Rp {a['harga_perolehan']:,.0f}")
+                    with ac3:
+                        st.metric("Akum. Depr.", f"Rp {a['akumulasi_depresiasi']:,.0f}")
+                    with ac4:
+                        st.metric("Nilai Buku", f"Rp {nilai_buku:,.0f}")
+                        if st.button("🗑️", key=f"aset_del_{a['id']}", help="Hapus aset"):
+                            db.execute("DELETE FROM aset_tetap WHERE id = ?", (a["id"],))
+                            st.success(f"🗑️ '{a['nama_aset']}' dihapus.")
+                            st.rerun()
+
+        # ── Hitung Depresiasi Otomatis ──
+        st.markdown("---")
+        st.subheader("💾 Hitung Depresiasi Otomatis")
+        st.caption("Hitung beban depresiasi bulanan untuk semua aset (Garis Lurus). Update akumulasi depresiasi dan catat di jurnal OPEX.")
+
+        if st.button("🔢 Hitung Depresiasi Bulan Ini", type="primary", key="aset_depr"):
+            today_dt = datetime.now()
+            bulan_ini = today_dt.strftime("%m-%Y")
+            updated = 0
+            total_beban = 0.0
+
+            for a in aset_rows:
+                if a["harga_perolehan"] <= 0 or a["masa_manfaat"] <= 0:
+                    continue
+                # Depresiasi per tahun = (harga - nilai_sisa) / masa_manfaat
+                depr_tahunan = (a["harga_perolehan"] - (a["nilai_sisa"] or 0)) / a["masa_manfaat"]
+                depr_bulanan = depr_tahunan / 12
+                # Cek sudah berapa bulan sejak perolehan
+                try:
+                    tgl_perolehan = datetime.strptime(a["tanggal_perolehan"], "%d-%m-%Y")
+                    bulan_berlalu = (today_dt.year - tgl_perolehan.year) * 12 + (today_dt.month - tgl_perolehan.month)
+                except:
+                    bulan_berlalu = 0
+                bulan_berlalu = max(0, bulan_berlalu)
+                # Akumulasi yang seharusnya = depr_bulanan * bulan_berlalu (capped di harga - nilai_sisa)
+                max_depr = a["harga_perolehan"] - (a["nilai_sisa"] or 0)
+                akum_seharusnya = min(depr_bulanan * bulan_berlalu, max_depr)
+                # Beban bulan ini yang belum dicatat
+                beban_bln_ini = max(0, akum_seharusnya - (a["akumulasi_depresiasi"] or 0))
+
+                if beban_bln_ini > 0:
+                    # Update akumulasi
+                    db.execute(
+                        "UPDATE aset_tetap SET akumulasi_depresiasi = ? WHERE id = ?",
+                        (round(akum_seharusnya, 2), a["id"]),
+                    )
+                    # Catat sebagai beban depresiasi di OPEX (TETAP)
+                    tgl_str = today_dt.strftime("%d-%m-%Y")
+                    faktur = f"DEPR-{today_dt.strftime('%Y%m%d')}-{a['id']:03d}"
+                    # Cek belum ada entry depresiasi bulan ini untuk aset ini
+                    existing_depr = db.fetch_one(
+                        "SELECT id FROM opex WHERE no_faktur = ? AND kategori = 'Depresiasi'",
+                        (faktur,),
+                    )
+                    if not existing_depr:
+                        db.execute(
+                            "INSERT INTO opex (kategori, deskripsi, qty, satuan, harga_satuan, total_harga, tanggal, no_faktur, metode_bayar, status_bayar, tipe) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            ("Depresiasi", f"Depresiasi: {a['nama_aset']} ({bulan_ini})",
+                             1, "bulan", round(beban_bln_ini, 2), round(beban_bln_ini, 2),
+                             tgl_str, faktur, "Transfer", "LUNAS", "TETAP"),
+                        )
+                    total_beban += beban_bln_ini
+                    updated += 1
+
+            if updated > 0:
+                st.success(f"✅ {updated} aset dihitung depresiasinya. Total beban depresiasi bulan ini: **Rp {total_beban:,.0f}** (tercatat di OPEX Tetap → Laba Rugi).")
+            else:
+                st.info("✅ Semua aset sudah up-to-date. Tidak ada beban depresiasi baru bulan ini.")
+
+    # ═══════════════════ TAB 2: MODAL ═══════════════════
+    with tab2:
+        st.subheader("💰 Modal Usaha")
+        st.caption("Catat modal awal dan tambahan modal usaha.")
+
+        # ── Form Tambah Modal ──
+        with st.expander("➕ Catat Modal", expanded=False):
+            m_col1, m_col2 = st.columns(2)
+            with m_col1:
+                jenis_modal = st.selectbox("Jenis Modal", ["AWAL", "TAMBAHAN"], key="modal_jenis",
+                                           help="AWAL = modal pertama saat memulai | TAMBAHAN = setoran tambahan")
+                tgl_modal = st.date_input("Tanggal", value=datetime.now().date(), key="modal_tgl")
+            with m_col2:
+                jumlah_modal = st.number_input("Jumlah (Rp) *", min_value=0, value=0, step=1000000, key="modal_jml")
+                ket_modal = st.text_area("Keterangan", placeholder="Sumber dana...", key="modal_ket", height=100)
+
+            if st.button("💾 Simpan Modal", type="primary", key="modal_simpan"):
+                if jumlah_modal <= 0:
+                    st.error("Jumlah modal harus > 0!")
+                else:
+                    db.execute(
+                        "INSERT INTO modal (jenis, tanggal, jumlah, keterangan) VALUES (?, ?, ?, ?)",
+                        (jenis_modal, tgl_modal.strftime("%d-%m-%Y"), jumlah_modal, ket_modal.strip()),
+                    )
+                    st.success(f"✅ Modal {jenis_modal} sebesar Rp {jumlah_modal:,.0f} dicatat!")
+                    st.rerun()
+
+        st.markdown("---")
+
+        # ── Ringkasan Modal ──
+        modal_awal = db.fetch_one("SELECT COALESCE(SUM(jumlah), 0) as tot FROM modal WHERE jenis = 'AWAL'")
+        modal_tambahan = db.fetch_one("SELECT COALESCE(SUM(jumlah), 0) as tot FROM modal WHERE jenis = 'TAMBAHAN'")
+        total_modal = (modal_awal["tot"] if modal_awal else 0) + (modal_tambahan["tot"] if modal_tambahan else 0)
+
+        mc1, mc2, mc3 = st.columns(3)
+        with mc1:
+            st.metric("🏁 Modal Awal", f"Rp {modal_awal['tot']:,.0f}" if modal_awal else "Rp 0")
+        with mc2:
+            st.metric("➕ Modal Tambahan", f"Rp {modal_tambahan['tot']:,.0f}" if modal_tambahan else "Rp 0")
+        with mc3:
+            st.metric("💰 Total Modal Disetor", f"Rp {total_modal:,.0f}")
+
+        # ── Riwayat Modal ──
+        st.markdown("---")
+        st.subheader("📋 Riwayat Modal")
+        modal_rows = db.fetch_all("SELECT * FROM modal ORDER BY created_at DESC")
+        if modal_rows:
+            df_modal = pd.DataFrame([dict(m) for m in modal_rows])
+            df_modal["Jumlah"] = df_modal["jumlah"].apply(lambda x: f"Rp {x:,.0f}")
+            df_modal["Jenis"] = df_modal["jenis"].apply(lambda x: "🏁 Awal" if x == "AWAL" else "➕ Tambahan")
+            df_modal = df_modal.rename(columns={"tanggal": "Tanggal", "keterangan": "Keterangan"})
+            st.dataframe(df_modal[["Tanggal", "Jenis", "Jumlah", "Keterangan"]], width="stretch", hide_index=True)
+
+            # Delete
+            with st.expander("🗑️ Hapus Data Modal", expanded=False):
+                del_id = st.number_input("ID Modal", min_value=1, step=1, key="modal_del_id")
+                if st.button("🗑️ Hapus", key="modal_del_btn"):
+                    db.execute("DELETE FROM modal WHERE id = ?", (del_id,))
+                    st.success(f"✅ Modal ID {del_id} dihapus.")
+                    st.rerun()
+        else:
+            st.info("📭 Belum ada catatan modal.")
+
+    # ═══════════════════ TAB 3: PINJAMAN / UTANG BANK ═══════════════════
+    with tab3:
+        st.subheader("🏦 Pinjaman / Utang Bank")
+        st.caption("Catat pinjaman usaha, auto-hitung bunga & cicilan per bulan. Bunga masuk Laba Rugi, pokok di Neraca.")
+
+        # ── Form Tambah Pinjaman ──
+        with st.expander("➕ Catat Pinjaman Baru", expanded=False):
+            p_col1, p_col2 = st.columns(2)
+            with p_col1:
+                bank = st.text_input("Nama Bank / Pemberi Pinjaman *", placeholder="BCA, BRI, KUR...", key="pinj_bank")
+                pokok = st.number_input("Pokok Pinjaman (Rp) *", min_value=0, value=0, step=1000000, key="pinj_pokok")
+                bunga_pct = st.number_input("Bunga per Tahun (%)", min_value=0.0, value=0.0, step=0.5, key="pinj_bunga",
+                                            help="Misal 20% → beban bunga = pokok × 20% / 12 per bulan")
+            with p_col2:
+                tenor = st.number_input("Tenor (Bulan)", min_value=1, value=12, step=1, key="pinj_tenor")
+                tgl_mulai = st.date_input("Tanggal Mulai", value=datetime.now().date(), key="pinj_tgl")
+                ket_pinj = st.text_area("Keterangan", placeholder="KUR Mikro, Modal Kerja...", key="pinj_ket", height=100)
+
+            # Auto-hitung cicilan
+            if pokok > 0 and tenor > 0:
+                bunga_bulanan_pct = bunga_pct / 100 / 12
+                if bunga_pct > 0:
+                    # Cicilan flat = pokok/tenor + bunga per bulan
+                    cicilan_pokok = pokok / tenor
+                    cicilan_bunga = pokok * bunga_bulanan_pct
+                    cicilan_total = cicilan_pokok + cicilan_bunga
+                else:
+                    cicilan_pokok = pokok / tenor
+                    cicilan_total = cicilan_pokok
+                st.info(f"📊 **Estimasi Cicilan**: Rp {cicilan_total:,.0f}/bulan (Pokok: Rp {cicilan_pokok:,.0f} + Bunga: Rp {cicilan_bunga if bunga_pct > 0 else 0:,.0f}) selama {tenor} bulan.")
+                cicilan_est = cicilian_total
+            else:
+                cicilan_est = 0
+
+            if st.button("💾 Simpan Pinjaman", type="primary", key="pinj_simpan"):
+                if not bank.strip():
+                    st.error("Nama bank wajib diisi!")
+                elif pokok <= 0:
+                    st.error("Pokok pinjaman harus > 0!")
+                else:
+                    bunga_bln_pct = bunga_pct / 100 / 12
+                    cicilan_pokok_val = pokok / tenor if tenor > 0 else 0
+                    cicilan_bunga_val = pokok * bunga_bln_pct
+                    cicilan_val = cicilan_pokok_val + cicilan_bunga_val
+                    db.execute(
+                        "INSERT INTO pinjaman (nama_bank, pokok, bunga_persen, tenor_bulan, cicilan_per_bulan, tanggal_mulai, sisa_pokok, status, keterangan) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, 'AKTIF', ?)",
+                        (bank.strip(), pokok, bunga_pct, tenor, round(cicilan_val, 2),
+                         tgl_mulai.strftime("%d-%m-%Y"), pokok, ket_pinj.strip()),
+                    )
+                    st.success(f"✅ Pinjaman '{bank.strip()}' Rp {pokok:,.0f} dicatat!")
+                    st.rerun()
+
+        st.markdown("---")
+
+        # ── Daftar Pinjaman ──
+        pinj_rows = db.fetch_all("SELECT * FROM pinjaman ORDER BY created_at DESC")
+        if not pinj_rows:
+            st.info("📭 Belum ada pinjaman terdaftar.")
+        else:
+            total_pokok_awal = sum(p["pokok"] or 0 for p in pinj_rows)
+            total_sisa = sum(p["sisa_pokok"] or 0 for p in pinj_rows)
+            total_bunga = sum(p["total_bunga_dibayar"] or 0 for p in pinj_rows)
+
+            sc1, sc2, sc3 = st.columns(3)
+            with sc1: st.metric("🏦 Total Pokok Awal", f"Rp {total_pokok_awal:,.0f}")
+            with sc2: st.metric("📉 Sisa Pokok (Utang)", f"Rp {total_sisa:,.0f}")
+            with sc3: st.metric("💸 Total Bunga Dibayar", f"Rp {total_bunga:,.0f}")
+
+            for p in pinj_rows:
+                progress_val = (1 - (p["sisa_pokok"] / p["pokok"])) if p["pokok"] > 0 else 0
+                with st.container(border=True):
+                    pc1, pc2, pc3, pc4 = st.columns([3, 1, 1, 1])
+                    with pc1:
+                        status_icon = "🟢" if p["status"] == "AKTIF" else "🔴"
+                        st.markdown(f"**{status_icon} {p['nama_bank']}**")
+                        st.caption(f"Pokok: Rp {p['pokok']:,.0f} | Bunga: {p['bunga_persen']}%/thn | Tenor: {p['tenor_bulan']} bln | Mulai: {p['tanggal_mulai']}")
+                        st.progress(min(progress_val, 1.0), text=f"Terbayar: {progress_val*100:.0f}%")
+                    with pc2:
+                        st.metric("Sisa Pokok", f"Rp {p['sisa_pokok']:,.0f}")
+                    with pc3:
+                        st.metric("Cicilan/Bln", f"Rp {p['cicilan_per_bulan']:,.0f}")
+                    with pc4:
+                        st.metric("Bunga Dibayar", f"Rp {p['total_bunga_dibayar']:,.0f}")
+                        if st.button("🗑️", key=f"pinj_del_{p['id']}", help="Hapus pinjaman"):
+                            db.execute("DELETE FROM pinjaman WHERE id = ?", (p["id"],))
+                            db.execute("DELETE FROM amortisasi WHERE jenis = 'PINJAMAN' AND id_ref = ?", (p["id"],))
+                            st.success(f"🗑️ Pinjaman dihapus.")
+                            st.rerun()
+
+        # ── Auto-Amortisasi Bunga + Cicilan ──
+        st.markdown("---")
+        st.subheader("🔢 Proses Amortisasi Bulanan (Bunga & Cicilan)")
+        st.caption("Catat beban bunga bulan ini + kurangi sisa pokok secara otomatis. Beban bunga masuk OPEX Tetap → Laba Rugi.")
+
+        if st.button("🔢 Proses Amortisasi Bulan Ini", type="primary", key="pinj_amor"):
+            today_dt = datetime.now()
+            bln_ini_label = today_dt.strftime("%m-%Y")
+            tgl_str = today_dt.strftime("%d-%m-%Y")
+            processed = 0
+
+            for p in pinj_rows:
+                if p["status"] != "AKTIF" or p["sisa_pokok"] <= 0:
+                    continue
+                # Cek sudah diproses bulan ini
+                existing = db.fetch_one(
+                    "SELECT id FROM amortisasi WHERE jenis = 'PINJAMAN' AND id_ref = ? AND periode_bulan = ?",
+                    (p["id"], bln_ini_label),
+                )
+                if existing:
+                    continue
+                # Hitung bunga bulan ini
+                bunga_bln_pct = (p["bunga_persen"] or 0) / 100 / 12
+                bunga_bln_ini = p["sisa_pokok"] * bunga_bln_pct
+                cicilan_pokok_bln = min(p["cicilan_per_bulan"] - bunga_bln_ini, p["sisa_pokok"])
+                if cicilan_pokok_bln <= 0:
+                    cicilan_pokok_bln = p["sisa_pokok"]  # lunasi sisa
+                total_bayar = cicilan_pokok_bln + bunga_bln_ini
+
+                # Catat amortisasi
+                db.execute(
+                    "INSERT INTO amortisasi (jenis, id_ref, periode_bulan, jumlah, keterangan) VALUES (?, ?, ?, ?, ?)",
+                    ("PINJAMAN", p["id"], bln_ini_label, round(total_bayar, 2),
+                     f"Cicilan {p['nama_bank']}: Pokok Rp {cicilan_pokok_bln:,.0f} + Bunga Rp {bunga_bln_ini:,.0f}"),
+                )
+                # Update sisa pokok & bunga
+                new_sisa = max(0, p["sisa_pokok"] - cicilan_pokok_bln)
+                new_status = "LUNAS" if new_sisa <= 0 else "AKTIF"
+                db.execute(
+                    "UPDATE pinjaman SET sisa_pokok = ?, total_bunga_dibayar = total_bunga_dibayar + ?, status = ? WHERE id = ?",
+                    (round(new_sisa, 2), round(bunga_bln_ini, 2), new_status, p["id"]),
+                )
+                # Catat beban bunga ke OPEX
+                if bunga_bln_ini > 0:
+                    faktur = f"BUNGA-{today_dt.strftime('%Y%m%d')}-{p['id']:03d}"
+                    existing_opex = db.fetch_one("SELECT id FROM opex WHERE no_faktur = ?", (faktur,))
+                    if not existing_opex:
+                        db.execute(
+                            "INSERT INTO opex (kategori, deskripsi, qty, satuan, harga_satuan, total_harga, tanggal, no_faktur, metode_bayar, status_bayar, tipe) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            ("Beban Bunga", f"Bunga pinjaman {p['nama_bank']} ({bln_ini_label})",
+                             1, "bulan", round(bunga_bln_ini, 2), round(bunga_bln_ini, 2),
+                             tgl_str, faktur, "Transfer", "LUNAS", "TETAP"),
+                        )
+                processed += 1
+
+            if processed > 0:
+                st.success(f"✅ {processed} pinjaman diproses amortisasinya. Beban bunga & cicilan pokok tercatat.")
+            else:
+                st.info("✅ Semua pinjaman sudah up-to-date bulan ini.")
+            st.rerun()
+
+    # ═══════════════════ TAB 4: BIAYA DIBAYAR DI MUKA ═══════════════════
+    with tab4:
+        st.subheader("📅 Biaya Dibayar di Muka (Prepaid Expenses)")
+        st.caption("Catat biaya yang dibayar sekaligus di awal (sewa, asuransi) dan diakui sebagai beban per bulan.")
+
+        # ── Form Tambah ──
+        with st.expander("➕ Catat Biaya Dibayar di Muka", expanded=False):
+            b_col1, b_col2 = st.columns(2)
+            with b_col1:
+                desc = st.text_input("Deskripsi *", placeholder="Sewa Gudang 1 Tahun, Asuransi Kendaraan...", key="bdm_desc")
+                kat = st.selectbox("Kategori", ["Sewa", "Asuransi", "Lisensi/Software", "Pemeliharaan", "Lainnya"], key="bdm_kat")
+                total = st.number_input("Jumlah Total (Rp) *", min_value=0, value=0, step=100000, key="bdm_total")
+            with b_col2:
+                bln_mulai = st.date_input("Bulan Mulai", value=datetime.now().date(), key="bdm_mulai")
+                jml_bulan = st.number_input("Jumlah Bulan", min_value=1, value=12, step=1, key="bdm_bln",
+                                            help="Berapa bulan biaya ini mencakup?")
+                ket_bdm = st.text_area("Keterangan", key="bdm_ket", height=68)
+
+            if total > 0 and jml_bulan > 0:
+                per_bulan = total / jml_bulan
+                bln_selesai = (bln_mulai + timedelta(days=jml_bulan * 30)).replace(day=1)
+                st.info(f"📊 **Amortisasi**: Rp {per_bulan:,.0f}/bulan selama {jml_bulan} bulan. Akan diakui sebagai beban per bulan di Laba Rugi.")
+
+            if st.button("💾 Simpan Biaya Dibayar di Muka", type="primary", key="bdm_simpan"):
+                if not desc.strip():
+                    st.error("Deskripsi wajib diisi!")
+                elif total <= 0 or jml_bulan <= 0:
+                    st.error("Jumlah total dan jumlah bulan harus > 0!")
+                else:
+                    per_bulan = total / jml_bulan
+                    bln_selesai = (bln_mulai + timedelta(days=jml_bulan * 30)).replace(day=1)
+                    db.execute(
+                        "INSERT INTO biaya_dibayar_dimuka (deskripsi, kategori, jumlah_total, jumlah_per_bulan, bulan_mulai, bulan_selesai, sisa_belum_diakui, keterangan) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (desc.strip(), kat, total, round(per_bulan, 2),
+                         bln_mulai.strftime("%m-%Y"), bln_selesai.strftime("%m-%Y"), total, ket_bdm.strip()),
+                    )
+                    st.success(f"✅ '{desc.strip()}' Rp {total:,.0f} dicatat (Rp {per_bulan:,.0f}/bulan).")
+                    st.rerun()
+
+        st.markdown("---")
+
+        # ── Daftar ──
+        bdm_rows = db.fetch_all("SELECT * FROM biaya_dibayar_dimuka ORDER BY created_at DESC")
+        if not bdm_rows:
+            st.info("📭 Belum ada biaya dibayar di muka.")
+        else:
+            total_bdm = sum(b["jumlah_total"] or 0 for b in bdm_rows)
+            total_sisa_bdm = sum(b["sisa_belum_diakui"] or 0 for b in bdm_rows)
+
+            sc1, sc2 = st.columns(2)
+            with sc1: st.metric("💰 Total Dibayar di Muka", f"Rp {total_bdm:,.0f}")
+            with sc2: st.metric("📅 Sisa Belum Diakui", f"Rp {total_sisa_bdm:,.0f}")
+
+            for b in bdm_rows:
+                progress_bdm = (1 - (b["sisa_belum_diakui"] / b["jumlah_total"])) if b["jumlah_total"] > 0 else 0
+                with st.container(border=True):
+                    bc1, bc2, bc3, bc4 = st.columns([3, 1, 1, 1])
+                    with bc1:
+                        status_icon = "🟢" if b["status"] == "AKTIF" else "🔴"
+                        st.markdown(f"**{status_icon} {b['deskripsi']}**")
+                        st.caption(f"📂 {b['kategori']} | {b['bulan_mulai']} → {b['bulan_selesai']} | Rp {b['jumlah_per_bulan']:,.0f}/bulan")
+                        st.progress(min(progress_bdm, 1.0), text=f"Terpakai: {progress_bdm*100:.0f}%")
+                    with bc2:
+                        st.metric("Total", f"Rp {b['jumlah_total']:,.0f}")
+                    with bc3:
+                        st.metric("Sisa", f"Rp {b['sisa_belum_diakui']:,.0f}")
+                    with bc4:
+                        if st.button("🗑️", key=f"bdm_del_{b['id']}", help="Hapus"):
+                            db.execute("DELETE FROM biaya_dibayar_dimuka WHERE id = ?", (b['id'],))
+                            db.execute("DELETE FROM amortisasi WHERE jenis = 'SEWA_DIMUKA' AND id_ref = ?", (b["id"],))
+                            st.success(f"🗑️ Dihapus.")
+                            st.rerun()
+
+        # ── Auto-Amortisasi per Bulan ──
+        st.markdown("---")
+        st.subheader("🔢 Proses Amortisasi Bulanan (Akui Beban)")
+        st.caption("Akui beban per bulan untuk semua biaya dibayar di muka yang masih aktif. Masuk OPEX Tetap → Laba Rugi.")
+
+        if st.button("🔢 Akui Beban Bulan Ini", type="primary", key="bdm_amor"):
+            today_dt = datetime.now()
+            bln_ini_label = today_dt.strftime("%m-%Y")
+            tgl_str = today_dt.strftime("%d-%m-%Y")
+            processed = 0
+
+            for b in bdm_rows:
+                if b["status"] != "AKTIF" or b["sisa_belum_diakui"] <= 0:
+                    continue
+                # Cek sudah diproses bulan ini
+                existing = db.fetch_one(
+                    "SELECT id FROM amortisasi WHERE jenis = 'SEWA_DIMUKA' AND id_ref = ? AND periode_bulan = ?",
+                    (b["id"], bln_ini_label),
+                )
+                if existing:
+                    continue
+                # Akui beban bulan ini (sebesar jumlah_per_bulan, capped sisa)
+                beban_bln = min(b["jumlah_per_bulan"], b["sisa_belum_diakui"])
+                new_sisa = b["sisa_belum_diakui"] - beban_bln
+                new_status = "AKTIF" if new_sisa > 0 else "SELESAI"
+
+                db.execute(
+                    "INSERT INTO amortisasi (jenis, id_ref, periode_bulan, jumlah, keterangan) VALUES (?, ?, ?, ?, ?)",
+                    ("SEWA_DIMUKA", b["id"], bln_ini_label, round(beban_bln, 2),
+                     f"Amortisasi {b['deskripsi']} — bln {bln_ini_label}"),
+                )
+                db.execute(
+                    "UPDATE biaya_dibayar_dimuka SET sisa_belum_diakui = ?, status = ? WHERE id = ?",
+                    (round(new_sisa, 2), new_status, b["id"]),
+                )
+                # Catat beban ke OPEX
+                faktur = f"AMORT-{today_dt.strftime('%Y%m%d')}-{b['id']:03d}"
+                existing_opex = db.fetch_one("SELECT id FROM opex WHERE no_faktur = ?", (faktur,))
+                if not existing_opex:
+                    db.execute(
+                        "INSERT INTO opex (kategori, deskripsi, qty, satuan, harga_satuan, total_harga, tanggal, no_faktur, metode_bayar, status_bayar, tipe) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (f"Amortisasi {b['kategori']}", f"Amortisasi: {b['deskripsi']} ({bln_ini_label})",
+                         1, "bulan", round(beban_bln, 2), round(beban_bln, 2),
+                         tgl_str, faktur, "Transfer", "LUNAS", "TETAP"),
+                    )
+                processed += 1
+
+            if processed > 0:
+                st.success(f"✅ {processed} biaya diamortisasi. Beban bulanan tercatat di OPEX → Laba Rugi.")
+            else:
+                st.info("✅ Semua biaya dibayar di muka sudah up-to-date bulan ini.")
+            st.rerun()
+
+
 # ==================== SIDEBAR NAVIGATION ====================
 # Sub-menu definitions per main menu
 OPERATIONAL_SUB_MENUS = {
@@ -7449,9 +9615,7 @@ OPERATIONAL_SUB_MENUS = {
     "🤖 AI Supervisor": "AI_Supervisor",
     "📋 Handover": "Handover",
     "🚚 Ekspedisi": "Ekspedisi",
-    "🏪 Toko": "Toko",
-    "� Daftar Barang Besar": "Barang_Besar",
-    "�📈 Reports": "Reports",
+    "📈 Reports": "Reports",
 }
 
 SALES_SUB_MENUS = {
@@ -7462,10 +9626,18 @@ SALES_SUB_MENUS = {
 
 PURCHASE_SUB_MENUS = {
     "📊 Dashboard Pembelian": "Purchase_Dashboard",
-    "🏷️ Manajemen SKU": "Purchase_SKU",
     "🛒 Input Pembelian SKU": "Purchase_Input",
     "📋 Riwayat Pembelian SKU": "Purchase_History",
     "📁 Arsip Pembelian": "Purchase_Archive",
+}
+
+MASTER_DATA_SUB_MENUS = {
+    "🏷️ Database Barang (SKU)": "Master_SKU",
+    "🏪 Database Supplier": "Master_Supplier",
+    "📂 Database Kategori": "Master_Kategori",
+    "🏬 Database Toko": "Master_Toko",
+    "📦 Daftar Barang Besar": "Master_Barang_Besar",
+    "🏭 Gudang / Lokasi": "Master_Gudang",
 }
 
 OPEX_SUB_MENUS = {
@@ -7481,6 +9653,12 @@ FINANCE_SUB_MENUS = {
     "✅ Konfirmasi Bayar SKU": "Finance_SKU",
     "✅ Konfirmasi Bayar OPEX": "Finance_OPEX",
     "📋 Riwayat Pembayaran": "Finance_History",
+}
+
+AKUNTANSI_SUB_MENUS = {
+    "📋 Rekonsiliasi": "Rekonsiliasi",
+    "📊 Laba Rugi & Neraca": "Laba_Rugi_Neraca",
+    "🏗️ Aset & Modal": "Aset_Modal",
 }
 
 ADMIN_SUB_MENUS = {
@@ -7518,13 +9696,15 @@ def render_sidebar():
         user_role = user.get("role", "operator") if user else "operator"
         allowed_menus = get_user_menus(user_role)
 
-        MAIN_MENU_OPTIONS = ["📦 Operasional", "💰 Penjualan", "🛒 Pembelian SKU", "📋 Pembelian OPEX", "💳 Finance", "⚙️ Admin"]
+        MAIN_MENU_OPTIONS = ["📦 Operasional", "💰 Penjualan", "🛒 Pembelian SKU", "📋 Pembelian OPEX", "💳 Finance", "📊 Akuntansi", "📦 Master Data", "⚙️ Admin"]
         MAIN_MENU_MAP = {
             "📦 Operasional": "Operasional",
             "💰 Penjualan": "Penjualan",
             "🛒 Pembelian SKU": "Pembelian",
             "📋 Pembelian OPEX": "OPEX",
             "💳 Finance": "Finance",
+            "📊 Akuntansi": "Akuntansi",
+            "📦 Master Data": "Master_Data",
             "⚙️ Admin": "Admin",
         }
 
@@ -7584,6 +9764,8 @@ def render_sidebar():
                 "Pembelian": "Purchase_Dashboard",
                 "OPEX": "Opex_Dashboard",
                 "Finance": "Finance_Dashboard",
+                "Akuntansi": "Rekonsiliasi",
+                "Master_Data": "Master_SKU",
                 "Admin": "Admin_Users",
             }
             st.session_state.page = default_pages.get(new_main_menu, "Dashboard")
@@ -7607,6 +9789,12 @@ def render_sidebar():
         elif main_menu == "Finance":
             sub_menus = dict(FINANCE_SUB_MENUS)
             default_page = "Finance_Dashboard"
+        elif main_menu == "Akuntansi":
+            sub_menus = dict(AKUNTANSI_SUB_MENUS)
+            default_page = "Rekonsiliasi"
+        elif main_menu == "Master_Data":
+            sub_menus = dict(MASTER_DATA_SUB_MENUS)
+            default_page = "Master_SKU"
         else:  # Admin
             sub_menus = dict(ADMIN_SUB_MENUS)
             default_page = "Admin_Users"
@@ -7697,6 +9885,9 @@ def main():
     if not st.session_state.get("authenticated", False):
         render_login()
         return
+
+    # ── Auto-amortisasi bulanan: pinjaman + biaya dibayar di muka ──
+    _auto_amortisasi_bulanan(st.session_state.db)
 
     # ── Render sidebar FIRST (it updates st.session_state.page from widget clicks) ──
     render_sidebar()
@@ -8418,83 +10609,27 @@ def main():
         render_ekspedisi()
 
     elif page == "Toko":
-        st.title("🏪 Manajemen Toko")
-        render_toko()
+        # Redirect to Master Data
+        st.session_state.page = "Master_Toko"
+        st.rerun()
 
     elif page == "Barang_Besar":
-        st.title("📦 Daftar Barang Besar")
-        st.caption("Kelola daftar barang besar untuk keperluan scan packing (bak cuci, wastafel, tempat sampah, gerobak, dll).")
+        # Redirect to Master Data
+        st.session_state.page = "Master_Barang_Besar"
+        st.rerun()
 
-        db = st.session_state.db
-
-        # ── Form Tambah Barang ──
-        with st.expander("➕ Tambah Barang Besar Baru", expanded=False):
-            col1, col2 = st.columns(2)
-            with col1:
-                nama_baru = st.text_input("Nama Barang", placeholder="Contoh: Bak Cuci Piring", key="besar_nama")
-            with col2:
-                ket_baru = st.text_input("Keterangan (opsional)", placeholder="Ukuran, bahan, dll", key="besar_ket")
-            if st.button("💾 Simpan", type="primary"):
-                if nama_baru.strip():
-                    try:
-                        db.execute(
-                            "INSERT INTO daftar_barang_besar (nama_barang, keterangan) VALUES (?, ?)",
-                            (nama_baru.strip(), ket_baru.strip()),
-                        )
-                        st.success(f"✅ '{nama_baru.strip()}' ditambahkan!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Gagal: {e}")
-                else:
-                    st.warning("Nama barang tidak boleh kosong.")
-
-        st.markdown("---")
-
-        # ── Daftar Barang Besar ──
-        daftar = db.fetch_all("SELECT id, nama_barang, keterangan, created_at FROM daftar_barang_besar ORDER BY nama_barang")
-
-        if not daftar:
-            st.info("📭 Belum ada daftar barang besar. Tambahkan di atas.")
-        else:
-            st.subheader(f"📋 Daftar Barang Besar ({len(daftar)} items)")
-
-            for item in daftar:
-                col1, col2, col3 = st.columns([3, 1, 1])
-                with col1:
-                    st.markdown(f"**{item['nama_barang']}**")
-                    if item["keterangan"]:
-                        st.caption(f"📝 {item['keterangan']}")
-                with col2:
-                    st.caption(f"🕐 {item['created_at'][:10] if item['created_at'] else '-'}")
-                with col3:
-                    if st.button("🗑️", key=f"del_besar_{item['id']}", help=f"Hapus {item['nama_barang']}"):
-                        db.execute("DELETE FROM daftar_barang_besar WHERE id = ?", (item['id'],))
-                        st.success(f"🗑️ '{item['nama_barang']}' dihapus.")
-                        st.rerun()
-
-        # ── Statistik Barang Besar di Scan ──
-        st.markdown("---")
-        st.subheader("📊 Statistik Scan Barang Besar")
-        besar_scans = db.fetch_all(
-            "SELECT s.keterangan_barang, s.kategori, COUNT(*) as cnt "
-            "FROM scan_aktif s "
-            "WHERE s.kategori = 'BESAR' AND s.keterangan_barang != '' "
-            "GROUP BY s.keterangan_barang ORDER BY cnt DESC"
-        )
-        if besar_scans:
-            df_besar_stats = pd.DataFrame([dict(r) for r in besar_scans])
-            df_besar_stats = df_besar_stats.rename(columns={
-                "keterangan_barang": "Nama Barang",
-                "kategori": "Kategori",
-                "cnt": "Jumlah Scan",
-            })
-            st.dataframe(df_besar_stats, width="stretch", hide_index=True)
-        else:
-            st.caption("Belum ada data scan barang besar.")
+    elif page == "Purchase_SKU":
+        # Redirect to Master Data
+        st.session_state.page = "Master_SKU"
+        st.rerun()
 
     elif page == "Reports":
         st.title("📊 Reports")
         render_reports()
+
+    # ── Master Data Pages (all route to same tabbed page) ──
+    elif page in ("Master_SKU", "Master_Supplier", "Master_Kategori", "Master_Toko", "Master_Barang_Besar", "Master_Gudang"):
+        render_master_data()
 
     elif page == "Sales_Input":
         st.title("📦 Input Resi & Pesanan (Marketplace)")
@@ -8829,10 +10964,6 @@ def main():
         else:
             st.info("Belum ada transaksi pembelian. Mulai dari menu 🛒 Input Pembelian.")
 
-    elif page == "Purchase_SKU":
-        st.title("🏷️ Manajemen SKU")
-        render_sku()
-
     elif page == "Purchase_Input":
         st.title("🛒 Input Pembelian ke Supplier")
         render_purchase_input()
@@ -8886,6 +11017,16 @@ def main():
     elif page == "Finance_History":
         st.title("📋 Riwayat Pembayaran")
         render_finance_history()
+
+    # ── Akuntansi Pages ──
+    elif page == "Rekonsiliasi":
+        render_rekonsiliasi()
+
+    elif page == "Laba_Rugi_Neraca":
+        render_laba_rugi_neraca()
+
+    elif page == "Aset_Modal":
+        render_aset_modal()
 
     # ── Admin ──
     elif page == "Admin_Users":

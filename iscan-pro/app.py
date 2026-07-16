@@ -3393,8 +3393,8 @@ def render_sales_input():
     # ── Stats ──
     st.markdown("---")
     st.markdown("### 📊 Data Penjualan Saat Ini")
-    stats_sales = db.fetch_one("SELECT COUNT(*) as rows, COUNT(DISTINCT no_pesanan) as orders, COALESCE(SUM(total_harga), 0) as total FROM penjualan")
-    sku_matched = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan WHERE sku_terdeteksi != ''")
+    stats_sales = db.fetch_one("SELECT COUNT(*) as rows, COUNT(DISTINCT no_pesanan) as orders, COALESCE(SUM(total_harga), 0) as total FROM penjualan WHERE status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')")
+    sku_matched = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan WHERE sku_terdeteksi != '' AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')")
 
     col_st1, col_st2, col_st3, col_st4, col_st5 = st.columns(5)
     with col_st1:
@@ -3491,7 +3491,7 @@ def render_sales_daily_report():
         )
 
     # ── Build query ──
-    query = "SELECT * FROM penjualan WHERE 1=1"
+    query = "SELECT * FROM penjualan WHERE 1=1 AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')"
     params = []
 
     if mp_filter != "Semua":
@@ -3577,7 +3577,7 @@ def render_sales_daily_report():
             sku_summary = db.fetch_all(
                 "SELECT sku_terdeteksi, nama_produk, COUNT(*) as jml_pesanan, SUM(qty) as total_qty, "
                 "SUM(total_harga) as total, marketplace "
-                "FROM penjualan WHERE sku_terdeteksi != ''" +
+                "FROM penjualan WHERE sku_terdeteksi != '' AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')" +
                 (" AND marketplace = ?" if mp_filter != "Semua" else "") + (" AND nama_toko = ?" if toko_filter != "Semua" else "") +
                 (" AND tanggal_pesanan = ?" if rpt_date_str else "") +
                 " GROUP BY sku_terdeteksi ORDER BY total DESC",
@@ -3599,7 +3599,7 @@ def render_sales_daily_report():
                 "SELECT marketplace, COUNT(*) as jml_pesanan, SUM(qty) as total_qty, "
                 "SUM(total_harga) as total, "
                 "SUM(CASE WHEN sku_terdeteksi != '' THEN 1 ELSE 0 END) as sku_matched "
-                "FROM penjualan WHERE 1=1" +
+                "FROM penjualan WHERE 1=1 AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')" +
                 (" AND marketplace = ?" if mp_filter != "Semua" else "") + (" AND nama_toko = ?" if toko_filter != "Semua" else "") +
                 (" AND tanggal_pesanan = ?" if rpt_date_str else "") +
                 " GROUP BY marketplace ORDER BY total DESC",
@@ -3620,7 +3620,7 @@ def render_sales_daily_report():
                 "SELECT nama_toko, COUNT(*) as jml_pesanan, SUM(qty) as total_qty, "
                 "SUM(total_harga) as total, "
                 "SUM(CASE WHEN sku_terdeteksi != '' THEN 1 ELSE 0 END) as sku_matched "
-                "FROM penjualan WHERE 1=1" +
+                "FROM penjualan WHERE 1=1 AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')" +
                 (" AND marketplace = ?" if mp_filter != "Semua" else "") + (" AND nama_toko = ?" if toko_filter != "Semua" else "") +
                 (" AND tanggal_pesanan = ?" if rpt_date_str else "") +
                 " GROUP BY nama_toko ORDER BY total DESC",
@@ -3640,7 +3640,7 @@ def render_sales_daily_report():
             prod_summary = db.fetch_all(
                 "SELECT nama_produk, COUNT(*) as jml_pesanan, SUM(qty) as total_qty, "
                 "SUM(total_harga) as total, marketplace "
-                "FROM penjualan WHERE 1=1" +
+                "FROM penjualan WHERE 1=1 AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')" +
                 (" AND marketplace = ?" if mp_filter != "Semua" else "") + (" AND nama_toko = ?" if toko_filter != "Semua" else "") +
                 (" AND tanggal_pesanan = ?" if rpt_date_str else "") +
                 " GROUP BY nama_produk ORDER BY total DESC LIMIT 30",
@@ -3654,6 +3654,51 @@ def render_sales_daily_report():
                 })
                 df_prod["Total"] = df_prod["Total"].apply(lambda x: f"Rp {x:,.0f}")
                 st.dataframe(df_prod, width="stretch", hide_index=True)
+
+        # ── Pendapatan Lain: Hasil Klaim (jurnal koreksi) ──
+        st.markdown("---")
+        st.markdown("### 💰 Pendapatan Lain — Hasil Klaim (Jurnal Koreksi)")
+
+        klaim_params = []
+        if mp_filter != "Semua":
+            klaim_params.append(mp_filter)
+        if toko_filter != "Semua":
+            klaim_params.append(toko_filter)
+
+        klaim_income = db.fetch_all(
+            "SELECT tanggal, no_resi, no_pesanan, marketplace, nama_toko, sku, nama_produk, "
+            "qty, alasan_klaim, nominal_klaim, operator, waktu "
+            "FROM retur_klaim WHERE status = 'KLAIM' AND status_klaim = 'BERHASIL' AND nominal_klaim > 0"
+            + (" AND marketplace = ?" if mp_filter != "Semua" else "")
+            + (" AND nama_toko = ?" if toko_filter != "Semua" else "")
+            + (" AND tanggal = ?" if rpt_date_str else "")
+            + " ORDER BY id DESC",
+            klaim_params if klaim_params else [],
+        )
+
+        if klaim_income:
+            total_klaim = sum(k["nominal_klaim"] or 0 for k in klaim_income)
+            col_k1, col_k2 = st.columns([3, 1])
+            with col_k1:
+                st.info(
+                    f"📋 **{len(klaim_income)} klaim berhasil** — Pendapatan hasil klaim dari marketplace "
+                    f"yang sudah disetujui dan dicairkan."
+                )
+            with col_k2:
+                st.metric("💰 Total Hasil Klaim", f"Rp {total_klaim:,.0f}")
+
+            df_klaim = pd.DataFrame([dict(k) for k in klaim_income])
+            df_klaim = df_klaim.rename(columns={
+                "tanggal": "Tgl Klaim", "no_resi": "No Resi", "no_pesanan": "No Pesanan",
+                "marketplace": "MP", "nama_toko": "Toko", "sku": "SKU",
+                "nama_produk": "Produk", "qty": "Qty", "alasan_klaim": "Alasan",
+                "nominal_klaim": "Nominal", "operator": "Operator", "waktu": "Waktu",
+            })
+            df_klaim["Nominal"] = df_klaim["Nominal"].apply(lambda x: f"Rp {x:,.0f}")
+            display_klaim = [c for c in ["Tgl Klaim", "No Resi", "No Pesanan", "MP", "Toko", "SKU", "Produk", "Qty", "Alasan", "Nominal", "Operator"] if c in df_klaim.columns]
+            st.dataframe(df_klaim[display_klaim], width="stretch", height=250, hide_index=True)
+        else:
+            st.caption("📭 Tidak ada klaim berhasil untuk periode ini.")
 
         # ── Export ──
         st.markdown("---")
@@ -4585,12 +4630,12 @@ def render_retur_klaim():
                         ),
                     )
 
-                    # ── Update penjualan: kurangi pendapatan karena retur ──
+                    # ── Update penjualan: hanya ubah status, jangan zero-out nilai ──
+                    # Data penjualan asli tetap utuh. Koreksi dicatat di jurnal retur_klaim.
                     if match:
                         db.execute(
                             "UPDATE penjualan SET status_pesanan = 'RETUR', "
-                            "qty = 0, total_harga = 0, harga_jual = 0, "
-                            "keterangan = 'Retur diterima — stok dikembalikan' "
+                            "keterangan = 'Retur diterima — stok dikembalikan (nilai asli tetap)' "
                             "WHERE no_pesanan = ? OR no_resi = ?",
                             (match["no_pesanan"], match["no_resi"]),
                         )
@@ -4633,7 +4678,7 @@ def render_retur_klaim():
 
                     st.success(
                         f"✅ **DITERIMA** — `{cleaned}` retur diterima. "
-                        f"Penjualan dikurangi, stok dikembalikan (tidak ada kerugian)."
+                        f"Stok dikembalikan. Transaksi asli tetap utuh, koreksi tercatat di jurnal retur."
                     )
                     st.rerun()
 
