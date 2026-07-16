@@ -817,10 +817,17 @@ def init_session():
         st.session_state.cache = ExpeditionCache(st.session_state.db)
 
     # ── Auth state ──
+    # Track rerun count to debug session state persistence
+    if "_rerun_count" not in st.session_state:
+        st.session_state._rerun_count = 0
+    st.session_state._rerun_count += 1
+    
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
     if "user" not in st.session_state:
         st.session_state.user = None
+
+    logging.info(f"[AUTH] Rerun #{st.session_state._rerun_count}, authenticated={st.session_state.authenticated}, user={st.session_state.user.get('username') if st.session_state.user else None}")
 
     # ── Auto-login from persistent auth token ──
     if not st.session_state.authenticated:
@@ -852,8 +859,8 @@ def init_session():
                 inject_auth_cookie_js(auth_token)  # refresh cookie expiry
                 if st.query_params.get("auth"):
                     st.query_params.clear()
-                logging.info(f"Auto-login via token: {user['username']}")
-                st.rerun()
+                logging.info(f"[AUTH] Auto-login SUCCESS: {user['username']}")
+                # No st.rerun() — let main() handle the rendering
             else:
                 # Invalid token — clean up
                 if st.query_params.get("auth"):
@@ -862,7 +869,6 @@ def init_session():
                 try { localStorage.removeItem("iscan_auth_token"); } catch(e) {}
                 document.cookie = "iscan_sid=;path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT";
                 </script>""")
-                st.rerun()
 
     # ── Create default admin if no users exist ──
     db = st.session_state.db
@@ -6766,10 +6772,8 @@ def render_login():
                         st.session_state.user = user
                         # Inject cookie-setting JS
                         inject_auth_cookie_js(token)
-                        logging.info(f"[AUTH] Login SUCCESS: {user['username']}, token={token[:8]}..., calling st.rerun()")
+                        logging.info(f"[AUTH] Login SUCCESS: {user['username']}, token={token[:8]}...")
                         st.success(f"✅ Selamat datang, {user['nama_lengkap']}!")
-                        time.sleep(0.3)
-                        st.rerun()
                     else:
                         st.error("❌ Username atau password salah, atau akun tidak aktif.")
 
@@ -10018,11 +10022,13 @@ def main():
     inject_pwa()  # PWA: load pwa-init.js (client-side fallback)
     init_session()
 
-    # ── Auth guard ──
+    # ── Auth guard: show login if not authenticated ──
     if not st.session_state.get("authenticated", False):
         logging.info(f"[AUTH] main(): NOT authenticated, showing login")
         render_login()
-        return
+        # After render_login, auth may have just succeeded (no rerun needed)
+        if not st.session_state.get("authenticated", False):
+            return  # Still not authenticated — stop here
 
     logging.info(f"[AUTH] main(): authenticated as {st.session_state.user.get('username','?') if st.session_state.user else '?'}")
 
