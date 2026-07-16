@@ -21,7 +21,7 @@ fileWatcherType = "poll"
 
 # Cross-origin — allow if behind reverse proxy
 enableCORS = true
-enableXsrfProtection = true
+enableXsrfProtection = false
 
 [browser]
 gatherUsageStats = false

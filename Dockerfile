@@ -42,7 +42,7 @@ CMD ["python", "-m", "streamlit", "run", "app.py", \
      "--server.address=0.0.0.0", \
      "--server.headless=true", \
      "--server.enableCORS=true", \
-     "--server.enableXsrfProtection=true", \
+     "--server.enableXsrfProtection=false", \
      "--server.enableStaticServing=true", \
      "--server.maxUploadSize=200", \
      "--browser.gatherUsageStats=false", \
