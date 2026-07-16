@@ -989,7 +989,7 @@ def scan_resi(resi: str, mode: str, store: str, db: Database, cache: ExpeditionC
         )
         return {
             "success": True,
-            "message": f"✓ {cleaned} → {ekspedisi} ({status})",
+            "message": f"✓ {cleaned} -> {ekspedisi} ({status})",
             "data": {"waktu": waktu, "tanggal": tanggal, "resi": cleaned, "ekspedisi": ekspedisi, "toko": store, "status": status},
         }
     except Exception as e:
@@ -1616,10 +1616,10 @@ def _parse_number_str(raw: str) -> str:
     """Convert Indonesian/international number string to float-compatible string.
 
     Handles:
-    - Indonesian: "11.205" (thousands) → "11205"
-    - Indonesian: "1.234,56" → "1234.56"
-    - International: "1,234.56" → "1234.56"
-    - Plain: "11205" → "11205"
+    - Indonesian: "11.205" (thousands) -> "11205"
+    - Indonesian: "1.234,56" -> "1234.56"
+    - International: "1,234.56" -> "1234.56"
+    - Plain: "11205" -> "11205"
     """
     s = raw.replace("Rp", "").replace("rp", "").replace(" ", "").strip()
     if not s:
@@ -1629,7 +1629,7 @@ def _parse_number_str(raw: str) -> str:
     has_dot = "." in s
 
     if has_comma and has_dot:
-        # Format: 1.234,56 → Indonesian (dot=thousands, comma=decimal)
+        # Format: 1.234,56 -> Indonesian (dot=thousands, comma=decimal)
         # Check if comma is last separator (Indonesian)
         last_comma = s.rfind(",")
         last_dot = s.rfind(".")
@@ -1643,23 +1643,23 @@ def _parse_number_str(raw: str) -> str:
         # Only comma: could be "11205,5" (Indonesian decimal) or "1,234" (international thousands)
         after_comma = s[s.rfind(",") + 1:]
         if len(after_comma) <= 2 and after_comma.isdigit():
-            # Indonesian decimal: "11205,5" → "11205.5"
+            # Indonesian decimal: "11205,5" -> "11205.5"
             s = s.replace(",", ".")
         else:
-            # International thousands: "1,234" → "1234"
+            # International thousands: "1,234" -> "1234"
             s = s.replace(",", "")
     elif has_dot:
         # Only dots: could be "11.205" (thousands) or "11.5" (decimal)
         last_dot = s.rfind(".")
         after_dot = s[last_dot + 1:]
         if len(after_dot) == 3 and after_dot.isdigit() and len(s.replace(".", "")) > 3:
-            # Looks like thousands: "11.205" → "11205"
+            # Looks like thousands: "11.205" -> "11205"
             s = s.replace(".", "")
         elif len(after_dot) <= 2 and after_dot.isdigit():
-            # Decimal: "11.5" → keep as is
+            # Decimal: "11.5" -> keep as is
             pass
         else:
-            # Ambiguous but likely thousands (e.g., "1.234") → remove dots
+            # Ambiguous but likely thousands (e.g., "1.234") -> remove dots
             s = s.replace(".", "")
 
     return s
@@ -1722,10 +1722,10 @@ def bulk_upsert_sku(
 
     Upsert logic:
     - Match by kode_sku (case-insensitive, uppercase).
-    - If exists → UPDATE (merge fields, aggregate stock if mode is 'add').
-    - If not exists → INSERT.
-    - If stok_mode is 'add' → ADD incoming stock to existing stock.
-    - If update_kosong is True → only update fields that have non-empty values in Excel.
+    - If exists -> UPDATE (merge fields, aggregate stock if mode is 'add').
+    - If not exists -> INSERT.
+    - If stok_mode is 'add' -> ADD incoming stock to existing stock.
+    - If update_kosong is True -> only update fields that have non-empty values in Excel.
 
     Returns:
         dict with 'inserted', 'updated', 'errors', 'total', 'error_details', 'aggregation_summary'
@@ -1872,7 +1872,7 @@ def render_sku():
     with st.expander("📥 Upload Massal SKU (Excel - Ipos / ERP MMA)", expanded=False):
         st.markdown("""
         Upload file Excel berisi data SKU untuk diimport secara massal.
-        **Upsert:** Jika `Kode SKU` sudah ada → data diupdate & stok ditambahkan. Jika belum ada → insert baru.
+        **Upsert:** Jika `Kode SKU` sudah ada -> data diupdate & stok ditambahkan. Jika belum ada -> insert baru.
         """)
 
         uploaded_file = st.file_uploader(
@@ -1985,7 +1985,7 @@ def render_sku():
                                     for item in result["aggregation_summary"]:
                                         st.markdown(
                                             f"• **{item['kode']}** - {item['nama']}: "
-                                            f"stok {item['stok_sebelum']} → **{item['stok_sesudah']}** "
+                                            f"stok {item['stok_sebelum']} -> **{item['stok_sesudah']}** "
                                             f"({'+' if item['selisih'] >= 0 else ''}{item['selisih']})"
                                         )
 
@@ -2355,7 +2355,7 @@ def render_purchase_input():
                     st.error("Pilih SKU yang valid!")
                 else:
                     sku_data = sku_options_map[selected_sku_label]
-                    # Check if already in cart (same SKU + same price → merge qty)
+                    # Check if already in cart (same SKU + same price -> merge qty)
                     existing_idx = None
                     for i, item in enumerate(cart):
                         if item["kode_sku"] == sku_data["kode_sku"] and item["harga_beli"] == harga_manual:
@@ -2365,7 +2365,7 @@ def render_purchase_input():
                     if existing_idx is not None:
                         cart[existing_idx]["qty"] += qty
                         cart[existing_idx]["total_harga"] = cart[existing_idx]["qty"] * cart[existing_idx]["harga_beli"]
-                        st.success(f"Qty {sku_data['kode_sku']} ditambahkan → {cart[existing_idx]['qty']}")
+                        st.success(f"Qty {sku_data['kode_sku']} ditambahkan -> {cart[existing_idx]['qty']}")
                     else:
                         cart.append({
                             "kode_sku": sku_data["kode_sku"],
@@ -2548,7 +2548,7 @@ def render_purchase_input():
                                 arah = "📈 NAIK" if pc["selisih"] > 0 else "📉 TURUN"
                                 st.markdown(
                                     f"• **{pc['kode']}** - {pc['nama']} | "
-                                    f"Harga Lama: Rp {pc['lama']:,.0f} → Harga Baru: Rp {pc['baru']:,.0f} "
+                                    f"Harga Lama: Rp {pc['lama']:,.0f} -> Harga Baru: Rp {pc['baru']:,.0f} "
                                     f"({arah} Rp {abs(pc['selisih']):,.0f})"
                                 )
 
@@ -2990,7 +2990,7 @@ def render_purchase_history():
                                     st.warning(f"⚠️ {len(price_changes)} harga beli diupdate:")
                                     for pc in price_changes:
                                         arah = "📈" if pc["selisih"] > 0 else "📉"
-                                        st.caption(f"{arah} {pc['kode']}: Rp {pc['lama']:,.0f} → Rp {pc['baru']:,.0f}")
+                                        st.caption(f"{arah} {pc['kode']}: Rp {pc['lama']:,.0f} -> Rp {pc['baru']:,.0f}")
 
                                 st.success(f"✅ Revisi faktur '{no_faktur_revisi}' berhasil! {len(revisi_cart)} item disimpan.")
                                 # Clean up session
@@ -4066,13 +4066,13 @@ def render_bulk_cancel_upload(db):
                 stripped = re.sub(r'^(INV|ORD|INVOICE|ORDER|#|NO|NOMOR)[\-_\s:]*', '', cek_clean, flags=re.IGNORECASE).strip()
                 if stripped and stripped != cek_clean:
                     row = db.fetch_one("SELECT * FROM penjualan WHERE no_pesanan = ? OR no_pesanan LIKE ? LIMIT 1", (stripped, f"%{stripped}%"))
-                    strategies_tried.append((f"5. Strip prefix → '{stripped}'", row is not None))
+                    strategies_tried.append((f"5. Strip prefix -> '{stripped}'", row is not None))
                     if row: found = True
 
             # Strategy 6: with .0
             if not found:
                 row = db.fetch_one("SELECT * FROM penjualan WHERE no_pesanan = ? LIMIT 1", (cek_clean + ".0",))
-                strategies_tried.append((f"6. With '.0' → '{cek_clean}.0'", row is not None))
+                strategies_tried.append((f"6. With '.0' -> '{cek_clean}.0'", row is not None))
                 if row: found = True
 
             # Strategy 7: REPLACE .0 from DB
@@ -4310,7 +4310,7 @@ def render_bulk_cancel_upload(db):
                                             skipped += 1
                                             continue
 
-                                        # Clean order ID: fix Excel float formatting (5769123456789012.0 → 5769123456789012)
+                                        # Clean order ID: fix Excel float formatting (5769123456789012.0 -> 5769123456789012)
                                         # Also strip common prefixes/suffixes
                                         original_no_pesanan = no_pesanan
                                         no_pesanan = str(no_pesanan).strip()
@@ -4829,7 +4829,7 @@ def render_retur_klaim():
                             ),
                         )
 
-                        # ── Update penjualan: jika klaim BERHASIL → catat sebagai pendapatan hasil klaim ──
+                        # ── Update penjualan: jika klaim BERHASIL -> catat sebagai pendapatan hasil klaim ──
                         if status_klaim_select == "BERHASIL" and match and nominal_klaim > 0:
                             db.execute(
                                 "UPDATE penjualan SET status_pesanan = 'KLAIM_BERHASIL', "
@@ -4945,7 +4945,7 @@ def render_retur_klaim():
                             )
                             st.info(
                                 f"📦 **Stok Pulih**: SKU `{sku_code}` ({existing_sku['nama_barang']}) "
-                                f"stok {existing_sku['stok']} → **{new_stok}** (+{retur_qty})"
+                                f"stok {existing_sku['stok']} -> **{new_stok}** (+{retur_qty})"
                             )
                         else:
                             st.caption(f"⚠️ SKU `{sku_code}` tidak ditemukan - stok tidak di-update.")
@@ -5805,7 +5805,7 @@ def render_ai_supervisor():
     today_date = datetime.now().strftime("%Y-%m-%d")
 
     st.subheader("🤖 AI Supervisor - Analisa Kinerja Operasional")
-    st.caption("AI menganalisa seluruh pipeline: Pesanan Masuk → Packing → Handover → Selesai")
+    st.caption("AI menganalisa seluruh pipeline: Pesanan Masuk -> Packing -> Handover -> Selesai")
 
     # ═══════════════════════════════════════════
     # 📊 QUERY ALL METRICS
@@ -6768,7 +6768,7 @@ def render_login():
                         # Generate persistent auth token
                         token = generate_auth_token(db, user["id"])
                         logging.info(f"[AUTH] Login SUCCESS: {user['username']}, token={token[:8]}...")
-                        # Full-page redirect with token → cookie sent in next HTTP request
+                        # Full-page redirect with token -> cookie sent in next HTTP request
                         st.html(f"""
                         <script>
                         var d = new Date();
@@ -9392,7 +9392,7 @@ def render_aset_modal():
                     updated += 1
 
             if updated > 0:
-                st.success(f"✅ {updated} aset dihitung depresiasinya. Total beban depresiasi bulan ini: **Rp {total_beban:,.0f}** (tercatat di OPEX Tetap → Laba Rugi).")
+                st.success(f"✅ {updated} aset dihitung depresiasinya. Total beban depresiasi bulan ini: **Rp {total_beban:,.0f}** (tercatat di OPEX Tetap -> Laba Rugi).")
             else:
                 st.info("✅ Semua aset sudah up-to-date. Tidak ada beban depresiasi baru bulan ini.")
 
@@ -9471,7 +9471,7 @@ def render_aset_modal():
                 bank = st.text_input("Nama Bank / Pemberi Pinjaman *", placeholder="BCA, BRI, KUR...", key="pinj_bank")
                 pokok = st.number_input("Pokok Pinjaman (Rp) *", min_value=0, value=0, step=1000000, key="pinj_pokok")
                 bunga_pct = st.number_input("Bunga per Tahun (%)", min_value=0.0, value=0.0, step=0.5, key="pinj_bunga",
-                                            help="Misal 20% → beban bunga = pokok × 20% / 12 per bulan")
+                                            help="Misal 20% -> beban bunga = pokok × 20% / 12 per bulan")
             with p_col2:
                 tenor = st.number_input("Tenor (Bulan)", min_value=1, value=12, step=1, key="pinj_tenor")
                 tgl_mulai = st.date_input("Tanggal Mulai", value=datetime.now().date(), key="pinj_tgl")
@@ -9552,7 +9552,7 @@ def render_aset_modal():
         # ── Auto-Amortisasi Bunga + Cicilan ──
         st.markdown("---")
         st.subheader("🔢 Proses Amortisasi Bulanan (Bunga & Cicilan)")
-        st.caption("Catat beban bunga bulan ini + kurangi sisa pokok secara otomatis. Beban bunga masuk OPEX Tetap → Laba Rugi.")
+        st.caption("Catat beban bunga bulan ini + kurangi sisa pokok secara otomatis. Beban bunga masuk OPEX Tetap -> Laba Rugi.")
 
         if st.button("🔢 Proses Amortisasi Bulan Ini", type="primary", key="pinj_amor"):
             today_dt = datetime.now()
@@ -9672,7 +9672,7 @@ def render_aset_modal():
                     with bc1:
                         status_icon = "🟢" if b["status"] == "AKTIF" else "🔴"
                         st.markdown(f"**{status_icon} {b['deskripsi']}**")
-                        st.caption(f"📂 {b['kategori']} | {b['bulan_mulai']} → {b['bulan_selesai']} | Rp {b['jumlah_per_bulan']:,.0f}/bulan")
+                        st.caption(f"📂 {b['kategori']} | {b['bulan_mulai']} -> {b['bulan_selesai']} | Rp {b['jumlah_per_bulan']:,.0f}/bulan")
                         st.progress(min(progress_bdm, 1.0), text=f"Terpakai: {progress_bdm*100:.0f}%")
                     with bc2:
                         st.metric("Total", f"Rp {b['jumlah_total']:,.0f}")
@@ -9688,7 +9688,7 @@ def render_aset_modal():
         # ── Auto-Amortisasi per Bulan ──
         st.markdown("---")
         st.subheader("🔢 Proses Amortisasi Bulanan (Akui Beban)")
-        st.caption("Akui beban per bulan untuk semua biaya dibayar di muka yang masih aktif. Masuk OPEX Tetap → Laba Rugi.")
+        st.caption("Akui beban per bulan untuk semua biaya dibayar di muka yang masih aktif. Masuk OPEX Tetap -> Laba Rugi.")
 
         if st.button("🔢 Akui Beban Bulan Ini", type="primary", key="bdm_amor"):
             today_dt = datetime.now()
@@ -9734,7 +9734,7 @@ def render_aset_modal():
                 processed += 1
 
             if processed > 0:
-                st.success(f"✅ {processed} biaya diamortisasi. Beban bulanan tercatat di OPEX → Laba Rugi.")
+                st.success(f"✅ {processed} biaya diamortisasi. Beban bulanan tercatat di OPEX -> Laba Rugi.")
             else:
                 st.info("✅ Semua biaya dibayar di muka sudah up-to-date bulan ini.")
             st.rerun()
@@ -9802,7 +9802,7 @@ ADMIN_SUB_MENUS = {
 
 
 def render_sidebar():
-    """Render the sidebar navigation with main-menu → sub-menu hierarchy + role-based filtering."""
+    """Render the sidebar navigation with main-menu -> sub-menu hierarchy + role-based filtering."""
     with st.sidebar:
         # ── Logo ──
         st.markdown(
@@ -10245,7 +10245,7 @@ def main():
         if orders_cnt > 0:
             orders_dengan_resi = orders_cnt - tanpa_cnt
             st.info(
-                f"📊 **{orders_cnt}** Total Pesanan → "
+                f"📊 **{orders_cnt}** Total Pesanan -> "
                 f"**{orders_dengan_resi}** punya Resi ({resi_cnt} unique) + "
                 f"**{tanpa_cnt}** tanpa Resi | "
                 f"**{belum_scan}** resi belum di-scan | "
@@ -10449,7 +10449,7 @@ def main():
                 if not cleaned:
                     st.error(f"Format resi tidak valid: '{resi_to_scan}'")
                 else:
-                    # Check duplicate - cek by resi langsung DAN by no_pesanan → resi
+                    # Check duplicate - cek by resi langsung DAN by no_pesanan -> resi
                     penj_match = None
                     existing_scan = db.fetch_one(
                         "SELECT id, status, waktu, tanggal, toko FROM scan_aktif WHERE resi = ?",
@@ -10473,7 +10473,7 @@ def main():
                         linked_resi = penj_match["no_resi"] if penj_match else cleaned
                         st.error(
                             f"🚫 **DOUBLE SCAN DITOLAK!**\n\n"
-                            f"`{cleaned}` → Resi `{linked_resi}` sudah di-scan:\n"
+                            f"`{cleaned}` -> Resi `{linked_resi}` sudah di-scan:\n"
                             f"• Status: {status_emoji} **{existing_scan['status']}**\n"
                             f"• Waktu: {existing_scan['waktu']} | Tanggal: {existing_scan['tanggal']}\n"
                             f"• Toko: {existing_scan['toko']}\n\n"
@@ -10531,7 +10531,7 @@ def main():
                                 st.toast("🚫 DOUBLE SCAN!", icon="🚫")
                                 st.error(
                                     f"🚫 **DOUBLE SCAN DITOLAK!**\n\n"
-                                    f"{'No Pesanan' if is_order_scan else 'Resi'} `{cleaned}` → Resi `{real_resi}` sudah di-scan:\n"
+                                    f"{'No Pesanan' if is_order_scan else 'Resi'} `{cleaned}` -> Resi `{real_resi}` sudah di-scan:\n"
                                     f"• Status: {status_emoji} **{existing['status']}**\n"
                                     f"• Waktu: {existing['waktu']} | Tanggal: {existing['tanggal']}\n"
                                     f"• Toko: {existing['toko']}"
@@ -10555,7 +10555,7 @@ def main():
                                 if not verify or verify["cnt"] == 0:
                                     st.warning(f"⚠️ Gagal update status penjualan untuk resi `{real_resi}`. Coba refresh.")
 
-                                scan_type = "No Pesanan → Resi" if is_order_scan else "Resi"
+                                scan_type = "No Pesanan -> Resi" if is_order_scan else "Resi"
                                 tipe_label = "🚀 INSTANT" if tipe_kiriman == "INSTANT" else "PACKED"
                                 st.success(f"✅ **{tipe_label}!** ({scan_type}) `{real_resi}`")
                                 st.info(

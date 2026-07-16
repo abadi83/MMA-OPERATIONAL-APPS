@@ -32,7 +32,7 @@ from exceptions import DatabaseError, ValidationError
 # ==================== PAGE CONFIG ====================
 st.set_page_config(
     page_title=f"{APP_NAME}",
-    page_icon="ðŸ“¦",
+    page_icon="ðŸ"¦",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -45,7 +45,7 @@ def inject_pwa():
     NOTE: Streamlit sanitizes inline scripts for security. The <script src>
     approach below is a best-effort client-side fallback. For full PWA support
     (manifest in <head>, service worker, A2HS), deploy behind Nginx with
-    sub_filter enabled â€” see deploy/nginx-iscan.conf.
+    sub_filter enabled â€" see deploy/nginx-iscan.conf.
     """
     st.html('<script src="/app/static/pwa-init.js"></script>')
 
@@ -297,7 +297,7 @@ class Database:
             except sqlite3.OperationalError:
                 pass
 
-            # â”€â”€ Users & Roles table â”€â”€
+            # â"€â"€ Users & Roles table â"€â"€
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -311,7 +311,7 @@ class Database:
                 )
             """)
 
-            # â”€â”€ Auth tokens table (persistent login across refresh) â”€â”€
+            # â"€â"€ Auth tokens table (persistent login across refresh) â"€â"€
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS auth_tokens (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -323,7 +323,7 @@ class Database:
                 )
             """)
 
-            # â”€â”€ Operational Expenses (OPEX) table â”€â”€
+            # â"€â"€ Operational Expenses (OPEX) table â"€â"€
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS opex (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -349,7 +349,7 @@ class Database:
             except sqlite3.OperationalError:
                 pass
 
-            # â”€â”€ Retur & Klaim table â”€â”€
+            # â"€â"€ Retur & Klaim table â"€â"€
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS retur_klaim (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -383,7 +383,7 @@ class Database:
             except sqlite3.OperationalError:
                 pass
 
-            # â”€â”€ Pengaturan (Settings) table â”€â”€
+            # â"€â"€ Pengaturan (Settings) table â"€â"€
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS pengaturan (
                     kunci TEXT PRIMARY KEY,
@@ -403,7 +403,7 @@ class Database:
                 for k, v in defaults:
                     cursor.execute("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES (?, ?)", (k, v))
 
-            # â”€â”€ Pencairan (Marketplace Disbursement) table â”€â”€
+            # â"€â"€ Pencairan (Marketplace Disbursement) table â"€â"€
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS pencairan (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -416,7 +416,7 @@ class Database:
                 )
             """)
 
-            # â”€â”€ Handover TTD (Electronic Signature) table â”€â”€
+            # â"€â"€ Handover TTD (Electronic Signature) table â"€â"€
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS handover_ttd (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -460,24 +460,24 @@ import secrets
 ROLES = {
     "admin": {
         "label": "Admin",
-        "desc": "Full access â€” semua menu termasuk manajemen user",
+        "desc": "Full access â€" semua menu termasuk manajemen user",
         "menus": ["Operasional", "Penjualan", "Pembelian", "OPEX", "Finance", "Admin"],
     },
     "supervisor": {
         "label": "Supervisor",
-        "desc": "Monitoring â€” dashboard, AI supervisor, reports",
+        "desc": "Monitoring â€" dashboard, AI supervisor, reports",
         "menus": ["Operasional"],
         "pages": ["Dashboard", "AI_Supervisor", "Reports", "Handover", "Ekspedisi", "Toko", "Retur_Klaim"],
     },
     "operator": {
         "label": "Operator",
-        "desc": "Operasional â€” scan, input resi, handover, retur",
+        "desc": "Operasional â€" scan, input resi, handover, retur",
         "menus": ["Operasional"],
         "pages": ["Dashboard", "Scan_Operasional", "Sales_Input", "Handover", "Retur_Klaim", "Ekspedisi"],
     },
     "gudang": {
         "label": "Gudang",
-        "desc": "Warehouse â€” SKU, barang besar, pembelian SKU & OPEX",
+        "desc": "Warehouse â€" SKU, barang besar, pembelian SKU & OPEX",
         "menus": ["Operasional", "Pembelian", "OPEX"],
         "pages": ["Dashboard", "Barang_Besar",
                   "Purchase_Dashboard", "Purchase_SKU", "Purchase_Input", "Purchase_History",
@@ -485,7 +485,7 @@ ROLES = {
     },
     "finance": {
         "label": "Finance",
-        "desc": "Keuangan â€” konfirmasi bayar SKU & OPEX, dashboard finance",
+        "desc": "Keuangan â€" konfirmasi bayar SKU & OPEX, dashboard finance",
         "menus": ["Pembelian", "OPEX", "Finance"],
         "pages": ["Purchase_Dashboard", "Purchase_History",
                   "Opex_Dashboard", "Opex_History",
@@ -668,18 +668,18 @@ def init_session():
     if "cache" not in st.session_state:
         st.session_state.cache = ExpeditionCache(st.session_state.db)
 
-    # â”€â”€ Auth state â”€â”€
+    # â"€â"€ Auth state â"€â"€
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
     if "user" not in st.session_state:
         st.session_state.user = None
 
-    # â”€â”€ Auto-login from persistent auth token â”€â”€
+    # â"€â"€ Auto-login from persistent auth token â"€â"€
     if not st.session_state.authenticated:
         auth_token = None
         # 1) Check query param (from fresh login with ?auth=TOKEN)
         auth_token = st.query_params.get("auth")
-        # 2) Check Cookie header (from page refresh â€” browser sends cookie)
+        # 2) Check Cookie header (from page refresh â€" browser sends cookie)
         if not auth_token:
             import re
             try:
@@ -700,7 +700,7 @@ def init_session():
                 logging.info(f"Auto-login via token: {user['username']}")
                 st.rerun()
             else:
-                # Invalid token â€” clean up
+                # Invalid token â€" clean up
                 if st.query_params.get("auth"):
                     st.query_params.clear()
                 st.html("""<script>
@@ -709,7 +709,7 @@ def init_session():
                 </script>""")
                 st.rerun()
 
-    # â”€â”€ Create default admin if no users exist â”€â”€
+    # â"€â"€ Create default admin if no users exist â"€â"€
     db = st.session_state.db
     user_count = db.fetch_one("SELECT COUNT(*) as cnt FROM users")
     if user_count and user_count["cnt"] == 0:
@@ -756,7 +756,7 @@ def get_active_scans(db: Database) -> list:
 
 
 def get_stats(db: Database):
-    """Get scan statistics â€” diselaraskan dengan Scan Operasional (PACKED/PENDING/CANCEL)."""
+    """Get scan statistics â€" diselaraskan dengan Scan Operasional (PACKED/PENDING/CANCEL)."""
     rows = db.fetch_all("SELECT status, COUNT(*) as cnt FROM scan_aktif GROUP BY status")
     stats = {"KIRIM": 0, "RETUR": 0, "PENDING": 0, "PACKED": 0, "CANCEL": 0}
 
@@ -777,7 +777,7 @@ def get_stats(db: Database):
     # Belum discan = total penjualan - packed - cancel
     stats["BELUM_SCAN"] = max(0, stats["TOTAL_SALES"] - stats["PACKED"] - stats["CANCEL"])
 
-    # â”€â”€ Breakdown per kategori â”€â”€
+    # â"€â"€ Breakdown per kategori â"€â"€
     kategori_rows = db.fetch_all("SELECT kategori, COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED' GROUP BY kategori")
     stats["PACKED_REGULER"] = 0
     stats["PACKED_BESAR"] = 0
@@ -787,7 +787,7 @@ def get_stats(db: Database):
         else:
             stats["PACKED_REGULER"] += kr["cnt"]
 
-    # â”€â”€ Instant â”€â”€
+    # â"€â"€ Instant â"€â"€
     instant_row = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED' AND tipe_kiriman = 'INSTANT'")
     stats["INSTANT"] = instant_row["cnt"] if instant_row else 0
 
@@ -829,7 +829,7 @@ def scan_resi(resi: str, mode: str, store: str, db: Database, cache: ExpeditionC
         )
         return {
             "success": True,
-            "message": f"âœ“ {cleaned} â†’ {ekspedisi} ({status})",
+            "message": f"âœ" {cleaned} â†' {ekspedisi} ({status})",
             "data": {"waktu": waktu, "tanggal": tanggal, "resi": cleaned, "ekspedisi": ekspedisi, "toko": store, "status": status},
         }
     except Exception as e:
@@ -904,7 +904,7 @@ def export_to_excel(db: Database, folder: str, judul: str = None) -> str:
         (judul, filename, now.strftime("%d-%m-%Y %H:%M")),
     )
 
-    # Clear active scans â€” revert penjualan status_pesanan terlebih dahulu
+    # Clear active scans â€" revert penjualan status_pesanan terlebih dahulu
     db.execute(
         "UPDATE penjualan SET status_pesanan = '' WHERE no_resi IN (SELECT resi FROM scan_aktif)"
     )
@@ -948,18 +948,18 @@ def export_handover_report(db: Database, folder: str, ekspedisi_filter: str = No
 
 # ==================== UI COMPONENTS ====================
 def render_stats_cards(stats: dict):
-    """Render statistics cards â€” diselaraskan dengan Scan Operasional."""
+    """Render statistics cards â€" diselaraskan dengan Scan Operasional."""
     cols = st.columns(5)
     with cols[0]:
-        st.metric("ðŸ“¦ Pesanan dgn Resi", f"{stats.get('TOTAL_SALES', 0):,}")
+        st.metric("ðŸ"¦ Pesanan dgn Resi", f"{stats.get('TOTAL_SALES', 0):,}")
     with cols[1]:
-        st.metric("âœ… Packed", f"{stats.get('PACKED', 0):,}")
+        st.metric("âœ... Packed", f"{stats.get('PACKED', 0):,}")
     with cols[2]:
         st.metric("â³ Pending Scan", f"{stats.get('PENDING', 0):,}")
     with cols[3]:
         st.metric("âŒ Cancel", f"{stats.get('CANCEL', 0):,}")
     with cols[4]:
-        st.metric("ðŸ“‹ Belum Scan", f"{stats.get('BELUM_SCAN', 0):,}")
+        st.metric("ðŸ"‹ Belum Scan", f"{stats.get('BELUM_SCAN', 0):,}")
 
 
 def render_scan_input():
@@ -995,7 +995,7 @@ def render_scan_input():
     with col3:
         st.write("")  # spacer
         st.write("")
-        if st.button("ðŸ”„ Refresh Data", width="stretch"):
+        if st.button("ðŸ"„ Refresh Data", width="stretch"):
             st.rerun()
 
     # Scan input
@@ -1011,7 +1011,7 @@ def render_scan_input():
         )
 
     with scan_col2:
-        scan_btn = st.button("ðŸ“· Scan", width="stretch", type="primary")
+        scan_btn = st.button("ðŸ"· Scan", width="stretch", type="primary")
 
     # Process scan
     if resi_input or scan_btn:
@@ -1040,7 +1040,7 @@ def render_scan_history():
 
     scans = get_active_scans(db)
     if not scans:
-        st.info("ðŸ“­ Belum ada data scan. Mulai scan resi di halaman Dashboard.")
+        st.info("ðŸ"­ Belum ada data scan. Mulai scan resi di halaman Dashboard.")
         return
 
     df = pd.DataFrame(scans)
@@ -1066,7 +1066,7 @@ def render_scan_history():
         all_exp = sorted(df["Ekspedisi"].unique().tolist())
         exp_filter = st.multiselect("Filter Ekspedisi", all_exp, default=[], key="exp_filter")
     with col3:
-        search = st.text_input("ðŸ” Cari Resi", placeholder="Ketik nomor resi...", key="search_resi")
+        search = st.text_input("ðŸ" Cari Resi", placeholder="Ketik nomor resi...", key="search_resi")
 
     # Apply filters
     if status_filter:
@@ -1097,7 +1097,7 @@ def render_scan_history():
 
     with col_a1:
         delete_resi = st.text_input("Hapus Resi", placeholder="Nomor resi...", key="delete_resi_input")
-        if st.button("ðŸ-‘ï¸ Hapus Resi", width="stretch"):
+        if st.button("ðŸ-'ï¸ Hapus Resi", width="stretch"):
             if delete_resi.strip():
                 if delete_scan_by_resi(delete_resi.strip(), db):
                     st.success(f"Resi '{delete_resi.strip()}' dihapus!")
@@ -1136,7 +1136,7 @@ def render_archive():
     """Render the archive/excel files browser."""
     db = st.session_state.db
 
-    st.subheader("ðŸ“ Gudang Arsip Excel")
+    st.subheader("ðŸ" Gudang Arsip Excel")
 
     # Export current scans
     scans = get_active_scans(db)
@@ -1151,13 +1151,13 @@ def render_archive():
         )
     with col2:
         st.write("")
-        if st.button("ðŸ’¾ Save to Archive (Excel)", width="stretch", type="primary"):
+        if st.button("ðŸ'¾ Save to Archive (Excel)", width="stretch", type="primary"):
             if not scans:
                 st.warning("Tidak ada data untuk di-arsipkan.")
             else:
                 filepath = export_to_excel(db, Config.ARSIP_FOLDER, judul)
                 if filepath:
-                    st.success(f"âœ… Arsip tersimpan: {os.path.basename(filepath)}")
+                    st.success(f"âœ... Arsip tersimpan: {os.path.basename(filepath)}")
                     st.rerun()
                 else:
                     st.error("Gagal menyimpan arsip.")
@@ -1172,14 +1172,14 @@ def render_archive():
         if os.path.exists(Config.ARSIP_FOLDER):
             files = [f for f in os.listdir(Config.ARSIP_FOLDER) if f.endswith(".xlsx")]
             if files:
-                st.info(f"ðŸ“‚ {len(files)} file Excel ditemukan di folder arsip (belum tercatat di database).")
+                st.info(f"ðŸ"‚ {len(files)} file Excel ditemukan di folder arsip (belum tercatat di database).")
                 for f in sorted(files, reverse=True):
                     filepath = os.path.join(Config.ARSIP_FOLDER, f)
                     size_kb = os.path.getsize(filepath) / 1024
                     mod_time = datetime.fromtimestamp(os.path.getmtime(filepath))
                     col_f1, col_f2 = st.columns([3, 1])
                     with col_f1:
-                        st.markdown(f"ðŸ“„ **{f}** â€” {size_kb:.1f} KB â€” {mod_time.strftime('%d-%m-%Y %H:%M')}")
+                        st.markdown(f"ðŸ"„ **{f}** â€" {size_kb:.1f} KB â€" {mod_time.strftime('%d-%m-%Y %H:%M')}")
                     with col_f2:
                         with open(filepath, "rb") as fp:
                             st.download_button(
@@ -1190,15 +1190,15 @@ def render_archive():
                                 width="stretch",
                             )
             else:
-                st.info("ðŸ“­ Belum ada arsip. Simpan data scan ke Excel terlebih dahulu.")
+                st.info("ðŸ"­ Belum ada arsip. Simpan data scan ke Excel terlebih dahulu.")
         else:
-            st.info("ðŸ“­ Folder arsip belum tersedia.")
+            st.info("ðŸ"­ Folder arsip belum tersedia.")
     else:
         for arsip in arsip_list:
             filepath = os.path.join(Config.ARSIP_FOLDER, arsip["nama_file"])
             col_a1, col_a2, col_a3 = st.columns([3, 1, 1])
             with col_a1:
-                st.markdown(f"ðŸ“„ **{arsip['judul']}** â€” _{arsip['tanggal']}_")
+                st.markdown(f"ðŸ"„ **{arsip['judul']}** â€" _{arsip['tanggal']}_")
                 if os.path.exists(filepath):
                     size_kb = os.path.getsize(filepath) / 1024
                     st.caption(f"File: {arsip['nama_file']} ({size_kb:.1f} KB)")
@@ -1215,7 +1215,7 @@ def render_archive():
                             width="stretch",
                         )
             with col_a3:
-                if st.button("ðŸ-‘ï¸", key=f"del_arsip_{arsip['id']}", width="stretch"):
+                if st.button("ðŸ-'ï¸", key=f"del_arsip_{arsip['id']}", width="stretch"):
                     db.execute("DELETE FROM list_arsip WHERE id = ?", (arsip["id"],))
                     if os.path.exists(filepath):
                         os.remove(filepath)
@@ -1225,13 +1225,13 @@ def render_archive():
 
 
 def render_ekspedisi():
-    """Render expedition management page â€” data dari Scan Operasional."""
+    """Render expedition management page â€" data dari Scan Operasional."""
     db = st.session_state.db
 
     st.subheader("ðŸšš Manajemen Ekspedisi")
     st.caption("Data ekspedisi/kurir diambil dari hasil Scan Operasional & data penjualan.")
 
-    # â”€â”€ Auto-sync ekspedisi dari scan_aktif & penjualan â”€â”€
+    # â"€â"€ Auto-sync ekspedisi dari scan_aktif & penjualan â"€â"€
     kurir_penj = db.fetch_all("SELECT DISTINCT kurir FROM penjualan WHERE kurir != '' AND kurir IS NOT NULL ORDER BY kurir")
     kurir_scan = db.fetch_all("SELECT DISTINCT ekspedisi FROM scan_aktif WHERE ekspedisi != '' AND ekspedisi != 'Unknown' AND ekspedisi IS NOT NULL ORDER BY ekspedisi")
     all_kurir = set()
@@ -1241,11 +1241,11 @@ def render_ekspedisi():
         all_kurir.add(k["ekspedisi"])
 
     if not all_kurir:
-        st.info("ðŸ“­ Belum ada data ekspedisi. Mulai scan di SCAN Operasional.")
+        st.info("ðŸ"­ Belum ada data ekspedisi. Mulai scan di SCAN Operasional.")
         return
 
-    # â”€â”€ Summary Cards â”€â”€
-    st.markdown("### ðŸ“Š Ringkasan per Ekspedisi")
+    # â"€â"€ Summary Cards â"€â"€
+    st.markdown("### ðŸ"Š Ringkasan per Ekspedisi")
     exp_stats = db.fetch_all(
         "SELECT ekspedisi, "
         "COUNT(*) as total, "
@@ -1261,14 +1261,14 @@ def render_ekspedisi():
         df_exp = pd.DataFrame([dict(r) for r in exp_stats])
         df_exp = df_exp.rename(columns={
             "ekspedisi": "Ekspedisi", "total": "Total Scan",
-            "packed_reg": "ðŸ“¦ Reguler", "packed_inst": "ðŸš€ Instant",
+            "packed_reg": "ðŸ"¦ Reguler", "packed_inst": "ðŸš€ Instant",
             "pending": "â³ Pending", "cancel": "âŒ Cancel",
         })
         st.dataframe(df_exp, width="stretch", hide_index=True)
 
-    # â”€â”€ Detail per Ekspedisi â”€â”€
+    # â"€â"€ Detail per Ekspedisi â"€â"€
     st.markdown("---")
-    st.subheader("ðŸ” Detail per Ekspedisi")
+    st.subheader("ðŸ" Detail per Ekspedisi")
     kurir_sorted = sorted(all_kurir)
 
     selected_kurir = st.selectbox("Pilih Ekspedisi / Kurir", ["Semua"] + kurir_sorted, key="exp_detail_kurir")
@@ -1300,9 +1300,9 @@ def render_ekspedisi():
         else:
             st.info(f"Belum ada scan untuk {selected_kurir}.")
 
-    # â”€â”€ Ekspedisi dari penjualan (belum di-scan) â”€â”€
+    # â"€â"€ Ekspedisi dari penjualan (belum di-scan) â"€â"€
     st.markdown("---")
-    st.subheader("ðŸ“‹ Ekspedisi dari Data Penjualan (belum di-scan)")
+    st.subheader("ðŸ"‹ Ekspedisi dari Data Penjualan (belum di-scan)")
     exp_penj = db.fetch_all(
         "SELECT p.kurir, COUNT(DISTINCT p.no_resi) as jml_resi, COUNT(DISTINCT p.no_pesanan) as jml_orders "
         "FROM penjualan p "
@@ -1329,7 +1329,7 @@ def render_toko():
     # Add new store
     with st.expander("âž• Tambah Toko Baru", expanded=False):
         nama_toko = st.text_input("Nama Toko", key="new_toko_nama")
-        if st.button("ðŸ’¾ Simpan Toko", type="primary"):
+        if st.button("ðŸ'¾ Simpan Toko", type="primary"):
             if not nama_toko.strip():
                 st.error("Nama toko harus diisi!")
             else:
@@ -1381,14 +1381,14 @@ def render_toko():
             pe = pending_cnt["cnt"] if pending_cnt else 0
             c = cancel_cnt["cnt"] if cancel_cnt else 0
             pj = penj_cnt["cnt"] if penj_cnt else 0
-            st.caption(f"ðŸ“¦ Packed: {p} | ðŸš€ Instant: {i} | â³ Pending: {pe} | âŒ Cancel: {c} | ðŸ›’ Orders: {pj}")
+            st.caption(f"ðŸ"¦ Packed: {p} | ðŸš€ Instant: {i} | â³ Pending: {pe} | âŒ Cancel: {c} | ðŸ›' Orders: {pj}")
         with col2:
             if st.button("âœï¸ Edit", key=f"edit_toko_{store['id']}"):
                 st.session_state.editing_toko = store
                 st.rerun()
         with col3:
             if store["nama"] != "Mitra Mulia Abadi":
-                if st.button("ðŸ-‘ï¸", key=f"del_toko_{store['id']}"):
+                if st.button("ðŸ-'ï¸", key=f"del_toko_{store['id']}"):
                     if total_scan > 0:
                         st.warning(f"Toko '{nama_toko}' memiliki {total_scan} data scan. Hapus data scan terlebih dahulu.")
                     else:
@@ -1404,7 +1404,7 @@ def render_toko():
         edit_nama = st.text_input("Nama Toko", value=store["nama"], key="edit_toko_nama")
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("ðŸ’¾ Update Toko", type="primary", width="stretch"):
+            if st.button("ðŸ'¾ Update Toko", type="primary", width="stretch"):
                 if not edit_nama.strip():
                     st.error("Nama toko tidak boleh kosong!")
                 else:
@@ -1456,10 +1456,10 @@ def _parse_number_str(raw: str) -> str:
     """Convert Indonesian/international number string to float-compatible string.
 
     Handles:
-    - Indonesian: "11.205" (thousands) â†’ "11205"
-    - Indonesian: "1.234,56" â†’ "1234.56"
-    - International: "1,234.56" â†’ "1234.56"
-    - Plain: "11205" â†’ "11205"
+    - Indonesian: "11.205" (thousands) â†' "11205"
+    - Indonesian: "1.234,56" â†' "1234.56"
+    - International: "1,234.56" â†' "1234.56"
+    - Plain: "11205" â†' "11205"
     """
     s = raw.replace("Rp", "").replace("rp", "").replace(" ", "").strip()
     if not s:
@@ -1469,7 +1469,7 @@ def _parse_number_str(raw: str) -> str:
     has_dot = "." in s
 
     if has_comma and has_dot:
-        # Format: 1.234,56 â†’ Indonesian (dot=thousands, comma=decimal)
+        # Format: 1.234,56 â†' Indonesian (dot=thousands, comma=decimal)
         # Check if comma is last separator (Indonesian)
         last_comma = s.rfind(",")
         last_dot = s.rfind(".")
@@ -1483,23 +1483,23 @@ def _parse_number_str(raw: str) -> str:
         # Only comma: could be "11205,5" (Indonesian decimal) or "1,234" (international thousands)
         after_comma = s[s.rfind(",") + 1:]
         if len(after_comma) <= 2 and after_comma.isdigit():
-            # Indonesian decimal: "11205,5" â†’ "11205.5"
+            # Indonesian decimal: "11205,5" â†' "11205.5"
             s = s.replace(",", ".")
         else:
-            # International thousands: "1,234" â†’ "1234"
+            # International thousands: "1,234" â†' "1234"
             s = s.replace(",", "")
     elif has_dot:
         # Only dots: could be "11.205" (thousands) or "11.5" (decimal)
         last_dot = s.rfind(".")
         after_dot = s[last_dot + 1:]
         if len(after_dot) == 3 and after_dot.isdigit() and len(s.replace(".", "")) > 3:
-            # Looks like thousands: "11.205" â†’ "11205"
+            # Looks like thousands: "11.205" â†' "11205"
             s = s.replace(".", "")
         elif len(after_dot) <= 2 and after_dot.isdigit():
-            # Decimal: "11.5" â†’ keep as is
+            # Decimal: "11.5" â†' keep as is
             pass
         else:
-            # Ambiguous but likely thousands (e.g., "1.234") â†’ remove dots
+            # Ambiguous but likely thousands (e.g., "1.234") â†' remove dots
             s = s.replace(".", "")
 
     return s
@@ -1562,10 +1562,10 @@ def bulk_upsert_sku(
 
     Upsert logic:
     - Match by kode_sku (case-insensitive, uppercase).
-    - If exists â†’ UPDATE (merge fields, aggregate stock if mode is 'add').
-    - If not exists â†’ INSERT.
-    - If stok_mode is 'add' â†’ ADD incoming stock to existing stock.
-    - If update_kosong is True â†’ only update fields that have non-empty values in Excel.
+    - If exists â†' UPDATE (merge fields, aggregate stock if mode is 'add').
+    - If not exists â†' INSERT.
+    - If stok_mode is 'add' â†' ADD incoming stock to existing stock.
+    - If update_kosong is True â†' only update fields that have non-empty values in Excel.
 
     Returns:
         dict with 'inserted', 'updated', 'errors', 'total', 'error_details', 'aggregation_summary'
@@ -1603,7 +1603,7 @@ def bulk_upsert_sku(
             existing = db.fetch_one("SELECT * FROM sku WHERE kode_sku = ?", (kode,))
 
             if existing:
-                # â”€â”€ UPSERT: Update existing â”€â”€
+                # â"€â"€ UPSERT: Update existing â"€â"€
                 # Determine new values (merge logic)
                 new_nama = nama if not update_kosong or nama else existing["nama_barang"]
                 new_kat = kat if not update_kosong or kat else existing["kategori"]
@@ -1640,7 +1640,7 @@ def bulk_upsert_sku(
                         "selisih": selisih,
                     })
             else:
-                # â”€â”€ INSERT: New SKU â”€â”€
+                # â"€â"€ INSERT: New SKU â"€â"€
                 db.execute(
                     """INSERT INTO sku (kode_sku, nama_barang, kategori, stok, satuan,
                        harga_beli, harga_jual, supplier, keterangan)
@@ -1671,7 +1671,7 @@ def render_sku():
 
     st.subheader("ðŸ·ï¸ Manajemen SKU Barang")
 
-    # â”€â”€ Stats Ringkasan â”€â”€
+    # â"€â"€ Stats Ringkasan â"€â"€
     total_sku = db.fetch_one("SELECT COUNT(*) as cnt FROM sku")
     total_stok = db.fetch_one("SELECT COALESCE(SUM(stok), 0) as total FROM sku")
     total_value = db.fetch_one("SELECT COALESCE(SUM(stok * harga_beli), 0) as total FROM sku")
@@ -1679,12 +1679,12 @@ def render_sku():
 
     col_s1, col_s2, col_s3, col_s4, col_s5 = st.columns(5)
     with col_s1:
-        st.metric("ðŸ“¦ Total SKU", total_sku["cnt"] if total_sku else 0)
+        st.metric("ðŸ"¦ Total SKU", total_sku["cnt"] if total_sku else 0)
     with col_s2:
-        st.metric("ðŸ“Š Total Stok", f"{total_stok['total']:,}" if total_stok else "0")
+        st.metric("ðŸ"Š Total Stok", f"{total_stok['total']:,}" if total_stok else "0")
     with col_s3:
         val = total_value["total"] if total_value else 0
-        st.metric("ðŸ’° Nilai Inventaris", f"Rp {val:,.0f}")
+        st.metric("ðŸ'° Nilai Inventaris", f"Rp {val:,.0f}")
     with col_s4:
         low_stock = db.fetch_one("SELECT COUNT(*) as cnt FROM sku WHERE stok <= 10 AND stok > 0")
         st.metric("âš ï¸ Stok Menipis (â‰¤10)", low_stock["cnt"] if low_stock else 0)
@@ -1695,7 +1695,7 @@ def render_sku():
 
     st.markdown("---")
 
-    # â”€â”€ Alert: SKU tanpa Harga Modal â”€â”€
+    # â"€â"€ Alert: SKU tanpa Harga Modal â"€â"€
     missing = missing_beli["cnt"] if missing_beli else 0
     if missing > 0:
         total_s = total_sku["cnt"] if total_sku else 1
@@ -1703,16 +1703,16 @@ def render_sku():
         st.warning(
             f"ðŸš« **{missing} SKU ({pct:.0f}%) belum memiliki Harga Modal (Harga Beli)!**\n\n"
             f"SKU tanpa Harga Beli **tidak terhitung di Nilai Inventaris** dan **tidak bisa dihitung laba/rugi-nya**.\n\n"
-            f"ðŸ’¡ **Cara update**: Upload massal Excel via fitur **ðŸ“¥ Upload Massal SKU** di bawah â€” "
+            f"ðŸ'¡ **Cara update**: Upload massal Excel via fitur **ðŸ"¥ Upload Massal SKU** di bawah â€" "
             f"cukup kolom Kode SKU + Harga Beli, centang 'Hanya update field yang terisi' agar data lain tidak tertimpa.\n\n"
             f"â„¹ï¸ *Harga Jual diambil otomatis dari data pesanan marketplace (Input Resi & Pesanan), bukan dari SKU.*"
         )
 
-    # â”€â”€ Upload Massal SKU dari Excel â”€â”€
-    with st.expander("ðŸ“¥ Upload Massal SKU (Excel â€” Ipos / ERP MMA)", expanded=False):
+    # â"€â"€ Upload Massal SKU dari Excel â"€â"€
+    with st.expander("ðŸ"¥ Upload Massal SKU (Excel â€" Ipos / ERP MMA)", expanded=False):
         st.markdown("""
         Upload file Excel berisi data SKU untuk diimport secara massal.
-        **Upsert:** Jika `Kode SKU` sudah ada â†’ data diupdate & stok ditambahkan. Jika belum ada â†’ insert baru.
+        **Upsert:** Jika `Kode SKU` sudah ada â†' data diupdate & stok ditambahkan. Jika belum ada â†' insert baru.
         """)
 
         uploaded_file = st.file_uploader(
@@ -1730,11 +1730,11 @@ def render_sku():
                 if df_raw.empty:
                     st.error("File Excel kosong.")
                 else:
-                    st.success(f"âœ… File berhasil dibaca: **{len(df_raw)} baris**, {len(df_raw.columns)} kolom.")
+                    st.success(f"âœ... File berhasil dibaca: **{len(df_raw)} baris**, {len(df_raw.columns)} kolom.")
                     st.caption(f"Kolom terdeteksi: {', '.join(df_raw.columns.astype(str).tolist())}")
 
-                    # â”€â”€ Column Mapping â”€â”€
-                    st.markdown("### ðŸ”- Mapping Kolom")
+                    # â"€â"€ Column Mapping â"€â"€
+                    st.markdown("### ðŸ"- Mapping Kolom")
                     st.caption("Cocokkan kolom Excel ke field SKU. Kolom dengan tanda * wajib diisi.")
 
                     excel_cols = [""] + df_raw.columns.tolist()
@@ -1762,13 +1762,13 @@ def render_sku():
                         map_ket = st.selectbox("Keterangan", excel_cols, key="map_ket",
                                                index=_auto_detect_column(excel_cols, ["keterangan", "ket", "notes", "remark", "desc", "description", "keterangan_brg"]))
 
-                    # â”€â”€ Options â”€â”€
+                    # â"€â"€ Options â"€â"€
                     st.markdown("### âš™ï¸ Opsi Import")
                     col_o1, col_o2 = st.columns(2)
                     with col_o1:
                         stok_mode = st.radio(
                             "Mode Stok",
-                            ["âž• Tambahkan ke stok existing (agregasi)", "ðŸ”„ Ganti stok (overwrite)"],
+                            ["âž• Tambahkan ke stok existing (agregasi)", "ðŸ"„ Ganti stok (overwrite)"],
                             key="stok_mode_upload",
                             help="Pilih apakah stok dari Excel ditambahkan ke stok yang sudah ada, atau menggantinya sepenuhnya."
                         )
@@ -1780,8 +1780,8 @@ def render_sku():
                             help="Jika dicentang, field yang kosong di Excel tidak akan menimpa data yang sudah ada di database."
                         )
 
-                    # â”€â”€ Preview â”€â”€
-                    st.markdown("### ðŸ‘ï¸ Preview Data")
+                    # â"€â"€ Preview â"€â"€
+                    st.markdown("### ðŸ'ï¸ Preview Data")
                     st.caption(f"Menampilkan preview berdasarkan mapping kolom yang dipilih.")
                     preview_cols = [c for c in [map_kode, map_nama, map_kat, map_stok, map_satuan, map_supplier, map_hbeli, map_hjual, map_ket] if c]
                     if preview_cols:
@@ -1789,7 +1789,7 @@ def render_sku():
                         if len(df_raw) > 20:
                             st.caption(f"... dan {len(df_raw) - 20} baris lainnya.")
 
-                    # â”€â”€ Execute Import â”€â”€
+                    # â"€â"€ Execute Import â"€â"€
                     st.markdown("---")
                     if st.button("ðŸš€ Proses Import SKU", type="primary", disabled=(not map_kode or not map_nama)):
                         if not map_kode or not map_nama:
@@ -1804,16 +1804,16 @@ def render_sku():
 
                             # Show results
                             st.markdown("---")
-                            st.markdown("### ðŸ“Š Hasil Import")
+                            st.markdown("### ðŸ"Š Hasil Import")
                             col_r1, col_r2, col_r3, col_r4 = st.columns(4)
                             with col_r1:
-                                st.metric("âœ… Baru (Insert)", result["inserted"])
+                                st.metric("âœ... Baru (Insert)", result["inserted"])
                             with col_r2:
-                                st.metric("ðŸ”„ Diupdate (Upsert)", result["updated"])
+                                st.metric("ðŸ"„ Diupdate (Upsert)", result["updated"])
                             with col_r3:
                                 st.metric("âš ï¸ Error / Skip", result["errors"])
                             with col_r4:
-                                st.metric("ðŸ“¦ Total Diproses", result["total"])
+                                st.metric("ðŸ"¦ Total Diproses", result["total"])
 
                             if result["error_details"]:
                                 with st.expander(f"âš ï¸ Lihat {len(result['error_details'])} error detail", expanded=False):
@@ -1821,23 +1821,23 @@ def render_sku():
                                         st.caption(f"â€¢ {err}")
 
                             if result["aggregation_summary"]:
-                                with st.expander("ðŸ“Š Ringkasan Agregasi Stok", expanded=True):
+                                with st.expander("ðŸ"Š Ringkasan Agregasi Stok", expanded=True):
                                     for item in result["aggregation_summary"]:
                                         st.markdown(
-                                            f"â€¢ **{item['kode']}** â€” {item['nama']}: "
-                                            f"stok {item['stok_sebelum']} â†’ **{item['stok_sesudah']}** "
+                                            f"â€¢ **{item['kode']}** â€" {item['nama']}: "
+                                            f"stok {item['stok_sebelum']} â†' **{item['stok_sesudah']}** "
                                             f"({'+' if item['selisih'] >= 0 else ''}{item['selisih']})"
                                         )
 
                             # Clear file uploader by rerun after a short delay
                             st.success("Import selesai! Refresh halaman untuk melihat data terbaru.")
-                            if st.button("ðŸ”„ Refresh Data", width="stretch"):
+                            if st.button("ðŸ"„ Refresh Data", width="stretch"):
                                 st.rerun()
 
             except Exception as e:
                 st.error(f"Gagal membaca file Excel: {str(e)}")
 
-    # â”€â”€ Tambah SKU Baru â”€â”€
+    # â"€â"€ Tambah SKU Baru â"€â"€
     with st.expander("âž• Tambah SKU Baru", expanded=False):
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -1853,7 +1853,7 @@ def render_sku():
             harga_jual = st.number_input("Harga Jual (Rp)", min_value=0, value=0, step=1000, key="new_sku_hjual")
             keterangan = st.text_input("Keterangan", placeholder="Catatan...", key="new_sku_ket")
 
-        if st.button("ðŸ’¾ Simpan SKU", type="primary"):
+        if st.button("ðŸ'¾ Simpan SKU", type="primary"):
             if not kode.strip() or not nama.strip():
                 st.error("Kode SKU dan Nama Barang harus diisi!")
             else:
@@ -1871,13 +1871,13 @@ def render_sku():
 
     st.markdown("---")
 
-    # â”€â”€ Daftar SKU â”€â”€
-    st.markdown("### ðŸ“‹ Daftar SKU")
+    # â"€â"€ Daftar SKU â"€â"€
+    st.markdown("### ðŸ"‹ Daftar SKU")
 
     # Filters
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
-        search_sku = st.text_input("ðŸ” Cari SKU / Nama", placeholder="Ketik kode atau nama...", key="search_sku_list")
+        search_sku = st.text_input("ðŸ" Cari SKU / Nama", placeholder="Ketik kode atau nama...", key="search_sku_list")
     with col_f2:
         all_kategori = db.fetch_all("SELECT DISTINCT kategori FROM sku WHERE kategori != '' ORDER BY kategori")
         kat_options = ["Semua"] + [r["kategori"] for r in all_kategori]
@@ -1908,7 +1908,7 @@ def render_sku():
     sku_list = db.fetch_all(query, params)
 
     if not sku_list:
-        st.info("ðŸ“­ Belum ada SKU. Tambahkan SKU baru melalui form di atas.")
+        st.info("ðŸ"­ Belum ada SKU. Tambahkan SKU baru melalui form di atas.")
     else:
         # Build dataframe
         df_sku = pd.DataFrame([dict(r) for r in sku_list])
@@ -1947,9 +1947,9 @@ def render_sku():
 
     st.markdown("---")
 
-    # â”€â”€ Edit / Hapus / Tambah Stok per SKU â”€â”€
+    # â"€â"€ Edit / Hapus / Tambah Stok per SKU â"€â"€
     st.markdown("### âš™ï¸ Edit / Update Stok SKU")
-    sku_options = {f"{r['kode_sku']} â€” {r['nama_barang']}": r for r in sku_list} if sku_list else {}
+    sku_options = {f"{r['kode_sku']} â€" {r['nama_barang']}": r for r in sku_list} if sku_list else {}
 
     if sku_options:
         col_a1, col_a2 = st.columns([2, 1])
@@ -1963,14 +1963,14 @@ def render_sku():
         with col_a2:
             st.write("")
             st.write("")
-            if st.button("ðŸ-‘ï¸ Hapus SKU Terpilih", width="stretch"):
+            if st.button("ðŸ-'ï¸ Hapus SKU Terpilih", width="stretch"):
                 if selected_sku:
                     db.execute("DELETE FROM sku WHERE id = ?", (selected_sku["id"],))
                     st.success(f"SKU '{selected_sku['kode_sku']}' dihapus.")
                     st.rerun()
 
         if selected_sku:
-            with st.expander(f"âœï¸ Edit: {selected_sku['kode_sku']} â€” {selected_sku['nama_barang']}", expanded=True):
+            with st.expander(f"âœï¸ Edit: {selected_sku['kode_sku']} â€" {selected_sku['nama_barang']}", expanded=True):
                 col_e1, col_e2, col_e3 = st.columns(3)
                 with col_e1:
                     edit_kode = st.text_input("Kode SKU", value=selected_sku["kode_sku"], key=f"edit_sku_kode_{selected_sku['id']}")
@@ -1988,12 +1988,12 @@ def render_sku():
                     edit_ket = st.text_input("Keterangan", value=selected_sku["keterangan"] or "", key=f"edit_sku_ket_{selected_sku['id']}")
 
                 # Quick stock adjustment
-                st.markdown("**ðŸ”§ Quick Stock Adjustment:**")
+                st.markdown("**ðŸ"§ Quick Stock Adjustment:**")
                 col_q1, col_q2, col_q3, col_q4 = st.columns(4)
                 with col_q1:
                     tambah_stok = st.number_input("Tambah Stok (+)", min_value=0, value=0, step=1, key=f"quick_add_stok_{selected_sku['id']}")
                 with col_q2:
-                    kurangi_stok = st.number_input("Kurangi Stok (âˆ’)", min_value=0, value=0, step=1, key=f"quick_sub_stok_{selected_sku['id']}")
+                    kurangi_stok = st.number_input("Kurangi Stok (âˆ')", min_value=0, value=0, step=1, key=f"quick_sub_stok_{selected_sku['id']}")
                 with col_q3:
                     if st.button("âž• Terapkan Tambah Stok", width="stretch"):
                         new_stok = selected_sku["stok"] + tambah_stok
@@ -2001,16 +2001,16 @@ def render_sku():
                         st.success(f"Stok bertambah +{tambah_stok}. Stok sekarang: {new_stok}")
                         st.rerun()
                 with col_q4:
-                    if st.button("âž– Terapkan Kurangi Stok", width="stretch"):
+                    if st.button("âž- Terapkan Kurangi Stok", width="stretch"):
                         new_stok = max(0, selected_sku["stok"] - kurangi_stok)
                         db.execute("UPDATE sku SET stok = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_stok, selected_sku["id"]))
-                        st.success(f"Stok berkurang âˆ’{kurangi_stok}. Stok sekarang: {new_stok}")
+                        st.success(f"Stok berkurang âˆ'{kurangi_stok}. Stok sekarang: {new_stok}")
                         st.rerun()
 
                 st.markdown("---")
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
-                    if st.button("ðŸ’¾ Simpan Perubahan SKU", type="primary", width="stretch"):
+                    if st.button("ðŸ'¾ Simpan Perubahan SKU", type="primary", width="stretch"):
                         if not edit_kode.strip() or not edit_nama.strip():
                             st.error("Kode SKU dan Nama Barang harus diisi!")
                         else:
@@ -2050,9 +2050,9 @@ def render_purchase_input():
     """Render form input pembelian ke supplier (multi-item cart)."""
     db = st.session_state.db
 
-    st.subheader("ðŸ›’ Input Pembelian ke Supplier")
+    st.subheader("ðŸ›' Input Pembelian ke Supplier")
 
-    # â”€â”€ Init cart session state â”€â”€
+    # â"€â"€ Init cart session state â"€â"€
     if "purchase_cart" not in st.session_state:
         st.session_state.purchase_cart = []
     if "purchase_supplier" not in st.session_state:
@@ -2066,7 +2066,7 @@ def render_purchase_input():
 
     cart = st.session_state.purchase_cart
 
-    # â”€â”€ Header: Supplier & No Faktur â”€â”€
+    # â"€â"€ Header: Supplier & No Faktur â"€â"€
     col_h1, col_h2, col_h3 = st.columns([2, 2, 1])
     with col_h1:
         # Get distinct suppliers from SKU + pembelian history
@@ -2107,7 +2107,7 @@ def render_purchase_input():
     with col_h3:
         st.write("")
         st.write("")
-        if st.button("ðŸ”„ New Faktur", width="stretch"):
+        if st.button("ðŸ"„ New Faktur", width="stretch"):
             st.session_state.purchase_faktur = _generate_faktur(db)
             st.session_state.purchase_cart = []
             st.session_state.purchase_supplier = ""
@@ -2115,10 +2115,10 @@ def render_purchase_input():
 
     st.markdown("---")
 
-    # â”€â”€ Add Item Form â”€â”€
+    # â"€â"€ Add Item Form â"€â"€
     st.markdown("### âž• Tambah Item")
 
-    # Load ALL SKU data â€” supplier only for auto-fill, NOT for filtering
+    # Load ALL SKU data â€" supplier only for auto-fill, NOT for filtering
     all_sku = db.fetch_all(
         "SELECT kode_sku, nama_barang, satuan, harga_beli, stok, supplier FROM sku ORDER BY kode_sku"
     )
@@ -2128,7 +2128,7 @@ def render_purchase_input():
     else:
         # Search input: cari by Kode SKU ATAU Nama Barang
         search_term = st.text_input(
-            "ðŸ” Cari SKU (Kode atau Nama Barang) â€” kosongkan untuk lihat semua",
+            "ðŸ" Cari SKU (Kode atau Nama Barang) â€" kosongkan untuk lihat semua",
             placeholder="Ketik kode SKU atau nama barang...",
             key="purchase_search_sku",
         )
@@ -2156,7 +2156,7 @@ def render_purchase_input():
         sku_options_map = {}
         if filtered_sku:
             sku_options_map = {
-                f"{s['kode_sku']} â€” {s['nama_barang']} | Stok: {s['stok']} | {s['supplier'] or 'Tanpa Supplier'}": s
+                f"{s['kode_sku']} â€" {s['nama_barang']} | Stok: {s['stok']} | {s['supplier'] or 'Tanpa Supplier'}": s
                 for s in filtered_sku
             }
             sku_labels = list(sku_options_map.keys())
@@ -2180,13 +2180,13 @@ def render_purchase_input():
                 "Harga Beli/Unit", min_value=0, value=int(auto_harga), step=1000,
                 key=f"purchase_add_harga_{selected_sku_label}"
             )
-            # â”€â”€ Price change indicator â”€â”€
+            # â"€â"€ Price change indicator â"€â"€
             if selected_sku_label in sku_options_map and auto_harga > 0 and harga_manual != auto_harga:
                 selisih = harga_manual - auto_harga
                 if selisih > 0:
-                    st.caption(f"ðŸ“ˆ Naik Rp {selisih:,.0f} dari harga sebelumnya (Rp {auto_harga:,.0f})")
+                    st.caption(f"ðŸ"ˆ Naik Rp {selisih:,.0f} dari harga sebelumnya (Rp {auto_harga:,.0f})")
                 else:
-                    st.caption(f"ðŸ“‰ Turun Rp {abs(selisih):,.0f} dari harga sebelumnya (Rp {auto_harga:,.0f})")
+                    st.caption(f"ðŸ"‰ Turun Rp {abs(selisih):,.0f} dari harga sebelumnya (Rp {auto_harga:,.0f})")
         with col_i4:
             st.write("")
             st.write("")
@@ -2195,7 +2195,7 @@ def render_purchase_input():
                     st.error("Pilih SKU yang valid!")
                 else:
                     sku_data = sku_options_map[selected_sku_label]
-                    # Check if already in cart (same SKU + same price â†’ merge qty)
+                    # Check if already in cart (same SKU + same price â†' merge qty)
                     existing_idx = None
                     for i, item in enumerate(cart):
                         if item["kode_sku"] == sku_data["kode_sku"] and item["harga_beli"] == harga_manual:
@@ -2205,7 +2205,7 @@ def render_purchase_input():
                     if existing_idx is not None:
                         cart[existing_idx]["qty"] += qty
                         cart[existing_idx]["total_harga"] = cart[existing_idx]["qty"] * cart[existing_idx]["harga_beli"]
-                        st.success(f"Qty {sku_data['kode_sku']} ditambahkan â†’ {cart[existing_idx]['qty']}")
+                        st.success(f"Qty {sku_data['kode_sku']} ditambahkan â†' {cart[existing_idx]['qty']}")
                     else:
                         cart.append({
                             "kode_sku": sku_data["kode_sku"],
@@ -2217,9 +2217,9 @@ def render_purchase_input():
                         })
                         st.success(f"{sku_data['kode_sku']} ditambahkan ke keranjang!")
 
-    # â”€â”€ Cart Table â”€â”€
+    # â"€â"€ Cart Table â"€â"€
     st.markdown("---")
-    st.markdown("### ðŸ›’ Keranjang Belanja")
+    st.markdown("### ðŸ›' Keranjang Belanja")
 
     if not cart:
         st.info("Keranjang kosong. Tambahkan item di atas.")
@@ -2237,35 +2237,35 @@ def render_purchase_input():
         st.dataframe(df_display, width="stretch", hide_index=True)
 
         grand_total_barang = sum(item["total_harga"] for item in cart)
-        st.markdown(f"**ðŸ’µ Total Barang: Rp {grand_total_barang:,.0f}** | **ðŸ“¦ {len(cart)} item**")
+        st.markdown(f"**ðŸ'µ Total Barang: Rp {grand_total_barang:,.0f}** | **ðŸ"¦ {len(cart)} item**")
 
-        # â”€â”€ Cart Actions â”€â”€
+        # â"€â"€ Cart Actions â"€â"€
         col_c1, col_c2, col_c3 = st.columns([2, 1, 1])
         with col_c1:
             # Remove item
             remove_idx = st.selectbox(
                 "Hapus item dari keranjang",
-                [f"{i+1}. {item['kode_sku']} â€” {item['nama_barang']} (Qty: {item['qty']})" for i, item in enumerate(cart)],
+                [f"{i+1}. {item['kode_sku']} â€" {item['nama_barang']} (Qty: {item['qty']})" for i, item in enumerate(cart)],
                 key="purchase_remove_item",
             )
         with col_c2:
-            if st.button("ðŸ-‘ï¸ Hapus Item", width="stretch"):
+            if st.button("ðŸ-'ï¸ Hapus Item", width="stretch"):
                 idx = int(remove_idx.split(".")[0]) - 1
                 removed = cart.pop(idx)
                 st.success(f"{removed['kode_sku']} dihapus dari keranjang.")
                 st.rerun()
         with col_c3:
-            if st.button("ðŸ”„ Reset Keranjang", width="stretch"):
+            if st.button("ðŸ"„ Reset Keranjang", width="stretch"):
                 st.session_state.purchase_cart = []
                 st.rerun()
 
-    # â”€â”€ Biaya Tambahan (always visible, outside cart empty check) â”€â”€
+    # â"€â"€ Biaya Tambahan (always visible, outside cart empty check) â"€â"€
     st.markdown("---")
-    st.markdown("### ðŸ’¸ Biaya Tambahan")
+    st.markdown("### ðŸ'¸ Biaya Tambahan")
     col_biaya1, col_biaya2 = st.columns(2)
     with col_biaya1:
         biaya_operasional = st.number_input(
-            "ðŸ”§ Biaya Operasional Tetap",
+            "ðŸ"§ Biaya Operasional Tetap",
             min_value=0, value=st.session_state.purchase_biaya_operasional, step=10000,
             key="purchase_biaya_operasional_input",
             help="Biaya operasional tetap per transaksi (contoh: transport, bongkar muat, dll)",
@@ -2273,30 +2273,30 @@ def render_purchase_input():
         st.session_state.purchase_biaya_operasional = biaya_operasional
     with col_biaya2:
         biaya_packing = st.number_input(
-            "ðŸ“¦ Biaya Packing",
+            "ðŸ"¦ Biaya Packing",
             min_value=0, value=st.session_state.purchase_biaya_packing, step=5000,
             key="purchase_biaya_packing_input",
             help="Biaya packing / pengemasan per transaksi (contoh: kardus, bubble wrap, lakban, dll)",
         )
         st.session_state.purchase_biaya_packing = biaya_packing
 
-    # â”€â”€ Grand Total Preview â”€â”€
+    # â"€â"€ Grand Total Preview â"€â"€
     if cart:
         grand_total_barang = sum(item["total_harga"] for item in cart)
         grand_total = grand_total_barang + biaya_operasional + biaya_packing
         col_gt1, col_gt2, col_gt3 = st.columns(3)
         with col_gt1:
-            st.metric("ðŸ“¦ Total Barang", f"Rp {grand_total_barang:,.0f}")
+            st.metric("ðŸ"¦ Total Barang", f"Rp {grand_total_barang:,.0f}")
         with col_gt2:
-            st.metric("ðŸ”§ Biaya Operasional", f"Rp {biaya_operasional:,.0f}" if biaya_operasional else "-")
+            st.metric("ðŸ"§ Biaya Operasional", f"Rp {biaya_operasional:,.0f}" if biaya_operasional else "-")
         with col_gt3:
-            st.metric("ðŸ“¦ Biaya Packing", f"Rp {biaya_packing:,.0f}" if biaya_packing else "-")
-        st.markdown(f"### ðŸ’° Grand Total: Rp {grand_total:,.0f}")
+            st.metric("ðŸ"¦ Biaya Packing", f"Rp {biaya_packing:,.0f}" if biaya_packing else "-")
+        st.markdown(f"### ðŸ'° Grand Total: Rp {grand_total:,.0f}")
         if biaya_operasional > 0 or biaya_packing > 0:
             st.caption(f"(Termasuk biaya tambahan: Rp {biaya_operasional + biaya_packing:,.0f})")
 
     if cart:
-        # â”€â”€ Save Transaction â”€â”€
+        # â"€â"€ Save Transaction â"€â"€
         st.markdown("---")
         col_s1, col_s2, col_s3 = st.columns([2, 1, 1])
         with col_s1:
@@ -2308,13 +2308,13 @@ def render_purchase_input():
                 key="purchase_metode_bayar",
                 help="Transfer = bayar via bank, Cash = tunai, Kontrabon = bayar nanti (hutang)"
             )
-            # Semua PO baru berstatus PENDING â€” menunggu konfirmasi Finance
+            # Semua PO baru berstatus PENDING â€" menunggu konfirmasi Finance
             status_bayar = "PENDING"
-            st.caption("ðŸ“Œ Status: PENDING (menunggu konfirmasi Finance)")
+            st.caption("ðŸ"Œ Status: PENDING (menunggu konfirmasi Finance)")
         with col_s3:
             st.write("")
             st.write("")
-            if st.button("ðŸ’¾ Simpan Pembelian & Update Stok", type="primary", width="stretch"):
+            if st.button("ðŸ'¾ Simpan Pembelian & Update Stok", type="primary", width="stretch"):
                 if not faktur.strip():
                     st.error("No Faktur wajib diisi!")
                 elif not supplier:
@@ -2340,7 +2340,7 @@ def render_purchase_input():
                                  biaya_operasional, biaya_packing),
                             )
 
-                            # â”€â”€ Auto-update SKU: stok + harga_beli + supplier â”€â”€
+                            # â"€â"€ Auto-update SKU: stok + harga_beli + supplier â"€â"€
                             sku_current = db.fetch_one(
                                 "SELECT harga_beli, supplier FROM sku WHERE kode_sku = ?",
                                 (item["kode_sku"],),
@@ -2381,14 +2381,14 @@ def render_purchase_input():
                         except Exception as e:
                             errors.append(f"{item['kode_sku']}: {str(e)}")
 
-                    # â”€â”€ Show price change warnings â”€â”€
+                    # â"€â"€ Show price change warnings â"€â"€
                     if price_changes:
-                        with st.expander(f"âš ï¸ **{len(price_changes)} perubahan Harga Beli terdeteksi** â€” Klik untuk detail", expanded=True):
+                        with st.expander(f"âš ï¸ **{len(price_changes)} perubahan Harga Beli terdeteksi** â€" Klik untuk detail", expanded=True):
                             for pc in price_changes:
-                                arah = "ðŸ“ˆ NAIK" if pc["selisih"] > 0 else "ðŸ“‰ TURUN"
+                                arah = "ðŸ"ˆ NAIK" if pc["selisih"] > 0 else "ðŸ"‰ TURUN"
                                 st.markdown(
-                                    f"â€¢ **{pc['kode']}** â€” {pc['nama']} | "
-                                    f"Harga Lama: Rp {pc['lama']:,.0f} â†’ Harga Baru: Rp {pc['baru']:,.0f} "
+                                    f"â€¢ **{pc['kode']}** â€" {pc['nama']} | "
+                                    f"Harga Lama: Rp {pc['lama']:,.0f} â†' Harga Baru: Rp {pc['baru']:,.0f} "
                                     f"({arah} Rp {abs(pc['selisih']):,.0f})"
                                 )
 
@@ -2399,7 +2399,7 @@ def render_purchase_input():
                                 st.caption(f"â€¢ {e}")
                     else:
                         change_msg = f" | {len(price_changes)} harga beli diupdate" if price_changes else ""
-                        st.success(f"âœ… Pembelian berhasil! {saved_count} item disimpan & stok diupdate.{change_msg}")
+                        st.success(f"âœ... Pembelian berhasil! {saved_count} item disimpan & stok diupdate.{change_msg}")
                         # Reset cart
                         st.session_state.purchase_cart = []
                         st.session_state.purchase_faktur = _generate_faktur(db)
@@ -2413,9 +2413,9 @@ def render_purchase_history():
     """Render riwayat transaksi pembelian."""
     db = st.session_state.db
 
-    st.subheader("ðŸ“‹ Riwayat Pembelian")
+    st.subheader("ðŸ"‹ Riwayat Pembelian")
 
-    # â”€â”€ Stats â”€â”€
+    # â"€â"€ Stats â"€â"€
     total_trx = db.fetch_one("SELECT COUNT(DISTINCT no_faktur) as cnt FROM pembelian")
     total_items = db.fetch_one("SELECT COUNT(*) as cnt FROM pembelian")
     total_value = db.fetch_one(
@@ -2436,28 +2436,28 @@ def render_purchase_history():
 
     col_s1, col_s2, col_s3, col_s4, col_s5 = st.columns(5)
     with col_s1:
-        st.metric("ðŸ“‹ Total Transaksi", total_trx["cnt"] if total_trx else 0)
+        st.metric("ðŸ"‹ Total Transaksi", total_trx["cnt"] if total_trx else 0)
     with col_s2:
-        st.metric("ðŸ“¦ Total Item Dibeli", total_items["cnt"] if total_items else 0)
+        st.metric("ðŸ"¦ Total Item Dibeli", total_items["cnt"] if total_items else 0)
     with col_s3:
         val = total_value["total"] if total_value else 0
         biaya_ops_val = total_biaya_ops["total"] if total_biaya_ops else 0
         biaya_pack_val = total_biaya_pack["total"] if total_biaya_pack else 0
-        st.metric("ðŸ’° Total Nilai", f"Rp {val:,.0f}",
+        st.metric("ðŸ'° Total Nilai", f"Rp {val:,.0f}",
                   help=f"Termasuk biaya operasional Rp {biaya_ops_val:,.0f} & biaya packing Rp {biaya_pack_val:,.0f}")
     with col_s4:
         pd_val = pending_value["total"] if pending_value else 0
-        st.metric("ðŸ“Œ Pending", f"Rp {pd_val:,.0f}" if pd_val > 0 else "Rp 0")
+        st.metric("ðŸ"Œ Pending", f"Rp {pd_val:,.0f}" if pd_val > 0 else "Rp 0")
     with col_s5:
         kb_val = kontrabon_value["total"] if kontrabon_value else 0
         st.metric("âš ï¸ Kontrabon", f"Rp {kb_val:,.0f}" if kb_val > 0 else "Rp 0")
 
     st.markdown("---")
 
-    # â”€â”€ Filters â”€â”€
+    # â"€â"€ Filters â"€â"€
     col_f1, col_f2, col_f3, col_f4 = st.columns(4)
     with col_f1:
-        search_faktur = st.text_input("ðŸ” No Faktur", placeholder="PO-...", key="hist_search_faktur")
+        search_faktur = st.text_input("ðŸ" No Faktur", placeholder="PO-...", key="hist_search_faktur")
     with col_f2:
         all_suppliers = db.fetch_all("SELECT DISTINCT supplier FROM pembelian ORDER BY supplier")
         supp_list = ["Semua"] + [s["supplier"] for s in all_suppliers]
@@ -2471,7 +2471,7 @@ def render_purchase_history():
     with col_f4:
         sort_order = st.selectbox("Urutkan", ["Terbaru", "Terlama", "Nilai Tertinggi", "Nilai Terendah"], key="hist_sort")
 
-    # â”€â”€ Query â”€â”€
+    # â"€â"€ Query â"€â"€
     query = "SELECT * FROM pembelian WHERE 1=1"
     params = []
 
@@ -2497,7 +2497,7 @@ def render_purchase_history():
     rows = db.fetch_all(query, params)
 
     if not rows:
-        st.info("ðŸ“­ Belum ada riwayat pembelian.")
+        st.info("ðŸ"­ Belum ada riwayat pembelian.")
     else:
         df_hist = pd.DataFrame([dict(r) for r in rows])
         df_hist = df_hist.rename(columns={
@@ -2527,7 +2527,7 @@ def render_purchase_history():
 
         # Summary per faktur
         st.markdown("---")
-        st.markdown("### ðŸ“Š Ringkasan per Faktur")
+        st.markdown("### ðŸ"Š Ringkasan per Faktur")
         faktur_summary = db.fetch_all(
             "SELECT no_faktur, tanggal, supplier, metode_bayar, status_bayar, "
             "COUNT(*) as items, SUM(total_harga) as total_barang, "
@@ -2556,15 +2556,15 @@ def render_purchase_history():
             st.dataframe(display_faktur, width="stretch", hide_index=True)
             st.caption(f"Total: {len(faktur_summary)} faktur")
 
-        # â”€â”€ Delete â”€â”€
+        # â"€â"€ Delete â"€â"€
         st.markdown("---")
-        with st.expander("ðŸ-‘ï¸ Hapus Transaksi", expanded=False):
+        with st.expander("ðŸ-'ï¸ Hapus Transaksi", expanded=False):
             faktur_to_delete = st.selectbox(
                 "Pilih No Faktur untuk dihapus",
                 ["-- Pilih --"] + [f"{r['no_faktur']} ({r['tanggal']}, {r['supplier']})" for r in faktur_summary] if faktur_summary else ["-- Tidak ada --"],
                 key="hist_delete_faktur",
             )
-            if st.button("ðŸ-‘ï¸ Hapus Faktur & Rollback Stok", type="primary"):
+            if st.button("ðŸ-'ï¸ Hapus Faktur & Rollback Stok", type="primary"):
                 if faktur_to_delete != "-- Pilih --" and faktur_to_delete != "-- Tidak ada --":
                     no_faktur = faktur_to_delete.split(" (")[0]
                     # Rollback stok
@@ -2579,7 +2579,7 @@ def render_purchase_history():
                     st.success(f"Faktur '{no_faktur}' dihapus & stok di-rollback.")
                     st.rerun()
 
-        # â”€â”€ Revisi Pembelian â”€â”€
+        # â"€â"€ Revisi Pembelian â"€â"€
         st.markdown("---")
         with st.expander("âœï¸ Revisi Pembelian", expanded=False):
             st.markdown("Pilih faktur untuk direvisi. Stok akan di-rollback lalu dihitung ulang dengan data baru.")
@@ -2624,10 +2624,10 @@ def render_purchase_history():
 
                 revisi_cart = st.session_state.revisi_cart
 
-                # â”€â”€ Header info â”€â”€
+                # â"€â"€ Header info â"€â"€
                 st.markdown(f"**No Faktur:** `{no_faktur_revisi}` | **Supplier:** {current_supplier} | **Tanggal:** {current_tanggal}")
 
-                # â”€â”€ Edit Supplier â”€â”€
+                # â"€â"€ Edit Supplier â"€â"€
                 all_supplier_names = sorted(set(
                     [s["supplier"] for s in db.fetch_all("SELECT DISTINCT supplier FROM sku WHERE supplier != ''")]
                     + [s["supplier"] for s in db.fetch_all("SELECT DISTINCT supplier FROM pembelian WHERE supplier != ''")]
@@ -2653,27 +2653,27 @@ def render_purchase_history():
                     revisi_metode = st.selectbox("Metode Bayar", metode_options, index=idx_metode, key="revisi_metode_select")
                     st.session_state.revisi_metode = revisi_metode
                 with col_p2:
-                    # Preserve existing status_bayar â€” hanya Finance yang bisa mengubah
+                    # Preserve existing status_bayar â€" hanya Finance yang bisa mengubah
                     revisi_status = st.session_state.get("revisi_status", current_status)
                     if revisi_status == "PENDING":
-                        st.warning("ðŸ“Œ Status: **PENDING** (menunggu konfirmasi Finance)")
+                        st.warning("ðŸ"Œ Status: **PENDING** (menunggu konfirmasi Finance)")
                     elif revisi_status == "LUNAS":
-                        st.success("âœ… Status: **LUNAS** (sudah dikonfirmasi Finance)")
+                        st.success("âœ... Status: **LUNAS** (sudah dikonfirmasi Finance)")
                     elif revisi_status == "KONTRA BON":
-                        st.info("ðŸ“‹ Status: **KONTRA BON** (hutang)")
+                        st.info("ðŸ"‹ Status: **KONTRA BON** (hutang)")
                     else:
                         st.caption(f"Status: {revisi_status}")
-                    st.caption("âš ï¸ Status bayar tidak berubah saat revisi. Gunakan menu ðŸ’³ Finance untuk konfirmasi.")
+                    st.caption("âš ï¸ Status bayar tidak berubah saat revisi. Gunakan menu ðŸ'³ Finance untuk konfirmasi.")
 
                 st.markdown("---")
 
-                # â”€â”€ Edit existing items â”€â”€
-                st.markdown("### ðŸ“‹ Item Existing")
+                # â"€â"€ Edit existing items â"€â"€
+                st.markdown("### ðŸ"‹ Item Existing")
                 items_to_delete = []
                 for i, item in enumerate(revisi_cart):
                     col_r1, col_r2, col_r3, col_r4, col_r5 = st.columns([2, 1, 1.5, 1, 0.5])
                     with col_r1:
-                        st.markdown(f"**{item['kode_sku']}** â€” {item['nama_barang']} ({item['satuan']})")
+                        st.markdown(f"**{item['kode_sku']}** â€" {item['nama_barang']} ({item['satuan']})")
                     with col_r2:
                         new_qty = st.number_input(
                             "Qty", min_value=1, value=item["qty"], step=1,
@@ -2705,19 +2705,19 @@ def render_purchase_history():
 
                 st.markdown("---")
 
-                # â”€â”€ Add new item â”€â”€
+                # â"€â"€ Add new item â"€â"€
                 st.markdown("### âž• Tambah Item Baru")
                 all_sku = db.fetch_all(
                     "SELECT kode_sku, nama_barang, satuan, harga_beli, stok, supplier FROM sku ORDER BY kode_sku"
                 )
-                search_add = st.text_input("ðŸ” Cari SKU", placeholder="Ketik kode atau nama...", key="revisi_search_add")
+                search_add = st.text_input("ðŸ" Cari SKU", placeholder="Ketik kode atau nama...", key="revisi_search_add")
                 search_lower = search_add.strip().lower() if search_add else ""
                 filtered_add = [s for s in all_sku if not search_lower or search_lower in s["kode_sku"].lower() or search_lower in s["nama_barang"].lower()]
 
                 add_options = {}
                 if filtered_add:
                     add_options = {
-                        f"{s['kode_sku']} â€” {s['nama_barang']} | Stok: {s['stok']}": s
+                        f"{s['kode_sku']} â€" {s['nama_barang']} | Stok: {s['stok']}": s
                         for s in filtered_add[:100]
                     }
 
@@ -2748,15 +2748,15 @@ def render_purchase_history():
                             st.success(f"{sku['kode_sku']} ditambahkan!")
                             st.rerun()
 
-                # â”€â”€ Summary â”€â”€
+                # â"€â"€ Summary â"€â"€
                 st.markdown("---")
                 grand_revisi = sum(item["total_harga"] for item in revisi_cart)
-                st.markdown(f"**ðŸ“¦ {len(revisi_cart)} item | ðŸ’µ Total: Rp {grand_revisi:,.0f}**")
+                st.markdown(f"**ðŸ"¦ {len(revisi_cart)} item | ðŸ'µ Total: Rp {grand_revisi:,.0f}**")
 
-                # â”€â”€ Save Revision â”€â”€
+                # â"€â"€ Save Revision â"€â"€
                 col_sv1, col_sv2 = st.columns(2)
                 with col_sv1:
-                    if st.button("ðŸ’¾ Simpan Revisi & Update Stok", type="primary", width="stretch"):
+                    if st.button("ðŸ'¾ Simpan Revisi & Update Stok", type="primary", width="stretch"):
                         if not revisi_cart:
                             st.error("Tidak ada item untuk disimpan.")
                         elif not revisi_supplier:
@@ -2829,10 +2829,10 @@ def render_purchase_history():
                                 if price_changes:
                                     st.warning(f"âš ï¸ {len(price_changes)} harga beli diupdate:")
                                     for pc in price_changes:
-                                        arah = "ðŸ“ˆ" if pc["selisih"] > 0 else "ðŸ“‰"
-                                        st.caption(f"{arah} {pc['kode']}: Rp {pc['lama']:,.0f} â†’ Rp {pc['baru']:,.0f}")
+                                        arah = "ðŸ"ˆ" if pc["selisih"] > 0 else "ðŸ"‰"
+                                        st.caption(f"{arah} {pc['kode']}: Rp {pc['lama']:,.0f} â†' Rp {pc['baru']:,.0f}")
 
-                                st.success(f"âœ… Revisi faktur '{no_faktur_revisi}' berhasil! {len(revisi_cart)} item disimpan.")
+                                st.success(f"âœ... Revisi faktur '{no_faktur_revisi}' berhasil! {len(revisi_cart)} item disimpan.")
                                 # Clean up session
                                 st.session_state.revisi_cart = []
                                 st.session_state.revisi_faktur_key = ""
@@ -2849,29 +2849,29 @@ def render_purchase_history():
 
 
 def render_purchase_finance():
-    """Render halaman Finance â€” konfirmasi pembayaran PO yang PENDING."""
+    """Render halaman Finance â€" konfirmasi pembayaran PO yang PENDING."""
     db = st.session_state.db
 
-    st.subheader("ðŸ’³ Finance â€” Konfirmasi Pembayaran PO")
+    st.subheader("ðŸ'³ Finance â€" Konfirmasi Pembayaran PO")
 
-    # â”€â”€ Stats â”€â”€
+    # â"€â"€ Stats â"€â"€
     pending_count = db.fetch_one("SELECT COUNT(DISTINCT no_faktur) as cnt FROM pembelian WHERE status_bayar = 'PENDING'")
     pending_value = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM pembelian WHERE status_bayar = 'PENDING'")
     kontrabon_value = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM pembelian WHERE status_bayar = 'KONTRA BON'")
 
     col_s1, col_s2, col_s3 = st.columns(3)
     with col_s1:
-        st.metric("ðŸ“Œ PO Pending", f"{pending_count['cnt']}" if pending_count else "0")
+        st.metric("ðŸ"Œ PO Pending", f"{pending_count['cnt']}" if pending_count else "0")
     with col_s2:
         val_pd = pending_value["total"] if pending_value else 0
-        st.metric("ðŸ’° Nilai Pending", f"Rp {val_pd:,.0f}")
+        st.metric("ðŸ'° Nilai Pending", f"Rp {val_pd:,.0f}")
     with col_s3:
         val_kb = kontrabon_value["total"] if kontrabon_value else 0
         st.metric("âš ï¸ Total Kontrabon", f"Rp {val_kb:,.0f}")
 
     st.markdown("---")
 
-    # â”€â”€ Daftar PO Pending â”€â”€
+    # â"€â"€ Daftar PO Pending â"€â"€
     pending_fakturs = db.fetch_all(
         "SELECT no_faktur, tanggal, supplier, metode_bayar, "
         "COUNT(*) as items, SUM(total_harga) as total_barang, "
@@ -2881,11 +2881,11 @@ def render_purchase_finance():
     )
 
     if not pending_fakturs:
-        st.success("âœ… Tidak ada PO yang pending. Semua sudah dikonfirmasi.")
+        st.success("âœ... Tidak ada PO yang pending. Semua sudah dikonfirmasi.")
     else:
-        st.markdown(f"### ðŸ“‹ {len(pending_fakturs)} PO Menunggu Konfirmasi")
+        st.markdown(f"### ðŸ"‹ {len(pending_fakturs)} PO Menunggu Konfirmasi")
 
-        # â”€â”€ Tabel PO Pending â”€â”€
+        # â"€â"€ Tabel PO Pending â"€â"€
         # Build pending dataframe with biaya
         df_pending_data = []
         for r in pending_fakturs:
@@ -2915,8 +2915,8 @@ def render_purchase_finance():
 
         st.markdown("---")
 
-        # â”€â”€ Konfirmasi per PO â”€â”€
-        st.markdown("### âœ… Konfirmasi Pembayaran")
+        # â"€â"€ Konfirmasi per PO â"€â"€
+        st.markdown("### âœ... Konfirmasi Pembayaran")
 
         faktur_options = []
         for r in pending_fakturs:
@@ -2960,36 +2960,36 @@ def render_purchase_finance():
 
             col_b1, col_b2, col_b3, col_b4 = st.columns(4)
             with col_b1:
-                st.metric("ðŸ“¦ Total Barang", f"Rp {total_barang_val:,.0f}")
+                st.metric("ðŸ"¦ Total Barang", f"Rp {total_barang_val:,.0f}")
             with col_b2:
-                st.metric("ðŸ”§ Biaya Operasional", f"Rp {biaya_ops_val:,.0f}" if biaya_ops_val else "-")
+                st.metric("ðŸ"§ Biaya Operasional", f"Rp {biaya_ops_val:,.0f}" if biaya_ops_val else "-")
             with col_b3:
-                st.metric("ðŸ“¦ Biaya Packing", f"Rp {biaya_pack_val:,.0f}" if biaya_pack_val else "-")
+                st.metric("ðŸ"¦ Biaya Packing", f"Rp {biaya_pack_val:,.0f}" if biaya_pack_val else "-")
             with col_b4:
-                st.metric("ðŸ’° Grand Total", f"Rp {grand_val:,.0f}")
+                st.metric("ðŸ'° Grand Total", f"Rp {grand_val:,.0f}")
 
         st.markdown("---")
         col_c1, col_c2, col_c3 = st.columns(3)
         with col_c1:
-            if st.button("âœ… Konfirmasi LUNAS", type="primary", width="stretch"):
+            if st.button("âœ... Konfirmasi LUNAS", type="primary", width="stretch"):
                 db.execute("UPDATE pembelian SET status_bayar = 'LUNAS' WHERE no_faktur = ?", (selected_no_faktur,))
-                st.success(f"PO '{selected_no_faktur}' dikonfirmasi LUNAS! âœ…")
+                st.success(f"PO '{selected_no_faktur}' dikonfirmasi LUNAS! âœ...")
                 st.rerun()
         with col_c2:
-            if st.button("ðŸ“‹ Konfirmasi KONTRA BON", width="stretch"):
+            if st.button("ðŸ"‹ Konfirmasi KONTRA BON", width="stretch"):
                 db.execute("UPDATE pembelian SET status_bayar = 'KONTRA BON' WHERE no_faktur = ?", (selected_no_faktur,))
-                st.success(f"PO '{selected_no_faktur}' dikonfirmasi sebagai KONTRA BON! ðŸ“‹")
+                st.success(f"PO '{selected_no_faktur}' dikonfirmasi sebagai KONTRA BON! ðŸ"‹")
                 st.rerun()
         with col_c3:
-            if st.button("ðŸ”™ Kembalikan ke PENDING", width="stretch"):
+            if st.button("ðŸ"™ Kembalikan ke PENDING", width="stretch"):
                 db.execute("UPDATE pembelian SET status_bayar = 'PENDING' WHERE no_faktur = ?", (selected_no_faktur,))
                 st.info(f"PO '{selected_no_faktur}' dikembalikan ke PENDING.")
                 st.rerun()
 
     st.markdown("---")
 
-    # â”€â”€ Riwayat Konfirmasi â”€â”€
-    with st.expander("ðŸ“‹ Riwayat PO Sudah Dikonfirmasi (LUNAS / KONTRA BON)", expanded=False):
+    # â"€â"€ Riwayat Konfirmasi â"€â"€
+    with st.expander("ðŸ"‹ Riwayat PO Sudah Dikonfirmasi (LUNAS / KONTRA BON)", expanded=False):
         confirmed = db.fetch_all(
             "SELECT no_faktur, tanggal, supplier, metode_bayar, status_bayar, COUNT(*) as items, SUM(total_harga) as total "
             "FROM pembelian WHERE status_bayar IN ('LUNAS', 'KONTRA BON') "
@@ -3021,10 +3021,10 @@ def render_purchase_archive():
     """Render arsip/export laporan pembelian."""
     db = st.session_state.db
 
-    st.subheader("ðŸ“ Arsip Laporan Pembelian")
+    st.subheader("ðŸ" Arsip Laporan Pembelian")
 
-    # â”€â”€ Export options â”€â”€
-    st.markdown("### ðŸ“¤ Export Laporan Pembelian")
+    # â"€â"€ Export options â"€â"€
+    st.markdown("### ðŸ"¤ Export Laporan Pembelian")
 
     col_e1, col_e2 = st.columns(2)
     with col_e1:
@@ -3040,7 +3040,7 @@ def render_purchase_archive():
             key="archive_exp_period",
         )
 
-    if st.button("ðŸ“Š Generate Laporan Pembelian", type="primary"):
+    if st.button("ðŸ"Š Generate Laporan Pembelian", type="primary"):
         query = "SELECT * FROM pembelian WHERE 1=1"
         params = []
 
@@ -3113,11 +3113,11 @@ def render_purchase_archive():
                     file_name=filename,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
-            st.success(f"âœ… Laporan tersimpan: {filename}")
+            st.success(f"âœ... Laporan tersimpan: {filename}")
 
-    # â”€â”€ List existing exports â”€â”€
+    # â"€â"€ List existing exports â"€â"€
     st.markdown("---")
-    st.markdown("### ðŸ“‚ File Laporan Sebelumnya")
+    st.markdown("### ðŸ"‚ File Laporan Sebelumnya")
     if os.path.exists(Config.SALES_FOLDER):
         files = sorted(
             [f for f in os.listdir(Config.SALES_FOLDER) if f.startswith("Laporan_Pembelian_") and f.endswith(".xlsx")],
@@ -3130,7 +3130,7 @@ def render_purchase_archive():
                 mod_time = datetime.fromtimestamp(os.path.getmtime(filepath))
                 col_f1, col_f2 = st.columns([3, 1])
                 with col_f1:
-                    st.markdown(f"ðŸ“„ **{f}** â€” {size_kb:.1f} KB â€” {mod_time.strftime('%d-%m-%Y %H:%M')}")
+                    st.markdown(f"ðŸ"„ **{f}** â€" {size_kb:.1f} KB â€" {mod_time.strftime('%d-%m-%Y %H:%M')}")
                 with col_f2:
                     with open(filepath, "rb") as fp:
                         st.download_button("â¬‡ï¸ Download", fp, file_name=f, key=f"dl_purchase_{f}", width="stretch")
@@ -3162,7 +3162,7 @@ def _auto_detect_sales_column(excel_cols: list, candidates: list) -> int:
 
 def _render_marketplace_tab(db, marketplace, mp_key):
     """Render upload form untuk satu marketplace spesifik."""
-    st.markdown(f"### ðŸ“¤ Upload File {marketplace}")
+    st.markdown(f"### ðŸ"¤ Upload File {marketplace}")
 
     uploaded_file = st.file_uploader(
         f"Upload File Excel Pesanan {marketplace} (.xlsx / .xls)",
@@ -3179,10 +3179,10 @@ def _render_marketplace_tab(db, marketplace, mp_key):
             if df_raw.empty:
                 st.error("File Excel kosong.")
             else:
-                st.success(f"âœ… File berhasil dibaca: **{len(df_raw)} baris**, {len(df_raw.columns)} kolom.")
+                st.success(f"âœ... File berhasil dibaca: **{len(df_raw)} baris**, {len(df_raw.columns)} kolom.")
                 st.caption(f"Kolom terdeteksi: {', '.join(df_raw.columns.astype(str).tolist())}")
 
-                # â”€â”€ Marketplace-specific detection keywords â”€â”€
+                # â"€â"€ Marketplace-specific detection keywords â"€â"€
                 if marketplace == "TikTok":
                     order_keys = ["no_pesanan", "order_id", "id_pesanan", "nomor_pesanan", "order_no", "no_order"]
                     resi_keys = ["no_resi", "resi", "tracking", "tracking_number", "awb", "nomor_resi", "no_awb"]
@@ -3226,8 +3226,8 @@ def _render_marketplace_tab(db, marketplace, mp_key):
                     status_keys = ["status", "status_pesanan", "order_status", "state", "order_status_final"]
                     ket_keys = ["keterangan", "ket", "notes", "remark", "catatan", "note", "description"]
 
-                # â”€â”€ Column Mapping â”€â”€
-                st.markdown("#### ðŸ”- Mapping Kolom")
+                # â"€â"€ Column Mapping â"€â"€
+                st.markdown("#### ðŸ"- Mapping Kolom")
                 excel_cols = [""] + df_raw.columns.tolist()
 
                 col_m1, col_m2, col_m3 = st.columns(3)
@@ -3261,7 +3261,7 @@ def _render_marketplace_tab(db, marketplace, mp_key):
                     map_ket = st.selectbox("Keterangan", excel_cols, key=f"map_ket_{mp_key}",
                                            index=_auto_detect_sales_column(excel_cols, ket_keys))
 
-                # â”€â”€ Toko Select (Dropdown dari Database) â”€â”€
+                # â"€â"€ Toko Select (Dropdown dari Database) â"€â"€
                 toko_list = db.fetch_all("SELECT nama FROM toko ORDER BY nama")
                 toko_options = [t["nama"] for t in toko_list] if toko_list else []
                 toko_options_with_custom = toko_options + ["âž• Toko Baru (Ketik Manual)..."]
@@ -3278,7 +3278,7 @@ def _render_marketplace_tab(db, marketplace, mp_key):
                     if selected_toko_option == "âž• Toko Baru (Ketik Manual)...":
                         st.caption("â¬‡ï¸ Ketik nama toko baru di bawah")
                     elif selected_toko_option:
-                        st.caption("âœ… Dari daftar toko")
+                        st.caption("âœ... Dari daftar toko")
                 
                 if selected_toko_option == "âž• Toko Baru (Ketik Manual)...":
                     toko_manual = st.text_input(
@@ -3289,17 +3289,17 @@ def _render_marketplace_tab(db, marketplace, mp_key):
                 else:
                     toko_manual = selected_toko_option
 
-                # â”€â”€ Preview â”€â”€
+                # â"€â"€ Preview â"€â"€
                 if map_order:
-                    st.markdown("#### ðŸ‘ï¸ Preview Data")
+                    st.markdown("#### ðŸ'ï¸ Preview Data")
                     preview_cols = [c for c in [map_order, map_resi, map_tgl_order, map_kurir, map_produk, map_sku, map_qty, map_harga, map_pembeli, map_toko, map_status] if c]
                     if preview_cols:
                         st.dataframe(df_raw[preview_cols].head(20), width="stretch", hide_index=True)
                         if len(df_raw) > 20:
                             st.caption(f"... dan {len(df_raw) - 20} baris lainnya.")
 
-                    # â”€â”€ SKU Matching Preview â”€â”€
-                    st.markdown("#### ðŸ”- Preview Pencocokan SKU")
+                    # â"€â"€ SKU Matching Preview â"€â"€
+                    st.markdown("#### ðŸ"- Preview Pencocokan SKU")
                     all_sku = {s["kode_sku"].upper(): s for s in db.fetch_all("SELECT kode_sku, nama_barang, harga_jual FROM sku")}
                     match_count = 0
                     no_match_count = 0
@@ -3331,7 +3331,7 @@ def _render_marketplace_tab(db, marketplace, mp_key):
                         st.dataframe(df_match, width="stretch", hide_index=True)
                         st.caption(f"Preview 15 baris pertama. Total: {match_count} cocok, {no_match_count} tidak cocok.")
 
-                    # â”€â”€ Import â”€â”€
+                    # â"€â"€ Import â"€â"€
                     st.markdown("---")
                     if st.button(f"ðŸš€ Import {marketplace} & Cocokkan SKU", type="primary", key=f"btn_import_{mp_key}"):
                         if not map_order:
@@ -3390,7 +3390,7 @@ def _render_marketplace_tab(db, marketplace, mp_key):
                                             except:
                                                 pass
 
-                                    # â”€â”€ Upsert: UPDATE if exists, INSERT if new â”€â”€
+                                    # â"€â"€ Upsert: UPDATE if exists, INSERT if new â"€â"€
                                     existing = db.fetch_one(
                                         "SELECT id, no_resi, status_pesanan FROM penjualan WHERE no_pesanan = ? AND marketplace = ? AND nama_produk = ?",
                                         (no_pesanan, marketplace, nama_produk),
@@ -3448,15 +3448,15 @@ def _render_marketplace_tab(db, marketplace, mp_key):
                                     errors += 1
                                     error_details.append(f"Baris {idx + 2}: {str(e)}")
 
-                            st.markdown("### ðŸ“Š Hasil Import")
+                            st.markdown("### ðŸ"Š Hasil Import")
                             total_processed = imported + upserted
                             col_r1, col_r2, col_r3, col_r4, col_r5 = st.columns(5)
                             with col_r1:
-                                st.metric("âœ… Baru", imported)
+                                st.metric("âœ... Baru", imported)
                             with col_r2:
-                                st.metric("ðŸ”„ Diupdate (Upsert)", upserted)
+                                st.metric("ðŸ"„ Diupdate (Upsert)", upserted)
                             with col_r3:
-                                st.metric("ðŸ”- SKU Cocok", matched_sku)
+                                st.metric("ðŸ"- SKU Cocok", matched_sku)
                             with col_r4:
                                 st.metric("âš ï¸ SKU Tidak Cocok", total_processed - matched_sku)
                             with col_r5:
@@ -3473,7 +3473,7 @@ def _render_marketplace_tab(db, marketplace, mp_key):
                             if upserted > 0:
                                 msg_parts.append(f"{upserted} diupdate (contoh: Resi yang sebelumnya kosong diisi)")
                             st.success(f"Import selesai! {', '.join(msg_parts)} dari {marketplace}.")
-                            if st.button("ðŸ”„ Refresh", width="stretch", key=f"btn_refresh_{mp_key}"):
+                            if st.button("ðŸ"„ Refresh", width="stretch", key=f"btn_refresh_{mp_key}"):
                                 st.rerun()
 
         except Exception as e:
@@ -3481,12 +3481,12 @@ def _render_marketplace_tab(db, marketplace, mp_key):
 
 
 def render_sales_input():
-    """Render upload pesanan dari marketplace â€” tab terpisah per marketplace."""
+    """Render upload pesanan dari marketplace â€" tab terpisah per marketplace."""
     db = st.session_state.db
 
-    st.subheader("ðŸ“¦ Input Resi & No Pesanan (Marketplace)")
+    st.subheader("ðŸ"¦ Input Resi & No Pesanan (Marketplace)")
 
-    # â”€â”€ Bulk Cancel Upload (Pembatalan Marketplace) â”€â”€
+    # â"€â"€ Bulk Cancel Upload (Pembatalan Marketplace) â"€â"€
     render_bulk_cancel_upload(db)
 
     st.markdown("---")
@@ -3495,7 +3495,7 @@ def render_sales_input():
     Upload file Excel dari marketplace. Setiap marketplace punya tab upload sendiri karena format kolom berbeda.
     """)
 
-    tab1, tab2, tab3 = st.tabs(["ðŸŸ  Shopee", "âš« TikTok", "ðŸ”µ Lazada"])
+    tab1, tab2, tab3 = st.tabs(["ðŸŸ  Shopee", "âš« TikTok", "ðŸ"µ Lazada"])
 
     with tab1:
         _render_marketplace_tab(db, "Shopee", "shopee")
@@ -3504,32 +3504,32 @@ def render_sales_input():
     with tab3:
         _render_marketplace_tab(db, "Lazada", "lazada")
 
-    # â”€â”€ Stats â”€â”€
+    # â"€â"€ Stats â"€â"€
     st.markdown("---")
-    st.markdown("### ðŸ“Š Data Penjualan Saat Ini")
+    st.markdown("### ðŸ"Š Data Penjualan Saat Ini")
     stats_sales = db.fetch_one("SELECT COUNT(*) as rows, COUNT(DISTINCT no_pesanan) as orders, COALESCE(SUM(total_harga), 0) as total FROM penjualan WHERE status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')")
     sku_matched = db.fetch_one("SELECT COUNT(*) as cnt FROM penjualan WHERE sku_terdeteksi != '' AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')")
 
     col_st1, col_st2, col_st3, col_st4, col_st5 = st.columns(5)
     with col_st1:
-        st.metric("ðŸ“¦ Total Pesanan (unik)", f"{stats_sales['orders']:,}" if stats_sales else "0")
+        st.metric("ðŸ"¦ Total Pesanan (unik)", f"{stats_sales['orders']:,}" if stats_sales else "0")
     with col_st2:
-        st.metric("ðŸ“‹ Total Item (baris)", f"{stats_sales['rows']:,}" if stats_sales else "0")
+        st.metric("ðŸ"‹ Total Item (baris)", f"{stats_sales['rows']:,}" if stats_sales else "0")
     with col_st3:
-        st.metric("ðŸ’° Total Nilai", f"Rp {stats_sales['total']:,.0f}" if stats_sales else "Rp 0")
+        st.metric("ðŸ'° Total Nilai", f"Rp {stats_sales['total']:,.0f}" if stats_sales else "Rp 0")
     with col_st4:
         total_s = stats_sales["rows"] if stats_sales else 0
         matched_s = sku_matched["cnt"] if sku_matched else 0
         pct = f"{(matched_s / total_s * 100):.0f}%" if total_s > 0 else "0%"
-        st.metric("ðŸ”- SKU Cocok", f"{matched_s} ({pct})")
+        st.metric("ðŸ"- SKU Cocok", f"{matched_s} ({pct})")
     with col_st5:
         st.write("")
-        if st.button("ðŸ”„ Reset Form", width="stretch"):
+        if st.button("ðŸ"„ Reset Form", width="stretch"):
             st.rerun()
 
-    # â”€â”€ Hapus Data (Reset) â”€â”€
+    # â"€â"€ Hapus Data (Reset) â"€â"€
     st.markdown("---")
-    with st.expander("ðŸ-‘ï¸ Hapus / Reset Data Penjualan", expanded=False):
+    with st.expander("ðŸ-'ï¸ Hapus / Reset Data Penjualan", expanded=False):
         st.warning("âš ï¸ Hati-hati! Data yang dihapus tidak bisa dikembalikan.")
         col_d1, col_d2, col_d3 = st.columns(3)
         with col_d1:
@@ -3540,7 +3540,7 @@ def render_sales_input():
         with col_d3:
             st.write("")
             st.write("")
-            if st.button("ðŸ-‘ï¸ Hapus Data", width="stretch", type="primary"):
+            if st.button("ðŸ-'ï¸ Hapus Data", width="stretch", type="primary"):
                 del_query = "DELETE FROM penjualan WHERE 1=1"
                 del_params = []
                 if del_mp != "Semua":
@@ -3558,7 +3558,7 @@ def render_sales_input():
 
                 if count_before and count_before["cnt"] > 0:
                     db.execute(del_query, del_params if del_params else [])
-                    st.success(f"âœ… {count_before['cnt']} data dihapus.")
+                    st.success(f"âœ... {count_before['cnt']} data dihapus.")
                     st.rerun()
                 else:
                     st.info("Tidak ada data yang sesuai untuk dihapus.")
@@ -3568,9 +3568,9 @@ def render_sales_daily_report():
     """Render laporan penjualan harian dengan matching SKU."""
     db = st.session_state.db
 
-    st.subheader("ðŸ“Š Laporan Penjualan Harian")
+    st.subheader("ðŸ"Š Laporan Penjualan Harian")
 
-    # â”€â”€ Filters â”€â”€
+    # â"€â"€ Filters â"€â"€
     col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
     with col_f1:
         mp_filter = st.selectbox(
@@ -3593,7 +3593,7 @@ def render_sales_daily_report():
         rpt_date_str = rpt_date.strftime("%d-%m-%Y") if rpt_date else today.strftime("%d-%m-%Y")
     with col_f4:
         search_sales = st.text_input(
-            "ðŸ” Cari No Resi / No Pesanan",
+            "ðŸ" Cari No Resi / No Pesanan",
             placeholder="Ketik resi atau no pesanan...",
             key="sales_rpt_search",
         )
@@ -3604,7 +3604,7 @@ def render_sales_daily_report():
             key="sales_rpt_group",
         )
 
-    # â”€â”€ Build query â”€â”€
+    # â"€â"€ Build query â"€â"€
     query = "SELECT * FROM penjualan WHERE 1=1 AND status_pesanan NOT IN ('RETUR', 'KLAIM_PENDING', 'KLAIM_BERHASIL', 'KLAIM_GAGAL')"
     params = []
 
@@ -3628,7 +3628,7 @@ def render_sales_daily_report():
 
     rows = db.fetch_all(query, params)
 
-    # â”€â”€ Build summary params (without search, for grouped queries) â”€â”€
+    # â"€â"€ Build summary params (without search, for grouped queries) â"€â"€
     summary_params = []
     if mp_filter != "Semua":
         summary_params.append(mp_filter)
@@ -3640,10 +3640,10 @@ def render_sales_daily_report():
     st.markdown("---")
 
     if not rows:
-        st.info(f"ðŸ“­ Tidak ada data penjualan untuk tanggal {rpt_date_str}.")
+        st.info(f"ðŸ"­ Tidak ada data penjualan untuk tanggal {rpt_date_str}.")
     else:
         distinct_orders_header = len(set(r["no_pesanan"] for r in rows))
-        st.markdown(f"### ðŸ“‹ {distinct_orders_header} Pesanan ({len(rows)} item) â€” {rpt_date_str}")
+        st.markdown(f"### ðŸ"‹ {distinct_orders_header} Pesanan ({len(rows)} item) â€" {rpt_date_str}")
 
         df_rpt = pd.DataFrame([dict(r) for r in rows])
         df_rpt = df_rpt.rename(columns={
@@ -3665,7 +3665,7 @@ def render_sales_daily_report():
         styled = df_rpt[display_cols].style.map(color_sku, subset=["SKU"])
         st.dataframe(styled, width="stretch", height=450, hide_index=True)
 
-        # â”€â”€ Summary â”€â”€
+        # â"€â"€ Summary â"€â"€
         st.markdown("---")
         total_qty = sum(r["qty"] for r in rows)
         total_val = sum(r["total_harga"] for r in rows)
@@ -3673,21 +3673,21 @@ def render_sales_daily_report():
         distinct_orders = len(set(r["no_pesanan"] for r in rows))
         col_sm1, col_sm2, col_sm3, col_sm4, col_sm5 = st.columns(5)
         with col_sm1:
-            st.metric("ðŸ“¦ Pesanan (unik)", distinct_orders)
+            st.metric("ðŸ"¦ Pesanan (unik)", distinct_orders)
         with col_sm2:
-            st.metric("ðŸ“‹ Item (baris)", len(rows))
+            st.metric("ðŸ"‹ Item (baris)", len(rows))
         with col_sm3:
-            st.metric("ðŸ“Š Total Qty", total_qty)
+            st.metric("ðŸ"Š Total Qty", total_qty)
         with col_sm4:
-            st.metric("ðŸ’° Total", f"Rp {total_val:,.0f}")
+            st.metric("ðŸ'° Total", f"Rp {total_val:,.0f}")
         with col_sm5:
             pct = f"{(matched / len(rows) * 100):.0f}%" if rows else "0%"
-            st.metric("ðŸ”- SKU Cocok", f"{matched} ({pct})")
+            st.metric("ðŸ"- SKU Cocok", f"{matched} ({pct})")
 
-        # â”€â”€ Grouped Summary â”€â”€
+        # â"€â"€ Grouped Summary â"€â"€
         st.markdown("---")
         if group_by == "Per SKU":
-            st.markdown("### ðŸ“Š Ringkasan per SKU")
+            st.markdown("### ðŸ"Š Ringkasan per SKU")
             sku_summary = db.fetch_all(
                 "SELECT sku_terdeteksi, nama_produk, COUNT(*) as jml_pesanan, SUM(qty) as total_qty, "
                 "SUM(total_harga) as total, marketplace "
@@ -3708,7 +3708,7 @@ def render_sales_daily_report():
                 st.dataframe(df_sku, width="stretch", hide_index=True)
 
         elif group_by == "Per Marketplace":
-            st.markdown("### ðŸ“Š Ringkasan per Marketplace")
+            st.markdown("### ðŸ"Š Ringkasan per Marketplace")
             mp_summary = db.fetch_all(
                 "SELECT marketplace, COUNT(*) as jml_pesanan, SUM(qty) as total_qty, "
                 "SUM(total_harga) as total, "
@@ -3729,7 +3729,7 @@ def render_sales_daily_report():
                 st.dataframe(df_mp, width="stretch", hide_index=True)
 
         elif group_by == "Per Toko":
-            st.markdown("### ðŸ“Š Ringkasan per Toko")
+            st.markdown("### ðŸ"Š Ringkasan per Toko")
             toko_summary = db.fetch_all(
                 "SELECT nama_toko, COUNT(*) as jml_pesanan, SUM(qty) as total_qty, "
                 "SUM(total_harga) as total, "
@@ -3750,7 +3750,7 @@ def render_sales_daily_report():
                 st.dataframe(df_toko, width="stretch", hide_index=True)
 
         else:  # Per Produk
-            st.markdown("### ðŸ“Š Ringkasan per Produk")
+            st.markdown("### ðŸ"Š Ringkasan per Produk")
             prod_summary = db.fetch_all(
                 "SELECT nama_produk, COUNT(*) as jml_pesanan, SUM(qty) as total_qty, "
                 "SUM(total_harga) as total, marketplace "
@@ -3769,9 +3769,9 @@ def render_sales_daily_report():
                 df_prod["Total"] = df_prod["Total"].apply(lambda x: f"Rp {x:,.0f}")
                 st.dataframe(df_prod, width="stretch", hide_index=True)
 
-        # â”€â”€ Pendapatan Lain: Hasil Klaim (jurnal koreksi) â”€â”€
+        # â"€â"€ Pendapatan Lain: Hasil Klaim (jurnal koreksi) â"€â"€
         st.markdown("---")
-        st.markdown("### ðŸ’° Pendapatan Lain â€” Hasil Klaim (Jurnal Koreksi)")
+        st.markdown("### ðŸ'° Pendapatan Lain â€" Hasil Klaim (Jurnal Koreksi)")
 
         klaim_params = []
         if mp_filter != "Semua":
@@ -3795,11 +3795,11 @@ def render_sales_daily_report():
             col_k1, col_k2 = st.columns([3, 1])
             with col_k1:
                 st.info(
-                    f"ðŸ“‹ **{len(klaim_income)} klaim berhasil** â€” Pendapatan hasil klaim dari marketplace "
+                    f"ðŸ"‹ **{len(klaim_income)} klaim berhasil** â€" Pendapatan hasil klaim dari marketplace "
                     f"yang sudah disetujui dan dicairkan."
                 )
             with col_k2:
-                st.metric("ðŸ’° Total Hasil Klaim", f"Rp {total_klaim:,.0f}")
+                st.metric("ðŸ'° Total Hasil Klaim", f"Rp {total_klaim:,.0f}")
 
             df_klaim = pd.DataFrame([dict(k) for k in klaim_income])
             df_klaim = df_klaim.rename(columns={
@@ -3812,11 +3812,11 @@ def render_sales_daily_report():
             display_klaim = [c for c in ["Tgl Klaim", "No Resi", "No Pesanan", "MP", "Toko", "SKU", "Produk", "Qty", "Alasan", "Nominal", "Operator"] if c in df_klaim.columns]
             st.dataframe(df_klaim[display_klaim], width="stretch", height=250, hide_index=True)
         else:
-            st.caption("ðŸ“­ Tidak ada klaim berhasil untuk periode ini.")
+            st.caption("ðŸ"­ Tidak ada klaim berhasil untuk periode ini.")
 
-        # â”€â”€ Export â”€â”€
+        # â"€â"€ Export â"€â"€
         st.markdown("---")
-        if st.button("ðŸ“Š Export Laporan Penjualan (Excel)", type="primary"):
+        if st.button("ðŸ"Š Export Laporan Penjualan (Excel)", type="primary"):
             filename = f"Laporan_Penjualan_{rpt_date_str}_{mp_filter if mp_filter != 'Semua' else 'Semua'}.xlsx"
             filepath = os.path.join(Config.SALES_FOLDER, filename)
             with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
@@ -3834,24 +3834,24 @@ def render_sales_daily_report():
                     file_name=filename,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
-            st.success(f"âœ… Laporan tersimpan: {filename}")
+            st.success(f"âœ... Laporan tersimpan: {filename}")
 
 
 def render_bulk_cancel_upload(db):
-    """Upload & proses pembatalan massal dari marketplace â€” Bulk CANCEL."""
+    """Upload & proses pembatalan massal dari marketplace â€" Bulk CANCEL."""
     with st.expander(
-        "ðŸ“¤ **Upload Pembatalan Marketplace** â€” Bulk CANCEL pesanan yang dibatalkan sistem",
+        "ðŸ"¤ **Upload Pembatalan Marketplace** â€" Bulk CANCEL pesanan yang dibatalkan sistem",
         expanded=False,
     ):
         st.caption(
             "Upload file Excel dari marketplace berisi daftar pesanan yang **dibatalkan oleh sistem** "
             "(Shopee/TikTok/Lazada). Sistem akan otomatis menandai pesanan sebagai CANCEL, "
-            "meng-update data penjualan, dan mencatat di riwayat scan â€” termasuk pesanan **tanpa No Resi**."
+            "meng-update data penjualan, dan mencatat di riwayat scan â€" termasuk pesanan **tanpa No Resi**."
         )
 
-        # â”€â”€ Manual Checker: cek satu No Pesanan tanpa perlu upload â”€â”€
+        # â"€â"€ Manual Checker: cek satu No Pesanan tanpa perlu upload â"€â"€
         st.markdown("---")
-        st.caption("ðŸ” **Cek Manual**: Ketik No Pesanan untuk melihat apakah ada di database.")
+        st.caption("ðŸ" **Cek Manual**: Ketik No Pesanan untuk melihat apakah ada di database.")
         cek_col1, cek_col2 = st.columns([3, 1])
         with cek_col1:
             cek_input = st.text_input(
@@ -3861,7 +3861,7 @@ def render_bulk_cancel_upload(db):
                 label_visibility="collapsed",
             )
         with cek_col2:
-            cek_btn = st.button("ðŸ” Cek Database", key="bc_manual_cek_btn", width="stretch")
+            cek_btn = st.button("ðŸ" Cek Database", key="bc_manual_cek_btn", width="stretch")
 
         if cek_input and cek_btn:
             cek_clean = str(cek_input).strip().strip("'\"")
@@ -3906,13 +3906,13 @@ def render_bulk_cancel_upload(db):
                 stripped = re.sub(r'^(INV|ORD|INVOICE|ORDER|#|NO|NOMOR)[\-_\s:]*', '', cek_clean, flags=re.IGNORECASE).strip()
                 if stripped and stripped != cek_clean:
                     row = db.fetch_one("SELECT * FROM penjualan WHERE no_pesanan = ? OR no_pesanan LIKE ? LIMIT 1", (stripped, f"%{stripped}%"))
-                    strategies_tried.append((f"5. Strip prefix â†’ '{stripped}'", row is not None))
+                    strategies_tried.append((f"5. Strip prefix â†' '{stripped}'", row is not None))
                     if row: found = True
 
             # Strategy 6: with .0
             if not found:
                 row = db.fetch_one("SELECT * FROM penjualan WHERE no_pesanan = ? LIMIT 1", (cek_clean + ".0",))
-                strategies_tried.append((f"6. With '.0' â†’ '{cek_clean}.0'", row is not None))
+                strategies_tried.append((f"6. With '.0' â†' '{cek_clean}.0'", row is not None))
                 if row: found = True
 
             # Strategy 7: REPLACE .0 from DB
@@ -3923,7 +3923,7 @@ def render_bulk_cancel_upload(db):
 
             # Show results
             if found and row:
-                st.success(f"âœ… **DITEMUKAN!** â€” `{cek_clean}`")
+                st.success(f"âœ... **DITEMUKAN!** â€" `{cek_clean}`")
                 st.json({
                     "No Pesanan (DB)": row["no_pesanan"],
                     "Marketplace": row["marketplace"],
@@ -3933,14 +3933,14 @@ def render_bulk_cancel_upload(db):
                     "Toko": row["nama_toko"],
                 })
             else:
-                st.error(f"âŒ **TIDAK DITEMUKAN** â€” `{cek_clean}` tidak ada di database.")
+                st.error(f"âŒ **TIDAK DITEMUKAN** â€" `{cek_clean}` tidak ada di database.")
                 # Show all strategies tried
-                with st.expander("ðŸ” Detail strategi yang dicoba"):
+                with st.expander("ðŸ" Detail strategi yang dicoba"):
                     for name, result in strategies_tried:
-                        icon = "âœ…" if result else "âŒ"
+                        icon = "âœ..." if result else "âŒ"
                         st.caption(f"{icon} {name}")
                 st.info(
-                    "ðŸ’¡ **Kemungkinan penyebab**:\n"
+                    "ðŸ'¡ **Kemungkinan penyebab**:\n"
                     "- No Pesanan belum di-import di tab Shopee/TikTok/Lazada\n"
                     "- Format No Pesanan berbeda (misal: ada spasi, tanda hubung, atau prefix)\n"
                     "- Data pesanan dari marketplace menggunakan ID yang berbeda dengan laporan pembatalan\n"
@@ -3963,11 +3963,11 @@ def render_bulk_cancel_upload(db):
                 if df_raw.empty:
                     st.error("File Excel kosong. Silakan pilih file yang berisi data.")
                 else:
-                    st.success(f"âœ… File berhasil dibaca: **{len(df_raw):,} baris**, {len(df_raw.columns)} kolom.")
-                    with st.expander("ðŸ” Lihat nama kolom terdeteksi", expanded=False):
+                    st.success(f"âœ... File berhasil dibaca: **{len(df_raw):,} baris**, {len(df_raw.columns)} kolom.")
+                    with st.expander("ðŸ" Lihat nama kolom terdeteksi", expanded=False):
                         st.caption(", ".join(df_raw.columns.astype(str).tolist()))
 
-                    # â”€â”€ Column detection keywords â”€â”€
+                    # â"€â"€ Column detection keywords â"€â"€
                     order_keys = [
                         "no_pesanan", "order_id", "id_pesanan", "nomor_pesanan",
                         "order_no", "no_order", "order_number", "pesanan",
@@ -3992,8 +3992,8 @@ def render_bulk_cancel_upload(db):
 
                     excel_cols = [""] + df_raw.columns.tolist()
 
-                    # â”€â”€ Database Sample (bantu debugging format) â”€â”€
-                    with st.expander("ðŸ” Lihat Contoh No Pesanan di Database", expanded=False):
+                    # â"€â"€ Database Sample (bantu debugging format) â"€â"€
+                    with st.expander("ðŸ" Lihat Contoh No Pesanan di Database", expanded=False):
                         sample_db = db.fetch_all(
                             "SELECT DISTINCT marketplace, no_pesanan FROM penjualan "
                             "WHERE no_pesanan != '' ORDER BY marketplace, no_pesanan LIMIT 10"
@@ -4007,15 +4007,15 @@ def render_bulk_cancel_upload(db):
                             })
                             st.dataframe(df_db_sample, width="stretch", hide_index=True)
                             st.info(
-                                "ðŸ’¡ **Bandingkan** format No Pesanan di Excel Anda dengan yang ada di database. "
+                                "ðŸ'¡ **Bandingkan** format No Pesanan di Excel Anda dengan yang ada di database. "
                                 "Jika formatnya berbeda (misal ada spasi, tanda hubung, prefix INV, atau akhiran .0), "
                                 "sistem akan kesulitan mencocokkan. Gunakan fitur mapping kolom dengan benar."
                             )
                         else:
                             st.caption("âš ï¸ Database masih kosong. Import data pesanan terlebih dahulu.")
 
-                    # â”€â”€ Column Mapping â”€â”€
-                    st.markdown("#### ðŸ”- Mapping Kolom")
+                    # â"€â"€ Column Mapping â"€â"€
+                    st.markdown("#### ðŸ"- Mapping Kolom")
                     col_m1, col_m2 = st.columns(2)
                     with col_m1:
                         map_order = st.selectbox(
@@ -4030,7 +4030,7 @@ def render_bulk_cancel_upload(db):
                             excel_cols,
                             key="bc_map_resi",
                             index=_auto_detect_sales_column(excel_cols, resi_keys),
-                            help="Kolom No Resi â€” jika kosong, sistem tetap akan memproses pembatalan.",
+                            help="Kolom No Resi â€" jika kosong, sistem tetap akan memproses pembatalan.",
                         )
                         map_status = st.selectbox(
                             "Status Pesanan (opsional)",
@@ -4045,7 +4045,7 @@ def render_bulk_cancel_upload(db):
                             excel_cols,
                             key="bc_map_ket",
                             index=_auto_detect_sales_column(excel_cols, ket_keys),
-                            help="Alasan pembatalan â€” akan disimpan di keterangan.",
+                            help="Alasan pembatalan â€" akan disimpan di keterangan.",
                         )
                         map_mp = st.selectbox(
                             "Marketplace (opsional)",
@@ -4055,11 +4055,11 @@ def render_bulk_cancel_upload(db):
                             help="Jika ada, pencarian pesanan lebih akurat.",
                         )
 
-                    # â”€â”€ Filter Options â”€â”€
+                    # â"€â"€ Filter Options â"€â"€
                     filter_col1, filter_col2 = st.columns(2)
                     with filter_col1:
                         filter_by_status = st.checkbox(
-                            "ðŸ” Filter: hanya proses baris dengan status pembatalan",
+                            "ðŸ" Filter: hanya proses baris dengan status pembatalan",
                             value=True,
                             key="bc_filter_status",
                             help="Hanya baris yang statusnya mengandung kata 'cancel', 'batal', 'gagal', atau 'return' yang akan diproses.",
@@ -4073,9 +4073,9 @@ def render_bulk_cancel_upload(db):
                             except Exception:
                                 pass
 
-                    # â”€â”€ Preview â”€â”€
+                    # â"€â"€ Preview â"€â"€
                     if map_order:
-                        st.markdown("#### ðŸ‘ï¸ Preview Data yang Akan Diproses")
+                        st.markdown("#### ðŸ'ï¸ Preview Data yang Akan Diproses")
                         preview_cols = [c for c in [map_order, map_resi, map_status, map_ket, map_mp] if c]
                         preview_df = df_raw[preview_cols].head(30).copy()
 
@@ -4094,7 +4094,7 @@ def render_bulk_cancel_upload(db):
                         if len(df_raw) > 30:
                             st.caption(f"... dan {len(df_raw) - 30:,} baris lainnya.")
 
-                        # â”€â”€ Count â”€â”€
+                        # â"€â"€ Count â"€â"€
                         total_rows = len(df_raw)
                         cancel_rows = total_rows
                         if filter_by_status and map_status:
@@ -4104,11 +4104,11 @@ def render_bulk_cancel_upload(db):
                             cancel_rows = int(mask_all.sum())
 
                         st.info(
-                            f"ðŸ“Š **{cancel_rows:,}** dari **{total_rows:,}** baris "
+                            f"ðŸ"Š **{cancel_rows:,}** dari **{total_rows:,}** baris "
                             f"akan diproses sebagai pembatalan."
                         )
 
-                    # â”€â”€ Execute â”€â”€
+                    # â"€â"€ Execute â"€â"€
                     st.markdown("---")
                     exec_col1, exec_col2 = st.columns([2, 1])
                     with exec_col1:
@@ -4150,7 +4150,7 @@ def render_bulk_cancel_upload(db):
                                             skipped += 1
                                             continue
 
-                                        # Clean order ID: fix Excel float formatting (5769123456789012.0 â†’ 5769123456789012)
+                                        # Clean order ID: fix Excel float formatting (5769123456789012.0 â†' 5769123456789012)
                                         # Also strip common prefixes/suffixes
                                         original_no_pesanan = no_pesanan
                                         no_pesanan = str(no_pesanan).strip()
@@ -4180,7 +4180,7 @@ def render_bulk_cancel_upload(db):
                                         keterangan = _safe_str(row.get(map_ket)) if map_ket else ""
                                         marketplace = _safe_str(row.get(map_mp)) if map_mp else ""
 
-                                        # Find in penjualan â€” multi-strategy matching
+                                        # Find in penjualan â€" multi-strategy matching
                                         existing = None
 
                                         # Strategy 1: Exact match (no_pesanan + marketplace)
@@ -4281,7 +4281,7 @@ def render_bulk_cancel_upload(db):
                                         if marketplace:
                                             cancel_ket = f"[{marketplace}] {cancel_ket}"
 
-                                        # Update penjualan â€” set CANCEL + zero out financials
+                                        # Update penjualan â€" set CANCEL + zero out financials
                                         db.execute(
                                             "UPDATE penjualan SET status_pesanan = 'CANCEL', "
                                             "qty = 0, total_harga = 0, harga_jual = 0, "
@@ -4295,7 +4295,7 @@ def render_bulk_cancel_upload(db):
                                         tanggal = now.strftime("%d-%m-%Y")
 
                                         if penj_resi:
-                                            # Has resi â€” insert with resi
+                                            # Has resi â€" insert with resi
                                             dup = db.fetch_one(
                                                 "SELECT id FROM scan_aktif WHERE resi = ?",
                                                 (penj_resi,),
@@ -4310,7 +4310,7 @@ def render_bulk_cancel_upload(db):
                                                      existing.get("marketplace", marketplace)),
                                                 )
                                         else:
-                                            # No resi â€” still insert cancel using no_pesanan as identifier
+                                            # No resi â€" still insert cancel using no_pesanan as identifier
                                             tanpa_resi_cancelled += 1
                                             dup = db.fetch_one(
                                                 "SELECT id FROM scan_aktif WHERE resi = ?",
@@ -4334,22 +4334,22 @@ def render_bulk_cancel_upload(db):
                                             f"Baris {idx + 2}: {str(e)[:120]}"
                                         )
 
-                                progress_bar.progress(1.0, text="âœ… Selesai!")
-                                status_text.success("âœ… Pemrosesan bulk CANCEL selesai.")
+                                progress_bar.progress(1.0, text="âœ... Selesai!")
+                                status_text.success("âœ... Pemrosesan bulk CANCEL selesai.")
 
-                                # â”€â”€ Summary â”€â”€
-                                st.markdown("### ðŸ“Š Hasil Bulk CANCEL")
+                                # â"€â"€ Summary â"€â"€
+                                st.markdown("### ðŸ"Š Hasil Bulk CANCEL")
                                 col_r1, col_r2, col_r3, col_r4, col_r5, col_r6 = st.columns(6)
                                 with col_r1:
-                                    st.metric("âœ… Berhasil Cancel", cancelled_count)
+                                    st.metric("âœ... Berhasil Cancel", cancelled_count)
                                 with col_r2:
-                                    st.metric("ðŸ“­ Tanpa Resi (Cancel)", tanpa_resi_cancelled,
+                                    st.metric("ðŸ"­ Tanpa Resi (Cancel)", tanpa_resi_cancelled,
                                              help="Pesanan tanpa No Resi yang berhasil dibatalkan.")
                                 with col_r3:
                                     st.metric("âš ï¸ Sudah Cancel", already_cancelled,
                                              help="Pesanan yang statusnya sudah CANCEL sebelumnya.")
                                 with col_r4:
-                                    st.metric("â“ Tidak Ditemukan", not_found,
+                                    st.metric("â" Tidak Ditemukan", not_found,
                                              help="No Pesanan tidak ditemukan di database penjualan.")
                                 with col_r5:
                                     st.metric("â­ï¸ Dilewati", skipped,
@@ -4365,7 +4365,7 @@ def render_bulk_cancel_upload(db):
                                             st.caption(f"... dan {len(error_details) - 30} error lainnya.")
 
                                 if not_found_details:
-                                    with st.expander(f"ðŸ” {len(not_found_details)} No Pesanan Tidak Ditemukan â€” Lihat sampel"):
+                                    with st.expander(f"ðŸ" {len(not_found_details)} No Pesanan Tidak Ditemukan â€" Lihat sampel"):
                                         st.caption("Berikut adalah sampel No Pesanan yang tidak cocok dengan database:")
                                         df_nf = pd.DataFrame(not_found_details[:30])
                                         # Determine which columns to show
@@ -4385,15 +4385,15 @@ def render_bulk_cancel_upload(db):
                                         df_nf = df_nf[[c for c in show_cols if c in df_nf.columns]]
                                         st.dataframe(df_nf, width="stretch", hide_index=True)
                                         st.info(
-                                            "ðŸ’¡ **Tips mengatasi**:\n"
-                                            "- Gunakan **ðŸ” Cek Manual** di atas untuk test satu per satu No Pesanan yang gagal\n"
+                                            "ðŸ'¡ **Tips mengatasi**:\n"
+                                            "- Gunakan **ðŸ" Cek Manual** di atas untuk test satu per satu No Pesanan yang gagal\n"
                                             "- Pastikan kolom **No Pesanan** sudah di-mapping dengan benar\n"
-                                            "- Coba upload ulang tanpa filter status (uncheck ðŸ” Filter)\n"
+                                            "- Coba upload ulang tanpa filter status (uncheck ðŸ" Filter)\n"
                                             "- Cek apakah data pesanan sudah di-import di tab Shopee/TikTok/Lazada\n"
                                             "- Bandingkan dengan contoh No Pesanan di database (expandable di atas)"
                                         )
 
-                                # â”€â”€ Result message â”€â”€
+                                # â"€â"€ Result message â"€â"€
                                 msg_parts = []
                                 if cancelled_count > 0:
                                     msg_parts.append(
@@ -4413,12 +4413,12 @@ def render_bulk_cancel_upload(db):
                                     )
 
                                 if cancelled_count > 0:
-                                    st.success(f"âœ… Bulk CANCEL selesai! {' | '.join(msg_parts)}.")
+                                    st.success(f"âœ... Bulk CANCEL selesai! {' | '.join(msg_parts)}.")
                                     st.info(
-                                        "ðŸ’¡ **Tip**: Data sudah terupdate. Statistik di halaman ini akan "
+                                        "ðŸ'¡ **Tip**: Data sudah terupdate. Statistik di halaman ini akan "
                                         "berubah setelah refresh. Silakan klik tombol Refresh di bawah."
                                     )
-                                    if st.button("ðŸ”„ Refresh Halaman", width="stretch", key="bc_refresh"):
+                                    if st.button("ðŸ"„ Refresh Halaman", width="stretch", key="bc_refresh"):
                                         st.rerun()
                                 else:
                                     st.warning(
@@ -4427,7 +4427,7 @@ def render_bulk_cancel_upload(db):
                                     )
                     with exec_col2:
                         st.caption(
-                            "ðŸ’¡ **Tips**:\n"
+                            "ðŸ'¡ **Tips**:\n"
                             "- File bisa dari Shopee, TikTok, atau Lazada\n"
                             "- Sistem membaca No Pesanan untuk mencocokkan\n"
                             "- Pesanan **tanpa No Resi** tetap bisa dibatalkan\n"
@@ -4443,16 +4443,16 @@ def render_bulk_cancel_upload(db):
 
 
 def render_retur_klaim():
-    """Retur & Klaim â€” scan paket retur dari kurir, tentukan diterima atau klaim."""
+    """Retur & Klaim â€" scan paket retur dari kurir, tentukan diterima atau klaim."""
     db = st.session_state.db
 
-    st.subheader("ðŸ”„ Retur & Klaim â€” Proses Paket Kembalian")
+    st.subheader("ðŸ"„ Retur & Klaim â€" Proses Paket Kembalian")
     st.caption(
         "Scan No Resi atau No Pesanan saat kurir mengembalikan paket. "
         "Tentukan apakah retur **Diterima** atau masuk proses **Klaim**."
     )
 
-    # â”€â”€ Stats Cards â”€â”€
+    # â"€â"€ Stats Cards â"€â"€
     total_retur = db.fetch_one("SELECT COUNT(*) as cnt FROM retur_klaim")
     diterima = db.fetch_one("SELECT COUNT(*) as cnt FROM retur_klaim WHERE status = 'DITERIMA'")
     klaim = db.fetch_one("SELECT COUNT(*) as cnt FROM retur_klaim WHERE status = 'KLAIM'")
@@ -4465,21 +4465,21 @@ def render_retur_klaim():
 
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        st.metric("ðŸ“¦ Total Retur", f"{total_retur['cnt']:,}" if total_retur else "0")
+        st.metric("ðŸ"¦ Total Retur", f"{total_retur['cnt']:,}" if total_retur else "0")
     with col2:
-        st.metric("âœ… Diterima", f"{diterima['cnt']:,}" if diterima else "0")
+        st.metric("âœ... Diterima", f"{diterima['cnt']:,}" if diterima else "0")
     with col3:
         st.metric("âš ï¸ Klaim", f"{klaim['cnt']:,}" if klaim else "0")
     with col4:
-        st.metric("ðŸ’° Klaim Berhasil", f"{klaim_berhasil['cnt']:,}" if klaim_berhasil else "0",
+        st.metric("ðŸ'° Klaim Berhasil", f"{klaim_berhasil['cnt']:,}" if klaim_berhasil else "0",
                  help=f"Total nominal klaim berhasil: Rp {total_nominal['total']:,.0f}" if total_nominal and total_nominal["total"] > 0 else "")
     with col5:
-        st.metric("ðŸ“… Hari Ini", f"{today_retur['cnt']:,}" if today_retur else "0")
+        st.metric("ðŸ"... Hari Ini", f"{today_retur['cnt']:,}" if today_retur else "0")
 
     st.markdown("---")
 
-    # â”€â”€ Scan Input â”€â”€
-    st.markdown("### ðŸ” Scan Paket Retur")
+    # â"€â"€ Scan Input â"€â"€
+    st.markdown("### ðŸ" Scan Paket Retur")
     scan_col1, scan_col2 = st.columns([3, 1])
     with scan_col1:
         retur_input = st.text_input(
@@ -4489,14 +4489,14 @@ def render_retur_klaim():
             label_visibility="collapsed",
         )
     with scan_col2:
-        scan_btn = st.button("ðŸ” Cari", width="stretch", type="primary", key="retur_scan_btn")
+        scan_btn = st.button("ðŸ" Cari", width="stretch", type="primary", key="retur_scan_btn")
 
     if retur_input or scan_btn:
         search_term = retur_input.strip() if retur_input else ""
         if search_term:
             cleaned = Validator.sanitize_resi(search_term) or search_term.strip()
 
-            # â”€â”€ Search in penjualan by resi OR no_pesanan â”€â”€
+            # â"€â"€ Search in penjualan by resi OR no_pesanan â"€â"€
             match = db.fetch_one(
                 "SELECT no_resi, no_pesanan, marketplace, nama_produk, sku_terdeteksi, "
                 "nama_toko, kurir, qty, harga_jual, total_harga, status_pesanan "
@@ -4504,7 +4504,7 @@ def render_retur_klaim():
                 (cleaned, cleaned),
             )
 
-            # â”€â”€ Also check scan_aktif for additional context â”€â”€
+            # â"€â"€ Also check scan_aktif for additional context â"€â"€
             scan_info = db.fetch_one(
                 "SELECT status, toko, waktu, tanggal FROM scan_aktif WHERE resi = ? OR resi = ? LIMIT 1",
                 (cleaned, cleaned),
@@ -4513,10 +4513,10 @@ def render_retur_klaim():
             if not match and not scan_info:
                 st.warning(f"âš ï¸ `{cleaned}` tidak ditemukan di database penjualan maupun scan.")
             else:
-                st.success(f"âœ… Data ditemukan untuk `{cleaned}`")
+                st.success(f"âœ... Data ditemukan untuk `{cleaned}`")
 
                 if match:
-                    st.markdown("#### ðŸ“‹ Detail Pesanan")
+                    st.markdown("#### ðŸ"‹ Detail Pesanan")
                     detail_col1, detail_col2, detail_col3 = st.columns(3)
                     with detail_col1:
                         st.markdown(f"**Marketplace:** {match['marketplace']}")
@@ -4534,14 +4534,14 @@ def render_retur_klaim():
                         st.markdown(f"**Status Pesanan:** {match['status_pesanan'] or '-'}")
 
                 if scan_info:
-                    st.markdown("#### ðŸ“‹ Info Scan Sebelumnya")
+                    st.markdown("#### ðŸ"‹ Info Scan Sebelumnya")
                     st.info(
                         f"Status scan: **{scan_info['status']}** | "
                         f"Toko: **{scan_info['toko']}** | "
                         f"Waktu: {scan_info['waktu']} | Tanggal: {scan_info['tanggal']}"
                     )
 
-                # â”€â”€ Check if already processed â”€â”€
+                # â"€â"€ Check if already processed â"€â"€
                 already_processed = db.fetch_one(
                     "SELECT id, status, alasan_klaim, keterangan, waktu, tanggal FROM retur_klaim "
                     "WHERE no_resi = ? OR no_pesanan = ? ORDER BY id DESC LIMIT 1",
@@ -4549,7 +4549,7 @@ def render_retur_klaim():
                 )
 
                 if already_processed:
-                    status_label = "âœ… DITERIMA" if already_processed["status"] == "DITERIMA" else "âš ï¸ KLAIM"
+                    status_label = "âœ... DITERIMA" if already_processed["status"] == "DITERIMA" else "âš ï¸ KLAIM"
                     st.warning(
                         f"âš ï¸ Paket ini **sudah diproses** sebelumnya:\n"
                         f"â€¢ Status: **{status_label}**\n"
@@ -4557,18 +4557,18 @@ def render_retur_klaim():
                         f"â€¢ Waktu: {already_processed['waktu']} | Tanggal: {already_processed['tanggal']}"
                     )
 
-                # â”€â”€ Action Buttons â”€â”€
+                # â"€â"€ Action Buttons â"€â"€
                 st.markdown("---")
                 st.markdown("### âš¡ Tentukan Status Retur")
 
                 act_col1, act_col2, act_col3 = st.columns([1, 1, 2])
                 with act_col1:
                     btn_diterima = st.button(
-                        "âœ… **DITERIMA**",
+                        "âœ... **DITERIMA**",
                         width="stretch",
                         type="primary",
                         key="retur_btn_diterima",
-                        help="Retur diterima â€” barang kembali ke stok",
+                        help="Retur diterima â€" barang kembali ke stok",
                     )
                 with act_col2:
                     btn_klaim = st.button(
@@ -4576,10 +4576,10 @@ def render_retur_klaim():
                         width="stretch",
                         type="secondary",
                         key="retur_btn_klaim",
-                        help="Retur masuk klaim â€” perlu investigasi",
+                        help="Retur masuk klaim â€" perlu investigasi",
                     )
 
-                # â”€â”€ Klaim reason â”€â”€
+                # â"€â"€ Klaim reason â"€â"€
                 if btn_klaim or st.session_state.get("retur_show_klaim_form", False):
                     st.session_state.retur_show_klaim_form = True
                     st.markdown("#### âš ï¸ Alasan Klaim")
@@ -4619,8 +4619,8 @@ def render_retur_klaim():
 
                     final_alasan = alasan_lain if alasan_klaim == "Lainnya..." and alasan_lain else alasan_klaim
 
-                    # â”€â”€ Nominal Klaim input â”€â”€
-                    st.markdown("#### ðŸ’° Hasil Klaim")
+                    # â"€â"€ Nominal Klaim input â"€â"€
+                    st.markdown("#### ðŸ'° Hasil Klaim")
                     nominal_col1, nominal_col2 = st.columns(2)
                     with nominal_col1:
                         nominal_klaim = st.number_input(
@@ -4669,12 +4669,12 @@ def render_retur_klaim():
                             ),
                         )
 
-                        # â”€â”€ Update penjualan: jika klaim BERHASIL â†’ catat sebagai pendapatan hasil klaim â”€â”€
+                        # â"€â"€ Update penjualan: jika klaim BERHASIL â†' catat sebagai pendapatan hasil klaim â"€â"€
                         if status_klaim_select == "BERHASIL" and match and nominal_klaim > 0:
                             db.execute(
                                 "UPDATE penjualan SET status_pesanan = 'KLAIM_BERHASIL', "
                                 "keterangan = ? WHERE id = ?",
-                                (f"Klaim disetujui: Rp {nominal_klaim:,.0f} â€” {final_alasan}", match["id"] if "id" in match.keys() else None),
+                                (f"Klaim disetujui: Rp {nominal_klaim:,.0f} â€" {final_alasan}", match["id"] if "id" in match.keys() else None),
                             )
                             # Insert ke scan_aktif sebagai catatan klaim
                             dup = db.fetch_one("SELECT id FROM scan_aktif WHERE resi = ? AND status = 'KLAIM'",
@@ -4692,7 +4692,7 @@ def render_retur_klaim():
                                      match["marketplace"] if match else ""),
                                 )
                             st.success(
-                                f"ðŸ’° **KLAIM BERHASIL!** `{cleaned}` â€” "
+                                f"ðŸ'° **KLAIM BERHASIL!** `{cleaned}` â€" "
                                 f"Pendapatan klaim: **Rp {nominal_klaim:,.0f}** tercatat di penjualan."
                             )
                         elif status_klaim_select == "GAGAL":
@@ -4703,7 +4703,7 @@ def render_retur_klaim():
                                     (f"Klaim gagal: {final_alasan}",
                                      match["no_pesanan"], match["no_resi"]),
                                 )
-                            st.warning(f"âŒ Klaim GAGAL untuk `{cleaned}` â€” kerugian tidak tertagih.")
+                            st.warning(f"âŒ Klaim GAGAL untuk `{cleaned}` â€" kerugian tidak tertagih.")
                         else:
                             if match:
                                 db.execute(
@@ -4712,7 +4712,7 @@ def render_retur_klaim():
                                     (f"Klaim diproses: {final_alasan}",
                                      match["no_pesanan"], match["no_resi"]),
                                 )
-                            st.info(f"â³ Klaim PENDING untuk `{cleaned}` â€” menunggu hasil.")
+                            st.info(f"â³ Klaim PENDING untuk `{cleaned}` â€" menunggu hasil.")
 
                         st.session_state.retur_show_klaim_form = False
                         st.rerun()
@@ -4744,12 +4744,12 @@ def render_retur_klaim():
                         ),
                     )
 
-                    # â”€â”€ Update penjualan: hanya ubah status, jangan zero-out nilai â”€â”€
+                    # â"€â"€ Update penjualan: hanya ubah status, jangan zero-out nilai â"€â"€
                     # Data penjualan asli tetap utuh. Koreksi dicatat di jurnal retur_klaim.
                     if match:
                         db.execute(
                             "UPDATE penjualan SET status_pesanan = 'RETUR', "
-                            "keterangan = 'Retur diterima â€” stok dikembalikan (nilai asli tetap)' "
+                            "keterangan = 'Retur diterima â€" stok dikembalikan (nilai asli tetap)' "
                             "WHERE no_pesanan = ? OR no_resi = ?",
                             (match["no_pesanan"], match["no_resi"]),
                         )
@@ -4765,11 +4765,11 @@ def render_retur_klaim():
                                  match["no_resi"] if match["no_resi"] else cleaned,
                                  match["kurir"] if match else "RETUR",
                                  match["nama_toko"] if match else "",
-                                 "RETUR", "REGULER", "Retur diterima â€” stok pulih", "REGULER",
+                                 "RETUR", "REGULER", "Retur diterima â€" stok pulih", "REGULER",
                                  match["marketplace"] if match else ""),
                             )
 
-                    # â”€â”€ Recover SKU stock â”€â”€
+                    # â"€â"€ Recover SKU stock â"€â"€
                     sku_code = match["sku_terdeteksi"] if match else ""
                     retur_qty = match["qty"] if match else 1
                     if sku_code and retur_qty > 0:
@@ -4784,21 +4784,21 @@ def render_retur_klaim():
                                 (new_stok, sku_code),
                             )
                             st.info(
-                                f"ðŸ“¦ **Stok Pulih**: SKU `{sku_code}` ({existing_sku['nama_barang']}) "
-                                f"stok {existing_sku['stok']} â†’ **{new_stok}** (+{retur_qty})"
+                                f"ðŸ"¦ **Stok Pulih**: SKU `{sku_code}` ({existing_sku['nama_barang']}) "
+                                f"stok {existing_sku['stok']} â†' **{new_stok}** (+{retur_qty})"
                             )
                         else:
-                            st.caption(f"âš ï¸ SKU `{sku_code}` tidak ditemukan â€” stok tidak di-update.")
+                            st.caption(f"âš ï¸ SKU `{sku_code}` tidak ditemukan â€" stok tidak di-update.")
 
                     st.success(
-                        f"âœ… **DITERIMA** â€” `{cleaned}` retur diterima. "
+                        f"âœ... **DITERIMA** â€" `{cleaned}` retur diterima. "
                         f"Stok dikembalikan. Transaksi asli tetap utuh, koreksi tercatat di jurnal retur."
                     )
                     st.rerun()
 
-    # â”€â”€ History Table â”€â”€
+    # â"€â"€ History Table â"€â"€
     st.markdown("---")
-    st.markdown("### ðŸ“‹ Riwayat Retur & Klaim")
+    st.markdown("### ðŸ"‹ Riwayat Retur & Klaim")
 
     # Filters
     filt_col1, filt_col2, filt_col3, filt_col4 = st.columns([2, 2, 1, 1])
@@ -4813,10 +4813,10 @@ def render_retur_klaim():
         mp_options = ["Semua"] + [r["marketplace"] for r in mp_list]
         mp_filter = st.selectbox("Filter Marketplace", mp_options, key="retur_filter_mp")
     with filt_col3:
-        search_retur = st.text_input("ðŸ” Cari Resi/No Pesanan", placeholder="Ketik...", key="retur_search")
+        search_retur = st.text_input("ðŸ" Cari Resi/No Pesanan", placeholder="Ketik...", key="retur_search")
     with filt_col4:
         st.write("")
-        if st.button("ðŸ”„ Refresh", width="stretch", key="retur_refresh"):
+        if st.button("ðŸ"„ Refresh", width="stretch", key="retur_refresh"):
             st.rerun()
 
     # Build query
@@ -4836,7 +4836,7 @@ def render_retur_klaim():
     rows = db.fetch_all(query, params)
 
     if not rows:
-        st.info("ðŸ“­ Belum ada data retur atau klaim. Scan paket retur dari kurir untuk memulai.")
+        st.info("ðŸ"­ Belum ada data retur atau klaim. Scan paket retur dari kurir untuk memulai.")
     else:
         df_retur = pd.DataFrame([dict(r) for r in rows])
         df_retur = df_retur.rename(columns={
@@ -4885,19 +4885,19 @@ def render_retur_klaim():
         sum_klaim_berhasil = len(df_retur[(df_retur["Status"] == "KLAIM") & (df_retur["Status Klaim"] == "BERHASIL")]) if "Status" in df_retur.columns and "Status Klaim" in df_retur.columns else 0
         total_nominal_klaim = sum(r["nominal_klaim"] or 0 for r in rows if r["status"] == "KLAIM" and r.get("status_klaim") == "BERHASIL")
 
-        sum_text = f"ðŸ“Š Menampilkan {len(df_retur)} data | âœ… Diterima: {sum_diterima} | âš ï¸ Klaim: {sum_klaim}"
+        sum_text = f"ðŸ"Š Menampilkan {len(df_retur)} data | âœ... Diterima: {sum_diterima} | âš ï¸ Klaim: {sum_klaim}"
         if sum_klaim_berhasil > 0:
-            sum_text += f" | ðŸ’° Klaim Berhasil: {sum_klaim_berhasil} (Rp {total_nominal_klaim:,.0f})"
+            sum_text += f" | ðŸ'° Klaim Berhasil: {sum_klaim_berhasil} (Rp {total_nominal_klaim:,.0f})"
         st.caption(sum_text)
 
-        # â”€â”€ Delete action â”€â”€
-        with st.expander("ðŸ-‘ï¸ Hapus Data Retur", expanded=False):
+        # â"€â"€ Delete action â"€â"€
+        with st.expander("ðŸ-'ï¸ Hapus Data Retur", expanded=False):
             del_id = st.number_input("ID Data yang akan dihapus", min_value=1, step=1, key="retur_del_id")
-            if st.button("ðŸ-‘ï¸ Hapus", width="stretch", key="retur_del_btn"):
+            if st.button("ðŸ-'ï¸ Hapus", width="stretch", key="retur_del_btn"):
                 existing = db.fetch_one("SELECT id FROM retur_klaim WHERE id = ?", (del_id,))
                 if existing:
                     db.execute("DELETE FROM retur_klaim WHERE id = ?", (del_id,))
-                    st.success(f"âœ… Data retur ID `{del_id}` dihapus.")
+                    st.success(f"âœ... Data retur ID `{del_id}` dihapus.")
                     st.rerun()
                 else:
                     st.warning(f"ID `{del_id}` tidak ditemukan.")
@@ -4920,17 +4920,17 @@ def _save_setting(db, kunci: str, nilai: str):
 
 # ==================== LABA RUGI HARIAN ====================
 def render_laba_rugi():
-    """Laba Rugi Harian â€” Gross Omset - Potongan Marketplace - Biaya/Resi - Modal = Net Profit."""
+    """Laba Rugi Harian â€" Gross Omset - Potongan Marketplace - Biaya/Resi - Modal = Net Profit."""
     db = st.session_state.db
 
-    st.subheader("ðŸ’° Laba Rugi Harian â€” Berdasarkan Pesanan Terkirim (PACKED)")
+    st.subheader("ðŸ'° Laba Rugi Harian â€" Berdasarkan Pesanan Terkirim (PACKED)")
     st.caption(
         "Menghitung keuntungan bersih harian dari pesanan yang sudah di-packing. "
         "**Gross Omset** = total penjualan | **Net Profit** = omset dikurangi potongan marketplace, "
         "biaya per resi (Rp 1.250), dan Harga Modal (HPP)."
     )
 
-    # â”€â”€ Settings â”€â”€
+    # â"€â"€ Settings â"€â"€
     with st.expander("âš™ï¸ Pengaturan Potongan Marketplace & Biaya", expanded=False):
         st.caption("Atur persentase potongan per marketplace dan biaya tetap per resi. Disimpan otomatis.")
         set_col1, set_col2, set_col3, set_col4 = st.columns(4)
@@ -4959,17 +4959,17 @@ def render_laba_rugi():
                 step=100, key="laba_set_biaya_resi",
             )
 
-        if st.button("ðŸ’¾ Simpan Pengaturan", key="laba_save_settings"):
+        if st.button("ðŸ'¾ Simpan Pengaturan", key="laba_save_settings"):
             _save_setting(db, "fee_shopee", str(fee_shopee))
             _save_setting(db, "fee_tiktok", str(fee_tiktok))
             _save_setting(db, "fee_lazada", str(fee_lazada))
             _save_setting(db, "biaya_per_resi", str(biaya_per_resi))
-            st.success("âœ… Pengaturan disimpan!")
+            st.success("âœ... Pengaturan disimpan!")
             st.rerun()
 
     st.markdown("---")
 
-    # â”€â”€ Date Filter â”€â”€
+    # â"€â"€ Date Filter â"€â"€
     filt_col1, filt_col2 = st.columns([2, 2])
     with filt_col1:
         today = datetime.now()
@@ -4977,17 +4977,17 @@ def render_laba_rugi():
         tgl_str = tgl_laba.strftime("%d-%m-%Y") if tgl_laba else today.strftime("%d-%m-%Y")
     with filt_col2:
         st.write("")
-        if st.button("ðŸ”„ Refresh Data", width="stretch", key="laba_refresh"):
+        if st.button("ðŸ"„ Refresh Data", width="stretch", key="laba_refresh"):
             st.rerun()
 
-    # â”€â”€ Fee mapping â”€â”€
+    # â"€â"€ Fee mapping â"€â"€
     fee_map = {
         "Shopee": fee_shopee / 100.0,
         "TikTok": fee_tiktok / 100.0,
         "Lazada": fee_lazada / 100.0,
     }
 
-    # â”€â”€ Query: PACKED orders on selected date â”€â”€
+    # â"€â"€ Query: PACKED orders on selected date â"€â"€
     packed_orders = db.fetch_all(
         "SELECT p.id, p.marketplace, p.no_pesanan, p.no_resi, p.sku_terdeteksi, "
         "p.nama_produk, p.nama_toko, p.qty, p.harga_jual, p.total_harga "
@@ -4998,10 +4998,10 @@ def render_laba_rugi():
     )
 
     if not packed_orders:
-        st.info(f"ðŸ“­ Belum ada pesanan PACKED untuk tanggal {tgl_str}.")
+        st.info(f"ðŸ"­ Belum ada pesanan PACKED untuk tanggal {tgl_str}.")
         return
 
-    # â”€â”€ Build SKU harga_beli lookup â”€â”€
+    # â"€â"€ Build SKU harga_beli lookup â"€â"€
     all_sku_codes = list(set(r["sku_terdeteksi"] for r in packed_orders if r["sku_terdeteksi"]))
     sku_harga = {}
     if all_sku_codes:
@@ -5017,7 +5017,7 @@ def render_laba_rugi():
                 "nama": sr["nama_barang"],
             }
 
-    # â”€â”€ Calculate per-order â”€â”€
+    # â"€â"€ Calculate per-order â"€â"€
     total_gross = 0.0
     total_modal = 0.0
     total_fee_pct = 0.0
@@ -5066,26 +5066,26 @@ def render_laba_rugi():
     # Net Profit
     net_profit = total_gross - total_fee_pct - total_biaya_resi - total_modal
 
-    # â”€â”€ Summary Cards â”€â”€
-    st.markdown("### ðŸ“Š Ringkasan Laba Rugi")
+    # â"€â"€ Summary Cards â"€â"€
+    st.markdown("### ðŸ"Š Ringkasan Laba Rugi")
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
-        st.metric("ðŸ’° Gross Omset", f"Rp {total_gross:,.0f}")
+        st.metric("ðŸ'° Gross Omset", f"Rp {total_gross:,.0f}")
     with col2:
-        st.metric("ðŸ”» Potongan MP", f"Rp {total_fee_pct:,.0f}",
+        st.metric("ðŸ"» Potongan MP", f"Rp {total_fee_pct:,.0f}",
                  help=f"Fee marketplace ({fee_shopee}%/{fee_tiktok}%/{fee_lazada}%)")
     with col3:
-        st.metric("ðŸ“¦ Biaya / Resi", f"Rp {total_biaya_resi:,.0f}",
+        st.metric("ðŸ"¦ Biaya / Resi", f"Rp {total_biaya_resi:,.0f}",
                  help=f"{len(unique_resi)} resi Ã- Rp {biaya_per_resi:,}")
     with col4:
-        st.metric("ðŸ“‹ Harga Modal", f"Rp {total_modal:,.0f}",
+        st.metric("ðŸ"‹ Harga Modal", f"Rp {total_modal:,.0f}",
                  help="HPP = qty Ã- harga_beli dari SKU")
     with col5:
         pct_margin = (net_profit / total_gross * 100) if total_gross > 0 else 0
-        st.metric("âœ… Net Profit", f"Rp {net_profit:,.0f}",
+        st.metric("âœ... Net Profit", f"Rp {net_profit:,.0f}",
                  delta=f"{pct_margin:.1f}% margin")
     with col6:
-        st.metric("ðŸ“¦ Total Resi", len(unique_resi))
+        st.metric("ðŸ"¦ Total Resi", len(unique_resi))
 
     if sku_missing_modal:
         st.warning(
@@ -5095,7 +5095,7 @@ def render_laba_rugi():
             "Lengkapi di Manajemen SKU agar perhitungan laba rugi akurat."
         )
 
-    # â”€â”€ Margin bar â”€â”€
+    # â"€â"€ Margin bar â"€â"€
     st.markdown("---")
     if total_gross > 0:
         fee_pct = total_fee_pct / total_gross * 100
@@ -5103,9 +5103,9 @@ def render_laba_rugi():
         modal_pct = total_modal / total_gross * 100
         profit_pct = max(0, net_profit / total_gross * 100)
 
-        st.caption(f"ðŸ’¡ **Komposisi Omset**: Fee MP {fee_pct:.1f}% | Biaya/Resi {biaya_pct:.1f}% | Modal {modal_pct:.1f}% | Profit {profit_pct:.1f}%")
+        st.caption(f"ðŸ'¡ **Komposisi Omset**: Fee MP {fee_pct:.1f}% | Biaya/Resi {biaya_pct:.1f}% | Modal {modal_pct:.1f}% | Profit {profit_pct:.1f}%")
 
-    # â”€â”€ Per Marketplace Breakdown â”€â”€
+    # â"€â"€ Per Marketplace Breakdown â"€â"€
     st.markdown("---")
     st.markdown("### ðŸª Per Marketplace")
     if per_mp:
@@ -5125,9 +5125,9 @@ def render_laba_rugi():
         df_mp = pd.DataFrame(mp_rows)
         st.dataframe(df_mp, width="stretch", hide_index=True)
 
-    # â”€â”€ Monthly trend (optional, quick view) â”€â”€
+    # â"€â"€ Monthly trend (optional, quick view) â"€â"€
     st.markdown("---")
-    st.markdown("### ðŸ“… 7 Hari Terakhir")
+    st.markdown("### ðŸ"... 7 Hari Terakhir")
     last_7 = []
     for i in range(6, -1, -1):
         d = today - timedelta(days=i)
@@ -5172,23 +5172,23 @@ def render_laba_rugi():
 
 # ==================== CASHFLOW & PENC AIRAN ====================
 def render_cashflow():
-    """Cashflow â€” Laporan Keuangan ala Marketplace: Saldo, Penjualan, Biaya, Pencairan per platform."""
+    """Cashflow â€" Laporan Keuangan ala Marketplace: Saldo, Penjualan, Biaya, Pencairan per platform."""
     db = st.session_state.db
 
-    st.subheader("ðŸ’µ Cashflow & Pencairan Marketplace")
+    st.subheader("ðŸ'µ Cashflow & Pencairan Marketplace")
     st.caption(
         "Informasi keuangan seperti yang tampil di Seller Center: **Saldo per Marketplace**, "
         "penjualan, potongan, biaya, klaim, pencairan, dan arus kas gabungan."
     )
 
-    # â”€â”€ Load settings â”€â”€
+    # â"€â"€ Load settings â"€â"€
     fee_shopee = float(_get_setting(db, "fee_shopee", "5.0"))
     fee_tiktok = float(_get_setting(db, "fee_tiktok", "4.0"))
     fee_lazada = float(_get_setting(db, "fee_lazada", "4.5"))
     biaya_per_resi = int(_get_setting(db, "biaya_per_resi", "1250"))
     fee_map = {"Shopee": fee_shopee / 100.0, "TikTok": fee_tiktok / 100.0, "Lazada": fee_lazada / 100.0}
 
-    # â”€â”€ Period Filter â”€â”€
+    # â"€â"€ Period Filter â"€â"€
     filt_c1, filt_c2, filt_c3 = st.columns([2, 2, 1])
     with filt_c1:
         cf_start = st.date_input("Dari Tanggal", value=datetime.now().replace(day=1).date(), key="cf_start")
@@ -5196,7 +5196,7 @@ def render_cashflow():
         cf_end = st.date_input("Sampai Tanggal", value=datetime.now().date(), key="cf_end")
     with filt_c3:
         st.write("")
-        if st.button("ðŸ”„ Refresh", width="stretch", key="cf_refresh"):
+        if st.button("ðŸ"„ Refresh", width="stretch", key="cf_refresh"):
             st.rerun()
 
     tgl_list = []
@@ -5279,7 +5279,7 @@ def render_cashflow():
         total_biaya_all += mp_biaya
         total_klaim_all += mp_klaim
 
-    # â”€â”€ SKU Modal lookup (batch) â”€â”€
+    # â"€â"€ SKU Modal lookup (batch) â"€â"€
     sku_modal = {}
     if all_skus_for_modal:
         ph = ",".join(["?" for _ in all_skus_for_modal])
@@ -5300,7 +5300,7 @@ def render_cashflow():
         mp_data[mp]["modal"] = mp_modal
         total_modal_all += mp_modal
 
-    # â”€â”€ Per-MP Net Profit (all-time for saldo) â”€â”€
+    # â"€â"€ Per-MP Net Profit (all-time for saldo) â"€â"€
     for mp in MARKETPLACES:
         mp_all_gross = db.fetch_one(
             "SELECT COALESCE(SUM(p.total_harga), 0) as tot FROM penjualan p "
@@ -5337,7 +5337,7 @@ def render_cashflow():
         mp_data[mp]["net_alltime"] = mp_net_alltime
         mp_data[mp]["saldo"] = mp_net_alltime - mp_data[mp]["pencairan_all"]
 
-    # â”€â”€ OPEX + Pembelian (global, not per-MP) â”€â”€
+    # â"€â"€ OPEX + Pembelian (global, not per-MP) â"€â"€
     opex_total = db.fetch_one(
         f"SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE status_bayar='LUNAS' AND tanggal IN ({tempat})",
         tgl_list,
@@ -5361,10 +5361,10 @@ def render_cashflow():
     saldo_global = all_net - total_pencairan_all
 
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    # ðŸ“Š PER-MARKETPLACE SALDO CARDS
+    # ðŸ"Š PER-MARKETPLACE SALDO CARDS
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    st.markdown("### ðŸ’Ž Saldo per Marketplace")
-    st.caption("Saldo = (Penjualan + Klaim - Fee - Biaya - Modal) - Pencairan â€” **uang yang masih di marketplace, belum dicairkan**.")
+    st.markdown("### ðŸ'Ž Saldo per Marketplace")
+    st.caption("Saldo = (Penjualan + Klaim - Fee - Biaya - Modal) - Pencairan â€" **uang yang masih di marketplace, belum dicairkan**.")
 
     saldo_cols = st.columns(len(MARKETPLACES))
     mp_colors = {"Shopee": "#EE4D2D", "TikTok": "#000000", "Lazada": "#0F1568"}
@@ -5374,7 +5374,7 @@ def render_cashflow():
             saldo_val = d["saldo"]
             st.markdown(f"##### ðŸª {mp}")
             st.metric(
-                "ðŸ’Ž Saldo Tersedia",
+                "ðŸ'Ž Saldo Tersedia",
                 f"Rp {saldo_val:,.0f}",
                 help=(
                     f"Penjualan All-Time + Klaim - Fee - Biaya - Modal = Rp {d['net_alltime']:,.0f}\n"
@@ -5383,50 +5383,50 @@ def render_cashflow():
                 ),
             )
             st.caption(
-                f"ðŸ“¦ Penjualan: Rp {d['gross']:,.0f}\n"
-                f"âš–ï¸ Klaim: Rp {d['klaim']:,.0f}\n"
-                f"ðŸ”» Fee: Rp {d['fee']:,.0f}\n"
+                f"ðŸ"¦ Penjualan: Rp {d['gross']:,.0f}\n"
+                f"âš-ï¸ Klaim: Rp {d['klaim']:,.0f}\n"
+                f"ðŸ"» Fee: Rp {d['fee']:,.0f}\n"
                 f"ðŸ¦ Pencairan: Rp {d['pencairan_periode']:,.0f}"
             )
 
     st.markdown("---")
 
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    # ðŸ“Š RINGKASAN GABUNGAN
+    # ðŸ"Š RINGKASAN GABUNGAN
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    st.markdown("### ðŸ“Š Ringkasan Keuangan (Gabungan)")
+    st.markdown("### ðŸ"Š Ringkasan Keuangan (Gabungan)")
     col_a, col_b, col_c, col_d, col_e = st.columns(5)
     with col_a:
-        st.metric("ðŸ’° Total Income", f"Rp {total_income_all:,.0f}",
+        st.metric("ðŸ'° Total Income", f"Rp {total_income_all:,.0f}",
                  help="Penjualan PACKED + Klaim Berhasil (semua marketplace)")
     with col_b:
-        st.metric("ðŸ“¤ Total Expenses", f"Rp {total_expenses_all:,.0f}",
+        st.metric("ðŸ"¤ Total Expenses", f"Rp {total_expenses_all:,.0f}",
                  help="Fee MP + Biaya/Resi + Modal + OPEX + Pembelian")
     with col_c:
         margin = (net_profit / total_income_all * 100) if total_income_all > 0 else 0
-        st.metric("âœ… Net Profit", f"Rp {net_profit:,.0f}",
+        st.metric("âœ... Net Profit", f"Rp {net_profit:,.0f}",
                  delta=f"{margin:.1f}% margin")
     with col_d:
         # Pencairan periode
         cair_periode_all = sum(d["pencairan_periode"] for d in mp_data.values())
         st.metric("ðŸ¦ Pencairan Periode", f"Rp {cair_periode_all:,.0f}")
     with col_e:
-        st.metric("ðŸ’Ž Saldo Global", f"Rp {saldo_global:,.0f}",
+        st.metric("ðŸ'Ž Saldo Global", f"Rp {saldo_global:,.0f}",
                  help=f"Saldo gabungan semua marketplace = Akumulasi Net Profit - Total Pencairan")
 
-    # â”€â”€ Expense Ratio â”€â”€
+    # â"€â"€ Expense Ratio â"€â"€
     if total_income_all > 0:
         ratio = total_expenses_all / total_income_all
-        st.progress(min(ratio, 1.0), text=f"ðŸ“Š Expense Ratio: {ratio*100:.1f}% dari Income | Profit Margin: {max(0,100-ratio*100):.1f}%")
+        st.progress(min(ratio, 1.0), text=f"ðŸ"Š Expense Ratio: {ratio*100:.1f}% dari Income | Profit Margin: {max(0,100-ratio*100):.1f}%")
 
     st.markdown("---")
 
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    # ðŸ“Š DETAIL PER MARKETPLACE
+    # ðŸ"Š DETAIL PER MARKETPLACE
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     st.markdown("### ðŸª Detail per Marketplace")
 
-    mp_tabs = st.tabs(["ðŸŸ  Shopee", "âš« TikTok", "ðŸ”µ Lazada"])
+    mp_tabs = st.tabs(["ðŸŸ  Shopee", "âš« TikTok", "ðŸ"µ Lazada"])
     for i, mp in enumerate(MARKETPLACES):
         with mp_tabs[i]:
             d = mp_data[mp]
@@ -5435,24 +5435,24 @@ def render_cashflow():
 
             c1, c2, c3, c4 = st.columns(4)
             with c1:
-                st.metric("ðŸ“¦ Penjualan", f"Rp {d['gross']:,.0f}")
+                st.metric("ðŸ"¦ Penjualan", f"Rp {d['gross']:,.0f}")
             with c2:
-                st.metric("âš–ï¸ Klaim", f"Rp {d['klaim']:,.0f}")
+                st.metric("âš-ï¸ Klaim", f"Rp {d['klaim']:,.0f}")
             with c3:
-                st.metric("ðŸ”» Fee + Biaya", f"Rp {d['fee'] + d['biaya']:,.0f}")
+                st.metric("ðŸ"» Fee + Biaya", f"Rp {d['fee'] + d['biaya']:,.0f}")
             with c4:
-                st.metric("ðŸ“‹ Modal (HPP)", f"Rp {d['modal']:,.0f}")
+                st.metric("ðŸ"‹ Modal (HPP)", f"Rp {d['modal']:,.0f}")
 
             st.markdown("---")
             df_mp_detail = pd.DataFrame([
-                {"Item": "ðŸ“¦ Penjualan (Gross)", "Jumlah": f"Rp {d['gross']:,.0f}"},
-                {"Item": "âš–ï¸ Klaim Berhasil (+)", "Jumlah": f"Rp {d['klaim']:,.0f}"},
-                {"Item": f"ðŸ”» Fee Marketplace ({fee_map[mp]*100:.1f}%)", "Jumlah": f"Rp {d['fee']:,.0f}"},
-                {"Item": f"ðŸ“¦ Biaya / Resi ({d['resi']} resi Ã- Rp {biaya_per_resi:,})", "Jumlah": f"Rp {d['biaya']:,.0f}"},
-                {"Item": "ðŸ“‹ Harga Modal (HPP)", "Jumlah": f"Rp {d['modal']:,.0f}"},
-                {"Item": "â” **Net Profit**", "Jumlah": f"**Rp {mp_net:,.0f}**"},
+                {"Item": "ðŸ"¦ Penjualan (Gross)", "Jumlah": f"Rp {d['gross']:,.0f}"},
+                {"Item": "âš-ï¸ Klaim Berhasil (+)", "Jumlah": f"Rp {d['klaim']:,.0f}"},
+                {"Item": f"ðŸ"» Fee Marketplace ({fee_map[mp]*100:.1f}%)", "Jumlah": f"Rp {d['fee']:,.0f}"},
+                {"Item": f"ðŸ"¦ Biaya / Resi ({d['resi']} resi Ã- Rp {biaya_per_resi:,})", "Jumlah": f"Rp {d['biaya']:,.0f}"},
+                {"Item": "ðŸ"‹ Harga Modal (HPP)", "Jumlah": f"Rp {d['modal']:,.0f}"},
+                {"Item": "â" **Net Profit**", "Jumlah": f"**Rp {mp_net:,.0f}**"},
                 {"Item": "ðŸ¦ Pencairan Periode", "Jumlah": f"Rp {mp_cair:,.0f}"},
-                {"Item": "ðŸ’Ž **Saldo Tersedia**", "Jumlah": f"**Rp {d['saldo']:,.0f}**"},
+                {"Item": "ðŸ'Ž **Saldo Tersedia**", "Jumlah": f"**Rp {d['saldo']:,.0f}**"},
             ])
             st.dataframe(df_mp_detail, width="stretch", hide_index=True)
 
@@ -5463,24 +5463,24 @@ def render_cashflow():
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     col_l, col_r = st.columns(2)
     with col_l:
-        st.markdown("#### ðŸ’° Income")
+        st.markdown("#### ðŸ'° Income")
         inc_rows = [
-            {"Sumber": f"ðŸ“¦ {mp}", "Jumlah": f"Rp {mp_data[mp]['gross']:,.0f}"}
+            {"Sumber": f"ðŸ"¦ {mp}", "Jumlah": f"Rp {mp_data[mp]['gross']:,.0f}"}
             for mp in MARKETPLACES
         ]
-        inc_rows.append({"Sumber": "âš–ï¸ Klaim Berhasil", "Jumlah": f"Rp {total_klaim_all:,.0f}"})
-        inc_rows.append({"Sumber": "â” Total Income", "Jumlah": f"Rp {total_income_all:,.0f}"})
+        inc_rows.append({"Sumber": "âš-ï¸ Klaim Berhasil", "Jumlah": f"Rp {total_klaim_all:,.0f}"})
+        inc_rows.append({"Sumber": "â" Total Income", "Jumlah": f"Rp {total_income_all:,.0f}"})
         st.dataframe(pd.DataFrame(inc_rows), width="stretch", hide_index=True)
 
     with col_r:
-        st.markdown("#### ðŸ“¤ Expenses")
+        st.markdown("#### ðŸ"¤ Expenses")
         exp_rows = [
-            {"Kategori": "ðŸ”» Fee Marketplace", "Jumlah": f"Rp {total_fee_all:,.0f}"},
-            {"Kategori": "ðŸ“¦ Biaya / Resi", "Jumlah": f"Rp {total_biaya_all:,.0f}"},
-            {"Kategori": "ðŸ“‹ Harga Modal (HPP)", "Jumlah": f"Rp {total_modal_all:,.0f}"},
-            {"Kategori": "ðŸ“ OPEX (Operasional)", "Jumlah": f"Rp {total_opex:,.0f}"},
-            {"Kategori": "ðŸ›’ Pembelian SKU", "Jumlah": f"Rp {total_pembelian:,.0f}"},
-            {"Kategori": "â” Total Expenses", "Jumlah": f"Rp {total_expenses_all:,.0f}"},
+            {"Kategori": "ðŸ"» Fee Marketplace", "Jumlah": f"Rp {total_fee_all:,.0f}"},
+            {"Kategori": "ðŸ"¦ Biaya / Resi", "Jumlah": f"Rp {total_biaya_all:,.0f}"},
+            {"Kategori": "ðŸ"‹ Harga Modal (HPP)", "Jumlah": f"Rp {total_modal_all:,.0f}"},
+            {"Kategori": "ðŸ" OPEX (Operasional)", "Jumlah": f"Rp {total_opex:,.0f}"},
+            {"Kategori": "ðŸ›' Pembelian SKU", "Jumlah": f"Rp {total_pembelian:,.0f}"},
+            {"Kategori": "â" Total Expenses", "Jumlah": f"Rp {total_expenses_all:,.0f}"},
         ]
         st.dataframe(pd.DataFrame(exp_rows), width="stretch", hide_index=True)
 
@@ -5527,8 +5527,8 @@ def render_cashflow():
 
     st.markdown("---")
 
-    # â”€â”€ Pencairan History â”€â”€
-    st.markdown("### ðŸ“‹ Riwayat Pencairan")
+    # â"€â"€ Pencairan History â"€â"€
+    st.markdown("### ðŸ"‹ Riwayat Pencairan")
     cair_history = db.fetch_all(
         "SELECT * FROM pencairan ORDER BY tanggal DESC, id DESC LIMIT 50"
     )
@@ -5549,12 +5549,12 @@ def render_cashflow():
             mp_cair[r["marketplace"]] = mp_cair.get(r["marketplace"], 0) + r["jumlah"]
         st.caption(" | ".join(f"**{mp}**: Rp {jml:,.0f}" for mp, jml in sorted(mp_cair.items())))
     else:
-        st.info("ðŸ“­ Belum ada pencairan. Catat pencairan pertama menggunakan form di atas.")
+        st.info("ðŸ"­ Belum ada pencairan. Catat pencairan pertama menggunakan form di atas.")
 
     # Delete
-    with st.expander("ðŸ-‘ï¸ Hapus Pencairan", expanded=False):
+    with st.expander("ðŸ-'ï¸ Hapus Pencairan", expanded=False):
         del_cair_id = st.number_input("ID Pencairan", min_value=1, step=1, key="cair_del_id")
-        if st.button("ðŸ-‘ï¸ Hapus", key="cair_del_btn"):
+        if st.button("ðŸ-'ï¸ Hapus", key="cair_del_btn"):
             r = db.fetch_one("SELECT * FROM pencairan WHERE id = ?", (del_cair_id,))
             if r:
                 db.execute("DELETE FROM pencairan WHERE id = ?", (del_cair_id,))
@@ -5601,16 +5601,16 @@ def _hitung_all_time_net(db, fee_map, biaya_per_resi):
 
 
 def render_ai_supervisor():
-    """AI Supervisor â€” analisa & rekomendasi kinerja operasional."""
+    """AI Supervisor â€" analisa & rekomendasi kinerja operasional."""
     db = st.session_state.db
     today_str = datetime.now().strftime("%d-%m-%Y")
     today_date = datetime.now().strftime("%Y-%m-%d")
 
-    st.subheader("ðŸ¤– AI Supervisor â€” Analisa Kinerja Operasional")
-    st.caption("AI menganalisa seluruh pipeline: Pesanan Masuk â†’ Packing â†’ Handover â†’ Selesai")
+    st.subheader("ðŸ¤- AI Supervisor â€" Analisa Kinerja Operasional")
+    st.caption("AI menganalisa seluruh pipeline: Pesanan Masuk â†' Packing â†' Handover â†' Selesai")
 
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    # ðŸ“Š QUERY ALL METRICS
+    # ðŸ"Š QUERY ALL METRICS
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     # Total orders (unique no_pesanan)
@@ -5700,7 +5700,7 @@ def render_ai_supervisor():
     sku_matched_cnt = sku_match["cnt"] if sku_match else 0
     sku_match_pct = (sku_matched_cnt / total_items_cnt * 100) if total_items_cnt > 0 else 0
 
-    # â”€â”€ Instant / Prioritas Orders â”€â”€
+    # â"€â"€ Instant / Prioritas Orders â"€â"€
     instant_keywords = ['%instant%', '%same%day%', '%gosend%', '%grab%express%', '%prioritas%']
     instant_where = " OR ".join([f"LOWER(kurir) LIKE '{kw}'" for kw in instant_keywords])
     instant_orders = db.fetch_one(
@@ -5734,36 +5734,36 @@ def render_ai_supervisor():
         success_rate = (packed / total_orders_cnt * 100) if total_orders_cnt > 0 else 0
 
         if packing_rate >= 90:
-            insights.append(("âœ…", "Efisiensi packing sangat baik", f"{packing_rate:.0f}% resi sudah dipacking â€” tim operasional bekerja optimal.", "good"))
+            insights.append(("âœ...", "Efisiensi packing sangat baik", f"{packing_rate:.0f}% resi sudah dipacking â€" tim operasional bekerja optimal.", "good"))
         elif packing_rate >= 60:
             insights.append(("âš¡", "Packing berjalan normal", f"{packing_rate:.0f}% sudah dipacking, masih ada {with_resi_cnt - packed} resi dalam antrian.", "normal"))
         elif packing_rate > 0:
             insights.append(("âš ï¸", "Packing perlu dipercepat", f"Hanya {packing_rate:.0f}% yang sudah dipacking. {with_resi_cnt - packed} resi belum tersentuh.", "warn"))
         else:
-            insights.append(("ðŸ”´", "Belum ada aktivitas packing", "Tim belum mulai packing. Segera mulai scan resi di SCAN Operasional.", "critical"))
+            insights.append(("ðŸ"´", "Belum ada aktivitas packing", "Tim belum mulai packing. Segera mulai scan resi di SCAN Operasional.", "critical"))
 
         # Cancel rate
         if total_orders_cnt > 0:
             cancel_rate = (cancel / total_orders_cnt * 100)
             if cancel_rate > 10:
-                alerts.append(("ðŸ”´", "Cancel Rate Tinggi", f"{cancel_rate:.0f}% pesanan dibatalkan â€” perlu investigasi penyebab cancel."))
+                alerts.append(("ðŸ"´", "Cancel Rate Tinggi", f"{cancel_rate:.0f}% pesanan dibatalkan â€" perlu investigasi penyebab cancel."))
             elif cancel_rate > 5:
-                alerts.append(("âš ï¸", "Cancel Rate Meningkat", f"{cancel_rate:.0f}% cancel â€” pantau terus dan evaluasi stok/proses."))
+                alerts.append(("âš ï¸", "Cancel Rate Meningkat", f"{cancel_rate:.0f}% cancel â€" pantau terus dan evaluasi stok/proses."))
 
         # Orders without resi
         if tanpa_resi_cnt > 0:
             tanpa_pct = (tanpa_resi_cnt / total_orders_cnt * 100)
             if tanpa_pct > 30:
-                alerts.append(("ðŸ”´", "Banyak Pesanan Tanpa Resi", f"{tanpa_resi_cnt} pesanan ({tanpa_pct:.0f}%) belum punya no resi. Segera update di Input Resi & Pesanan!"))
+                alerts.append(("ðŸ"´", "Banyak Pesanan Tanpa Resi", f"{tanpa_resi_cnt} pesanan ({tanpa_pct:.0f}%) belum punya no resi. Segera update di Input Resi & Pesanan!"))
             elif tanpa_pct > 10:
                 alerts.append(("âš ï¸", "Pesanan Perlu Resi", f"{tanpa_resi_cnt} pesanan ({tanpa_pct:.0f}%) belum punya no resi. Update sebelum packing."))
 
         # Pending scans
         if pending > 0:
             if pending > 20:
-                alerts.append(("ðŸ”´", "Banyak Scan Pending", f"{pending} resi di-scan tapi tidak ada di data penjualan. Cek ulang data impor."))
+                alerts.append(("ðŸ"´", "Banyak Scan Pending", f"{pending} resi di-scan tapi tidak ada di data penjualan. Cek ulang data impor."))
             else:
-                alerts.append(("âš ï¸", "Scan Pending Terdeteksi", f"{pending} resi pending â€” pastikan data penjualan sudah lengkap."))
+                alerts.append(("âš ï¸", "Scan Pending Terdeteksi", f"{pending} resi pending â€" pastikan data penjualan sudah lengkap."))
 
         # SKU matching
         if sku_match_pct < 70:
@@ -5771,48 +5771,48 @@ def render_ai_supervisor():
 
         # Daily productivity
         if today_scan_cnt > 0:
-            insights.append(("ðŸ“Š", f"Aktivitas Hari Ini", f"{today_packed_cnt} resi dipacking hari ini dari {today_scan_cnt} total scan. Tetap konsisten!", "good" if today_packed_cnt > 50 else "normal"))
+            insights.append(("ðŸ"Š", f"Aktivitas Hari Ini", f"{today_packed_cnt} resi dipacking hari ini dari {today_scan_cnt} total scan. Tetap konsisten!", "good" if today_packed_cnt > 50 else "normal"))
         else:
             if total_orders_cnt > 0:
                 insights.append(("â°", "Belum Ada Scan Hari Ini", "Operator belum mulai packing hari ini. Pastikan tim mulai bekerja.", "warn"))
 
-        # â”€â”€ Instant / Prioritas â”€â”€
+        # â"€â"€ Instant / Prioritas â"€â"€
         if instant_total > 0:
             instant_unpacked_pct = (instant_waiting / instant_total * 100) if instant_total > 0 else 0
             if instant_waiting > 0:
                 alerts.insert(0, ("ðŸš€", "PRIORITAS! Pesanan Instant Menunggu", 
                     f"{instant_waiting} dari {instant_total} pesanan instant/same-day BELUM dipacking! Dahulukan sebelum reguler."))
                 insights.append(("ðŸš€", "Pesanan Instant Perlu Prioritas", 
-                    f"{instant_waiting} pesanan instant ({instant_unpacked_pct:.0f}%) masih menunggu â€” SLA pengiriman lebih ketat.", "warn"))
+                    f"{instant_waiting} pesanan instant ({instant_unpacked_pct:.0f}%) masih menunggu â€" SLA pengiriman lebih ketat.", "warn"))
             else:
                 instant_done_pct = (instant_done / instant_total * 100) if instant_total > 0 else 0
-                insights.append(("âœ…", "Semua Instant Terpacking", 
+                insights.append(("âœ...", "Semua Instant Terpacking", 
                     f"{instant_done}/{instant_total} pesanan instant sudah selesai dipacking. Good job!", "good"))
 
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    # ðŸ“‹ RECOMMENDATIONS
+    # ðŸ"‹ RECOMMENDATIONS
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     if instant_waiting > 0:
         recommendations.insert(0, ("ðŸš€", "DAHULUKAN INSTANT!", 
-            f"ðŸš¨ {instant_waiting} pesanan instant/same-day belum dipacking. SLA ketat â€” kerjakan SEKARANG sebelum reguler!"))
+            f"ðŸš¨ {instant_waiting} pesanan instant/same-day belum dipacking. SLA ketat â€" kerjakan SEKARANG sebelum reguler!"))
     if tanpa_resi_cnt > 0:
-        recommendations.append(("ðŸ“‹", "Update No Resi", f"Prioritaskan update {tanpa_resi_cnt} pesanan tanpa resi di menu Input Resi & Pesanan."))
+        recommendations.append(("ðŸ"‹", "Update No Resi", f"Prioritaskan update {tanpa_resi_cnt} pesanan tanpa resi di menu Input Resi & Pesanan."))
     if pending > 0:
-        recommendations.append(("ðŸ”", "Verifikasi Pending", f"Cek {pending} scan pending â€” pastikan data penjualan sesuai dengan resi fisik."))
+        recommendations.append(("ðŸ"", "Verifikasi Pending", f"Cek {pending} scan pending â€" pastikan data penjualan sesuai dengan resi fisik."))
     if handover_ready > 0:
-        recommendations.append(("ðŸ“¤", "Siapkan Handover", f"{handover_ready} resi siap handover. Export laporan handover untuk kurir."))
+        recommendations.append(("ðŸ"¤", "Siapkan Handover", f"{handover_ready} resi siap handover. Export laporan handover untuk kurir."))
     if cancel > 10:
-        recommendations.append(("ðŸ›‘", "Evaluasi Cancel", f"Cancel rate tinggi ({cancel} resi). Review proses quality control dan stok barang."))
+        recommendations.append(("ðŸ›'", "Evaluasi Cancel", f"Cancel rate tinggi ({cancel} resi). Review proses quality control dan stok barang."))
     if packed > 0 and with_resi_cnt > 0 and (with_resi_cnt - packed) > 0:
         recommendations.append(("ðŸŽ¯", "Target Packing", f"Selesaikan {with_resi_cnt - packed} resi tersisa untuk capai 100% packing rate."))
     if sku_match_pct < 85:
-        recommendations.append(("ðŸ·ï¸", "Perbaiki SKU", f"Tingkatkan SKU matching ({sku_match_pct:.0f}%) â€” update file Excel dengan kode SKU yang benar."))
+        recommendations.append(("ðŸ·ï¸", "Perbaiki SKU", f"Tingkatkan SKU matching ({sku_match_pct:.0f}%) â€" update file Excel dengan kode SKU yang benar."))
 
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # ðŸŽ¨ RENDER DASHBOARD
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-    # â”€â”€ Health Score â”€â”€
+    # â"€â"€ Health Score â"€â"€
     if total_orders_cnt > 0:
         # Bonus/penalty untuk instant: +5 kalau semua instant sudah packed, -10 kalau masih banyak nunggu
         instant_bonus = 5 if (instant_total > 0 and instant_waiting == 0) else (-10 if instant_waiting > 5 else 0)
@@ -5828,11 +5828,11 @@ def render_ai_supervisor():
 
     if health_score >= 80:
         health_color = "#30D158"
-        health_emoji = "ðŸ’š"
+        health_emoji = "ðŸ'š"
         health_label = "Sehat"
     elif health_score >= 50:
         health_color = "#FF9F0A"
-        health_emoji = "ðŸ’›"
+        health_emoji = "ðŸ'›"
         health_label = "Perlu Perhatian"
     else:
         health_color = "#FF453A"
@@ -5843,51 +5843,51 @@ def render_ai_supervisor():
     st.markdown(f"""
     <div style="background: {health_color}22; border: 2px solid {health_color}; border-radius: 16px; padding: 20px; margin-bottom: 20px; text-align: center;">
         <h2 style="margin: 0; color: {health_color};">{health_emoji} Skor Kesehatan Operasional: {health_score}/100</h2>
-        <p style="margin: 5px 0 0 0; color: #AEAEB2; font-size: 14px;">Status: <strong style="color: {health_color};">{health_label}</strong> â€” diperbarui {datetime.now().strftime('%H:%M')}</p>
+        <p style="margin: 5px 0 0 0; color: #AEAEB2; font-size: 14px;">Status: <strong style="color: {health_color};">{health_label}</strong> â€" diperbarui {datetime.now().strftime('%H:%M')}</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # â”€â”€ Pipeline Flow â”€â”€
-    st.markdown("### ðŸ”„ Pipeline Operasional")
+    # â"€â"€ Pipeline Flow â"€â"€
+    st.markdown("### ðŸ"„ Pipeline Operasional")
     col_p1, col_p2, col_p3, col_p4, col_p5, col_p6 = st.columns(6)
     with col_p1:
-        st.metric("ðŸ“¥ Pesanan", total_orders_cnt, help="Total pesanan masuk")
+        st.metric("ðŸ"¥ Pesanan", total_orders_cnt, help="Total pesanan masuk")
     with col_p2:
         st.metric("ðŸ·ï¸ Ada Resi", with_resi_cnt, f"{tanpa_resi_cnt} tanpa", help="Pesanan yang sudah punya no resi")
     with col_p3:
-        st.metric("âœ… Packed", packed, f"{'+'+str(instant) if instant else ''} instant" if instant else "", help="Resi sudah dipacking")
+        st.metric("âœ... Packed", packed, f"{'+'+str(instant) if instant else ''} instant" if instant else "", help="Resi sudah dipacking")
     with col_p4:
         st.metric("â³ Pending", pending, help="Scan tidak dikenal")
     with col_p5:
         st.metric("âŒ Cancel", cancel, help="Pesanan dibatalkan")
     with col_p6:
-        st.metric("ðŸ“¤ Siap Handover", handover_ready, help="Siap diserahkan ke kurir")
+        st.metric("ðŸ"¤ Siap Handover", handover_ready, help="Siap diserahkan ke kurir")
 
     # Progress bar untuk packing progress
     if with_resi_cnt > 0:
         progress_pct = min(1.0, packed / with_resi_cnt)
         st.progress(progress_pct, text=f"Progress Packing: {packed}/{with_resi_cnt} resi ({progress_pct*100:.0f}%)")
 
-    # â”€â”€ Instant Priority Callout â”€â”€
+    # â"€â"€ Instant Priority Callout â"€â"€
     if instant_waiting > 0:
         instant_pct = (instant_waiting / instant_total * 100) if instant_total > 0 else 0
         st.markdown(f"""
         <div style="background: #FF453A22; border: 2px solid #FF453A; border-radius: 12px; padding: 14px; margin: 12px 0;">
             <strong style="color: #FF453A; font-size: 16px;">ðŸš€ INSTANT PRIORITY!</strong><br>
-            <span style="color: #FF9F0A;">{instant_waiting} dari {instant_total} pesanan <strong>instant/same-day</strong> ({instant_pct:.0f}%) belum dipacking â€” 
+            <span style="color: #FF9F0A;">{instant_waiting} dari {instant_total} pesanan <strong>instant/same-day</strong> ({instant_pct:.0f}%) belum dipacking â€" 
             <u>dahulukan sebelum reguler!</u></span> &nbsp;
-            <span style="color: #30D158;">âœ… {instant_done} sudah selesai.</span>
+            <span style="color: #30D158;">âœ... {instant_done} sudah selesai.</span>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("---")
 
-    # â”€â”€ Alerts Section â”€â”€
+    # â"€â"€ Alerts Section â"€â"€
     if alerts:
         st.markdown("### ðŸš¨ Alert & Peringatan")
         for icon, title, desc in alerts:
-            bg = "#FF453A22" if "ðŸ”´" in icon else "#FF9F0A22"
-            border = "#FF453A" if "ðŸ”´" in icon else "#FF9F0A"
+            bg = "#FF453A22" if "ðŸ"´" in icon else "#FF9F0A22"
+            border = "#FF453A" if "ðŸ"´" in icon else "#FF9F0A"
             st.markdown(f"""
             <div style="background: {bg}; border-left: 4px solid {border}; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
                 <strong>{icon} {title}</strong><br>
@@ -5895,9 +5895,9 @@ def render_ai_supervisor():
             </div>
             """, unsafe_allow_html=True)
     else:
-        st.success("âœ… Tidak ada alert â€” semua berjalan normal!")
+        st.success("âœ... Tidak ada alert â€" semua berjalan normal!")
 
-    # â”€â”€ AI Insights â”€â”€
+    # â"€â"€ AI Insights â"€â"€
     st.markdown("---")
     st.markdown("### ðŸ§  Insight AI")
     col_i1, col_i2 = st.columns(2)
@@ -5912,10 +5912,10 @@ def render_ai_supervisor():
             </div>
             """, unsafe_allow_html=True)
 
-    # â”€â”€ Recommendations â”€â”€
+    # â"€â"€ Recommendations â"€â"€
     if recommendations:
         st.markdown("---")
-        st.markdown("### ðŸ“‹ Rekomendasi AI")
+        st.markdown("### ðŸ"‹ Rekomendasi AI")
         for icon, title, desc in recommendations:
             st.markdown(f"""
             <div style="background: #0A84FF15; border: 1px solid #0A84FF44; border-radius: 12px; padding: 12px; margin-bottom: 6px; display: flex; align-items: flex-start; gap: 10px;">
@@ -5927,7 +5927,7 @@ def render_ai_supervisor():
             </div>
             """, unsafe_allow_html=True)
 
-    # â”€â”€ Performance Tables â”€â”€
+    # â"€â"€ Performance Tables â"€â"€
     st.markdown("---")
     col_t1, col_t2 = st.columns(2)
 
@@ -5959,10 +5959,10 @@ def render_ai_supervisor():
         else:
             st.info("Belum ada data ekspedisi.")
 
-    # â”€â”€ Marketplace Breakdown â”€â”€
+    # â"€â"€ Marketplace Breakdown â"€â"€
     if mp_stats:
         st.markdown("---")
-        st.markdown("#### ðŸ›’ Breakdown per Marketplace")
+        st.markdown("#### ðŸ›' Breakdown per Marketplace")
         df_mp = pd.DataFrame([dict(r) for r in mp_stats])
         df_mp = df_mp.rename(columns={
             "marketplace": "Marketplace", "total_orders": "Pesanan",
@@ -5974,15 +5974,15 @@ def render_ai_supervisor():
             target = [col_mp1, col_mp2, col_mp3][i % 3]
             with target:
                 resi_pct = f"{(row['Punya Resi']/row['Pesanan']*100):.0f}%" if row["Pesanan"] > 0 else "0%"
-                st.metric(f"{row['Marketplace']}", f"{row['Pesanan']} orders", f"ðŸ“¦ {row['Punya Resi']} resi ({resi_pct}) | {row['Revenue']}")
+                st.metric(f"{row['Marketplace']}", f"{row['Pesanan']} orders", f"ðŸ"¦ {row['Punya Resi']} resi ({resi_pct}) | {row['Revenue']}")
 
-    # â”€â”€ Refresh & Timestamp â”€â”€
+    # â"€â"€ Refresh & Timestamp â"€â"€
     st.markdown("---")
 
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    # ðŸ”Š VOICE ALERT SYSTEM (Text-to-Speech)
+    # ðŸ"Š VOICE ALERT SYSTEM (Text-to-Speech)
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    st.markdown("### ðŸ”Š Voice Alert (Text-to-Speech)")
+    st.markdown("### ðŸ"Š Voice Alert (Text-to-Speech)")
 
     # Init session state
     if "voice_enabled" not in st.session_state:
@@ -5994,7 +5994,7 @@ def render_ai_supervisor():
 
     col_v1, col_v2, col_v3, col_v4 = st.columns([1, 1, 1, 1])
     with col_v1:
-        voice_enabled = st.toggle("ðŸ”Š Aktifkan Suara", value=st.session_state.voice_enabled, key="voice_toggle",
+        voice_enabled = st.toggle("ðŸ"Š Aktifkan Suara", value=st.session_state.voice_enabled, key="voice_toggle",
                                    help="AI akan bersuara melalui speaker saat ada alert penting")
     with col_v2:
         voice_interval = st.slider("â± Interval Cek (detik)", 15, 300, st.session_state.voice_interval, 15, key="voice_interval_slider",
@@ -6009,16 +6009,16 @@ def render_ai_supervisor():
 
     if snooze_clicked:
         st.session_state.voice_snooze_until = datetime.now().timestamp() + (snooze_minutes * 60)
-        st.success(f"ðŸ”‡ Alert suara ditunda selama {snooze_minutes} menit.")
+        st.success(f"ðŸ"‡ Alert suara ditunda selama {snooze_minutes} menit.")
         st.rerun()
 
     # Test suara button
     test_col1, test_col2 = st.columns([1, 3])
     with test_col1:
-        test_clicked = st.button("ðŸ”Š Test Suara", width="stretch", key="voice_test_btn",
+        test_clicked = st.button("ðŸ"Š Test Suara", width="stretch", key="voice_test_btn",
                                   help="Coba putar suara test")
     with test_col2:
-        st.caption("ðŸ’¡ Pastikan speaker menyala & volume cukup. Chrome/Edge disarankan. Cek icon ðŸ”Š di tab browser tidak di-mute.")
+        st.caption("ðŸ'¡ Pastikan speaker menyala & volume cukup. Chrome/Edge disarankan. Cek icon ðŸ"Š di tab browser tidak di-mute.")
 
     if test_clicked:
         import streamlit.components.v1 as components
@@ -6031,7 +6031,7 @@ def render_ai_supervisor():
             // Pilih suara Indonesia terbaik (perempuan, natural)
             var voices = speechSynthesis.getVoices();
             if (voices.length === 0) {
-                // Voices belum load â€” tunggu dan retry
+                // Voices belum load â€" tunggu dan retry
                 speechSynthesis.onvoiceschanged = function() {
                     speechSynthesis.onvoiceschanged = null;
                     speakMsg(msg);
@@ -6048,14 +6048,14 @@ def render_ai_supervisor():
             }
             speechSynthesis.cancel();
             speechSynthesis.speak(u);
-            document.body.innerHTML = '<div style="color:green;font-size:14px;padding:6px;font-family:sans-serif;">âœ… Suara test diputar! Jika tidak terdengar, cek volume speaker & icon mute di tab browser.</div>';
+            document.body.innerHTML = '<div style="color:green;font-size:14px;padding:6px;font-family:sans-serif;">âœ... Suara test diputar! Jika tidak terdengar, cek volume speaker & icon mute di tab browser.</div>';
         }
         try { speakMsg("Halo! iScan Pro A I Supervisor siap membantu. Sistem berjalan normal."); }
         catch(e) { document.body.innerHTML = '<div style="color:red;font-size:14px;padding:6px;font-family:sans-serif;">âŒ Gagal: '+e.message+'</div>'; }
         </script>
         </body></html>
         """, height=50)
-        st.success("ðŸ”Š Memutar suara test...")
+        st.success("ðŸ"Š Memutar suara test...")
 
     st.session_state.voice_enabled = voice_enabled
     st.session_state.voice_interval = voice_interval
@@ -6066,24 +6066,24 @@ def render_ai_supervisor():
         if datetime.now().timestamp() < st.session_state.voice_snooze_until:
             remaining = int(st.session_state.voice_snooze_until - datetime.now().timestamp())
             snooze_active = True
-            st.info(f"ðŸ”‡ Snooze aktif â€” suara dinonaktifkan selama {remaining // 60}m {remaining % 60}d lagi.")
+            st.info(f"ðŸ"‡ Snooze aktif â€" suara dinonaktifkan selama {remaining // 60}m {remaining % 60}d lagi.")
         else:
             st.session_state.voice_snooze_until = None
 
-    # â”€â”€ Build voice message â”€â”€
+    # â"€â"€ Build voice message â"€â"€
     voice_msg = ""
     if instant_waiting > 0:
         voice_msg = (f"Perhatian! {instant_waiting} pesanan instant atau same-day belum dipacking. "
                      f"Dahulukan segera sebelum reguler. ")
     elif alerts:
         first_alert = alerts[0]
-        voice_msg = f"{first_alert[1]}. {first_alert[2].split(chr(8212))[0].strip().rstrip('.')}. "  # chr(8212) = â€”
+        voice_msg = f"{first_alert[1]}. {first_alert[2].split(chr(8212))[0].strip().rstrip('.')}. "  # chr(8212) = â€"
         if recommendations:
             voice_msg += f"Rekomendasi: {recommendations[0][1]}."
     elif total_orders_cnt == 0:
         voice_msg = "Belum ada data pesanan. Silakan import data terlebih dahulu."
 
-    # â”€â”€ Inject TTS via iframe (harus pake components.html biar script execute) â”€â”€
+    # â"€â"€ Inject TTS via iframe (harus pake components.html biar script execute) â"€â"€
     if voice_enabled and not snooze_active and voice_msg:
         ss_key = "last_voice_msg_hash"
         msg_hash = hash(voice_msg)
@@ -6117,27 +6117,27 @@ def render_ai_supervisor():
                 }}
                 speechSynthesis.cancel();
                 speechSynthesis.speak(u);
-                document.body.innerHTML = '<div style="color:green;font-size:12px;padding:4px;">ðŸ”Š Suara diputar</div>';
+                document.body.innerHTML = '<div style="color:green;font-size:12px;padding:4px;">ðŸ"Š Suara diputar</div>';
             }}
             try {{ speakMsg('{escaped}'); }}
             catch(e) {{ document.body.innerHTML = '<div style="color:red;font-size:12px;padding:4px;">âŒ '+e.message+'</div>'; }}
             </script>
             </body></html>
             """, height=30)
-            st.caption(f"ðŸ”Š Voice diputar | _{voice_msg[:80]}..._")
+            st.caption(f"ðŸ"Š Voice diputar | _{voice_msg[:80]}..._")
         else:
-            st.caption(f"ðŸ”Š Alert sudah diucapkan â€” klik 'Analisa Ulang' untuk refresh.")
+            st.caption(f"ðŸ"Š Alert sudah diucapkan â€" klik 'Analisa Ulang' untuk refresh.")
 
     elif voice_enabled and snooze_active:
-        st.caption("ðŸ”‡ Suara ditunda (snooze).")
+        st.caption("ðŸ"‡ Suara ditunda (snooze).")
     elif voice_enabled and not voice_msg:
-        st.caption("âœ… Tidak ada alert â€” semua aman.")
+        st.caption("âœ... Tidak ada alert â€" semua aman.")
 
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    # ðŸ”„ AUTO-REFRESH (via JavaScript timer)
+    # ðŸ"„ AUTO-REFRESH (via JavaScript timer)
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     if voice_enabled and not snooze_active:
-        # Inject auto-refresh timer â€” reload halaman setiap voice_interval detik
+        # Inject auto-refresh timer â€" reload halaman setiap voice_interval detik
         import streamlit.components.v1 as components
         components.html(f"""
         <html><body style="margin:0;padding:0;">
@@ -6156,26 +6156,26 @@ def render_ai_supervisor():
         </script>
         </body></html>
         """, height=0)
-        st.caption(f"ðŸ”„ Auto-refresh aktif â€” halaman refresh setiap {voice_interval} detik.")
+        st.caption(f"ðŸ"„ Auto-refresh aktif â€" halaman refresh setiap {voice_interval} detik.")
 
-    # â”€â”€ Manual Refresh â”€â”€
+    # â"€â"€ Manual Refresh â"€â"€
     st.markdown("---")
     col_r1, col_r2 = st.columns([1, 3])
     with col_r1:
-        if st.button("ðŸ”„ Analisa Ulang", width="stretch", type="primary"):
+        if st.button("ðŸ"„ Analisa Ulang", width="stretch", type="primary"):
             # Clear voice hash di session_state biar suara bisa diputar ulang
             st.session_state.pop("last_voice_msg_hash", None)
             st.rerun()
     with col_r2:
-        st.caption(f"ðŸ¤– AI Supervisor terakhir diperbarui: {datetime.now().strftime('%d %B %Y, %H:%M:%S')} | Data real-time dari database operasional.")
+        st.caption(f"ðŸ¤- AI Supervisor terakhir diperbarui: {datetime.now().strftime('%d %B %Y, %H:%M:%S')} | Data real-time dari database operasional.")
 
 
 def _render_handover_tab(db, tipe_kiriman: str):
-    """Render satu tab Handover (REGULER atau INSTANT) â€” dengan Marketplace filter, unique resi, TTD Elektronik."""
-    tipe_label = "ðŸš€ Instant" if tipe_kiriman == "INSTANT" else "ðŸ“¦ Reguler"
+    """Render satu tab Handover (REGULER atau INSTANT) â€" dengan Marketplace filter, unique resi, TTD Elektronik."""
+    tipe_label = "ðŸš€ Instant" if tipe_kiriman == "INSTANT" else "ðŸ"¦ Reguler"
     now = datetime.now()
 
-    # â”€â”€ Filter Baris 1: Kategori + Marketplace â”€â”€
+    # â"€â"€ Filter Baris 1: Kategori + Marketplace â"€â"€
     f1, f2 = st.columns(2)
     with f1:
         kat_filter = st.selectbox(
@@ -6201,7 +6201,7 @@ def _render_handover_tab(db, tipe_kiriman: str):
         where.append(f"p.marketplace = '{mp_filter}'")
     where_clause = " AND ".join(where)
 
-    # â”€â”€ Kurir List (Filtered) â”€â”€
+    # â"€â"€ Kurir List (Filtered) â"€â"€
     kurir_list = db.fetch_all(
         f"SELECT DISTINCT p.kurir FROM scan_aktif s "
         "JOIN penjualan p ON s.resi = p.no_resi "
@@ -6209,7 +6209,7 @@ def _render_handover_tab(db, tipe_kiriman: str):
     )
 
     if not kurir_list:
-        st.info(f"ðŸ“­ Belum ada resi PACKED {tipe_label} dengan filter tersebut.")
+        st.info(f"ðŸ"­ Belum ada resi PACKED {tipe_label} dengan filter tersebut.")
         return
 
     kurir_options = ["Semua Kurir"] + [k["kurir"] for k in kurir_list]
@@ -6217,7 +6217,7 @@ def _render_handover_tab(db, tipe_kiriman: str):
 
     kurir_where = "" if selected_kurir == "Semua Kurir" else f" AND p.kurir = '{selected_kurir}'"
 
-    # â”€â”€ Query: GROUP BY resi (1 resi = 1 baris, multi-SKU digabung) â”€â”€
+    # â"€â"€ Query: GROUP BY resi (1 resi = 1 baris, multi-SKU digabung) â"€â"€
     items = db.fetch_all(
         f"SELECT s.id as scan_id, s.waktu, s.tanggal, s.resi, s.kategori, s.keterangan_barang, s.tipe_kiriman, "
         "p.marketplace, p.no_pesanan, "
@@ -6234,7 +6234,7 @@ def _render_handover_tab(db, tipe_kiriman: str):
         st.info(f"Tidak ada resi {tipe_label} untuk kurir '{selected_kurir}'.")
         return
 
-    # â”€â”€ Display Table â”€â”€
+    # â"€â"€ Display Table â"€â"€
     df_items = pd.DataFrame([dict(r) for r in items])
     df_items["No"] = range(1, len(items) + 1)
     df_items = df_items.rename(columns={
@@ -6250,24 +6250,24 @@ def _render_handover_tab(db, tipe_kiriman: str):
     available_cols = [c for c in display_cols if c in df_items.columns]
     st.dataframe(df_items[available_cols], width="stretch", height=400, hide_index=True)
 
-    # â”€â”€ Summary â”€â”€
+    # â"€â"€ Summary â"€â"€
     unique_resi_count = len(items)
     total_qty_all = sum(r["total_qty"] or 0 for r in items) if "total_qty" in df_items.columns else unique_resi_count
     st.info(
-        f"ðŸ“‹ **{unique_resi_count} resi unik** (total {total_qty_all} item) {tipe_label} "
+        f"ðŸ"‹ **{unique_resi_count} resi unik** (total {total_qty_all} item) {tipe_label} "
         f"siap diserahkan ke **{selected_kurir}**"
         + (f" | Marketplace: {mp_filter}" if mp_filter != "Semua Marketplace" else "")
     )
 
-    # â”€â”€ Konfirmasi Instant: sudah diambil kurir â”€â”€
+    # â"€â"€ Konfirmasi Instant: sudah diambil kurir â"€â"€
     if tipe_kiriman == "INSTANT":
         st.markdown("---")
-        st.subheader("âœ… Konfirmasi Pengambilan Kurir (Instant)")
-        st.caption("Paket Instant otomatis muncul di sini setelah di-scan. Klik **âœ… Diambil** atau scan resi untuk konfirmasi.")
+        st.subheader("âœ... Konfirmasi Pengambilan Kurir (Instant)")
+        st.caption("Paket Instant otomatis muncul di sini setelah di-scan. Klik **âœ... Diambil** atau scan resi untuk konfirmasi.")
 
         # Mode 1: One-click per resi
         if items:
-            st.markdown("**Klik per resi â€” lebih cepat:**")
+            st.markdown("**Klik per resi â€" lebih cepat:**")
             # Show in compact grid with confirm buttons
             for idx, item in enumerate(items):
                 c_col1, c_col2, c_col3, c_col4, c_col5 = st.columns([2, 2, 3, 1.5, 1.5])
@@ -6280,10 +6280,10 @@ def _render_handover_tab(db, tipe_kiriman: str):
                 with c_col4:
                     st.caption(f"{item['nama_toko'] or '-'}")
                 with c_col5:
-                    if st.button("âœ… Diambil", key=f"instant_ambil_{item['resi']}_{idx}"):
+                    if st.button("âœ... Diambil", key=f"instant_ambil_{item['resi']}_{idx}"):
                         db.execute("DELETE FROM scan_aktif WHERE resi = ? AND tipe_kiriman = 'INSTANT'", (item["resi"],))
                         db.execute("UPDATE penjualan SET status_pesanan = 'TERKIRIM' WHERE no_resi = ?", (item["resi"],))
-                        st.success(f"âœ… `{item['resi']}` diserahkan ke kurir â€” status: TERKIRIM.")
+                        st.success(f"âœ... `{item['resi']}` diserahkan ke kurir â€" status: TERKIRIM.")
                         st.rerun()
 
         # Mode 2: Scan/ketik resi (buat yang pakai barcode scanner)
@@ -6298,21 +6298,21 @@ def _render_handover_tab(db, tipe_kiriman: str):
                 label_visibility="collapsed",
             )
         with konfirm_col2:
-            if st.button("ðŸ” Konfirmasi", width="stretch", key=f"konfirm_btn_{tipe_kiriman}"):
+            if st.button("ðŸ" Konfirmasi", width="stretch", key=f"konfirm_btn_{tipe_kiriman}"):
                 if konfirm_resi.strip():
                     c_clean = Validator.sanitize_resi(konfirm_resi.strip())
                     if c_clean:
                         db.execute("DELETE FROM scan_aktif WHERE resi = ? AND tipe_kiriman = 'INSTANT'", (c_clean,))
                         db.execute("UPDATE penjualan SET status_pesanan = 'TERKIRIM' WHERE no_resi = ?", (c_clean,))
-                        st.success(f"âœ… `{c_clean}` dikonfirmasi â€” sudah diambil kurir & status: TERKIRIM.")
+                        st.success(f"âœ... `{c_clean}` dikonfirmasi â€" sudah diambil kurir & status: TERKIRIM.")
                         st.rerun()
                 else:
                     st.warning("Masukkan No Resi.")
 
-    # â”€â”€ Ringkasan per Kurir (jika Semua Kurir) â”€â”€
+    # â"€â"€ Ringkasan per Kurir (jika Semua Kurir) â"€â"€
     if selected_kurir == "Semua Kurir":
         st.markdown("---")
-        st.subheader("ðŸ“Š Ringkasan per Kurir / Ekspedisi")
+        st.subheader("ðŸ"Š Ringkasan per Kurir / Ekspedisi")
         summary = db.fetch_all(
             f"SELECT p.kurir, COUNT(DISTINCT s.resi) as jml_resi, SUM(p.qty) as jml_item "
             "FROM scan_aktif s JOIN penjualan p ON s.resi = p.no_resi "
@@ -6374,8 +6374,8 @@ def _render_handover_tab(db, tipe_kiriman: str):
                     ),
                 )
                 st.success(
-                    f"âœ… **Serah Terima Tercatat!**\n\n"
-                    f"ðŸ“¦ {unique_resi_count} resi diserahkan oleh **{ttd_op.strip()}** "
+                    f"âœ... **Serah Terima Tercatat!**\n\n"
+                    f"ðŸ"¦ {unique_resi_count} resi diserahkan oleh **{ttd_op.strip()}** "
                     f"kepada **{ttd_eks.strip()}** ({nama_eks.strip() or selected_kurir})\n"
                     f"ðŸ• {now_ttd.strftime('%d %B %Y, %H:%M')}"
                 )
@@ -6383,11 +6383,11 @@ def _render_handover_tab(db, tipe_kiriman: str):
                 st.rerun()
 
     with ttd_col_b:
-        if st.button("ðŸ–¨ï¸ **Cetak / Print Handover**", width="stretch", key=f"ttd_print_{tipe_kiriman}"):
+        if st.button("ðŸ-¨ï¸ **Cetak / Print Handover**", width="stretch", key=f"ttd_print_{tipe_kiriman}"):
             # Show printable view
             st.markdown("---")
-            st.markdown("## ðŸ“‹ SURAT SERAH TERIMA PAKET")
-            st.markdown(f"**iScan Pro By MMA** â€” Handover {tipe_label}")
+            st.markdown("## ðŸ"‹ SURAT SERAH TERIMA PAKET")
+            st.markdown(f"**iScan Pro By MMA** â€" Handover {tipe_label}")
             st.markdown(f"Tanggal: **{now.strftime('%d %B %Y')}** | Jam: **{now.strftime('%H:%M')}**")
             st.markdown(f"Kurir/Ekspedisi: **{selected_kurir}**")
             if mp_filter != "Semua Marketplace":
@@ -6408,10 +6408,10 @@ def _render_handover_tab(db, tipe_kiriman: str):
             with p_col2:
                 st.markdown(f"**Penerima (Ekspedisi)**\n\n\n\n\n_________________________\n**{ttd_eks.strip() or '(Nama Petugas)'}**\n{nama_eks.strip() or '(Ekspedisi)'}")
             
-            st.caption("ðŸ–¨ï¸ Gunakan Ctrl+P untuk mencetak halaman ini sebagai bukti serah terima.")
+            st.caption("ðŸ-¨ï¸ Gunakan Ctrl+P untuk mencetak halaman ini sebagai bukti serah terima.")
 
-    # â”€â”€ Riwayat TTD â”€â”€
-    with st.expander("ðŸ“‹ Riwayat Serah Terima (TTD Elektronik)", expanded=False):
+    # â"€â"€ Riwayat TTD â"€â"€
+    with st.expander("ðŸ"‹ Riwayat Serah Terima (TTD Elektronik)", expanded=False):
         ttd_history = db.fetch_all(
             "SELECT * FROM handover_ttd WHERE tipe_kiriman = ? ORDER BY id DESC LIMIT 20",
             (tipe_kiriman,),
@@ -6431,7 +6431,7 @@ def _render_handover_tab(db, tipe_kiriman: str):
         else:
             st.caption("Belum ada riwayat TTD.")
 
-    # â”€â”€ Export â”€â”€
+    # â"€â"€ Export â"€â"€
     st.markdown("---")
     kurir_label = selected_kurir.replace(" ", "_") if selected_kurir != "Semua Kurir" else "Semua"
     tipe_file = "Instant" if tipe_kiriman == "INSTANT" else "Reguler"
@@ -6441,7 +6441,7 @@ def _render_handover_tab(db, tipe_kiriman: str):
         df_items.to_excel(writer, index=False, sheet_name="Handover")
     with open(filepath, "rb") as fp:
         st.download_button(
-            "ðŸ“¥ Download Handover (Excel)",
+            "ðŸ"¥ Download Handover (Excel)",
             fp, file_name=filename,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key=f"dl_{tipe_kiriman}",
@@ -6453,9 +6453,9 @@ def render_reports():
     db = st.session_state.db
     cache = st.session_state.cache
 
-    st.subheader("ðŸ“Š Reports")
+    st.subheader("ðŸ"Š Reports")
 
-    tab1, tab2 = st.tabs(["ðŸ“‹ Handover Report", "ðŸ’° Sales Report"])
+    tab1, tab2 = st.tabs(["ðŸ"‹ Handover Report", "ðŸ'° Sales Report"])
 
     with tab1:
         st.markdown("### Handover Report per Ekspedisi")
@@ -6466,7 +6466,7 @@ def render_reports():
 
         selected_exp = st.selectbox("Pilih Ekspedisi", exp_list, key="handover_exp")
 
-        if st.button("ðŸ“‹ Generate Handover Report", type="primary"):
+        if st.button("ðŸ"‹ Generate Handover Report", type="primary"):
             filter_exp = None if selected_exp == "Semua Ekspedisi" else selected_exp
             filepath = export_handover_report(db, Config.HANDOVER_FOLDER, filter_exp)
             if filepath:
@@ -6477,7 +6477,7 @@ def render_reports():
                         file_name=os.path.basename(filepath),
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
-                st.success(f"âœ… Report tersimpan: {os.path.basename(filepath)}")
+                st.success(f"âœ... Report tersimpan: {os.path.basename(filepath)}")
             else:
                 st.warning("Tidak ada data PACKED untuk diexport.")
 
@@ -6485,7 +6485,7 @@ def render_reports():
         st.markdown("### Sales Report")
         st.caption("Generate laporan penjualan/pengiriman.")
 
-        # Summary per expedition â€” mencakup semua status
+        # Summary per expedition â€" mencakup semua status
         rows = db.fetch_all(
             "SELECT ekspedisi, status, COUNT(*) as cnt FROM scan_aktif GROUP BY ekspedisi, status ORDER BY ekspedisi"
         )
@@ -6508,7 +6508,7 @@ def render_reports():
             st.dataframe(df_summary, width="stretch", hide_index=True)
 
             # Export
-            if st.button("ðŸ“Š Export Sales Report", type="primary"):
+            if st.button("ðŸ"Š Export Sales Report", type="primary"):
                 now = datetime.now()
                 filename = f"Sales_Report_{now.strftime('%d-%m-%Y_%H%M%S')}.xlsx"
                 filepath = os.path.join(Config.SALES_FOLDER, filename)
@@ -6521,7 +6521,7 @@ def render_reports():
                         file_name=filename,
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
-                st.success(f"âœ… Report tersimpan: {filename}")
+                st.success(f"âœ... Report tersimpan: {filename}")
         else:
             st.info("Belum ada data scan.")
 
@@ -6546,19 +6546,19 @@ def render_login():
         <div style="text-align:center;margin-bottom:30px;">
             <span style="font-size:42px;font-weight:800;color:#FFFFFF;">iScan</span>
             <span style="font-size:32px;font-weight:700;color:#0A84FF;">Pro</span>
-            <br><span style="font-size:14px;color:#AEAEB2;">By MMA â€” Mitra Mulia Abadi</span>
+            <br><span style="font-size:14px;color:#AEAEB2;">By MMA â€" Mitra Mulia Abadi</span>
         </div>
         """, unsafe_allow_html=True)
 
         # Login card
         with st.container(border=True):
-            st.markdown("### ðŸ” Login")
+            st.markdown("### ðŸ" Login")
             username = st.text_input("Username", placeholder="Masukkan username", key="login_username")
             password = st.text_input("Password", type="password", placeholder="Masukkan password", key="login_password")
 
             col_btn, _ = st.columns([1, 2])
             with col_btn:
-                login_btn = st.button("ðŸ”“ Masuk", type="primary", width="stretch", key="login_btn")
+                login_btn = st.button("ðŸ"" Masuk", type="primary", width="stretch", key="login_btn")
 
             if login_btn:
                 if not username.strip() or not password.strip():
@@ -6573,7 +6573,7 @@ def render_login():
                         st.session_state.user = user
                         # Inject cookie-setting JS
                         inject_auth_cookie_js(token)
-                        st.success(f"âœ… Selamat datang, {user['nama_lengkap']}!")
+                        st.success(f"âœ... Selamat datang, {user['nama_lengkap']}!")
                         time.sleep(0.5)
                         st.rerun()
                     else:
@@ -6611,10 +6611,10 @@ def render_opex_input():
     """Render form input biaya operasional (OPEX)."""
     db = st.session_state.db
 
-    st.subheader("ðŸ“ Input Biaya Operasional (OPEX)")
+    st.subheader("ðŸ" Input Biaya Operasional (OPEX)")
     st.caption("Catat biaya operasional tetap: listrik, internet, packing, ATK, dll.")
 
-    # â”€â”€ Init session state â”€â”€
+    # â"€â"€ Init session state â"€â"€
     if "opex_cart" not in st.session_state:
         st.session_state.opex_cart = []
     if "opex_supplier" not in st.session_state:
@@ -6626,7 +6626,7 @@ def render_opex_input():
 
     cart = st.session_state.opex_cart
 
-    # â”€â”€ Header â”€â”€
+    # â"€â"€ Header â"€â"€
     col_h1, col_h2, col_h3 = st.columns([2, 2, 1])
     with col_h1:
         kategori = st.selectbox("Kategori *", OPEX_CATEGORIES,
@@ -6640,14 +6640,14 @@ def render_opex_input():
     with col_h3:
         st.write("")
         st.write("")
-        if st.button("ðŸ”„ New Ref", width="stretch"):
+        if st.button("ðŸ"„ New Ref", width="stretch"):
             st.session_state.opex_faktur = _generate_opex_faktur(db)
             st.session_state.opex_cart = []
             st.rerun()
 
     st.markdown("---")
 
-    # â”€â”€ Add Item â”€â”€
+    # â"€â"€ Add Item â"€â"€
     st.markdown("### âž• Tambah Biaya")
     col_i1, col_i2, col_i3, col_i4, col_i5 = st.columns([3, 1, 1, 1, 1])
     with col_i1:
@@ -6676,12 +6676,12 @@ def render_opex_input():
                 "harga_satuan": harga_satuan,
                 "total_harga": qty * harga_satuan,
             })
-            st.success(f"âœ… '{deskripsi}' ditambahkan!")
+            st.success(f"âœ... '{deskripsi}' ditambahkan!")
             st.rerun()
 
-    # â”€â”€ OPEX Cart Table â”€â”€
+    # â"€â"€ OPEX Cart Table â"€â"€
     st.markdown("---")
-    st.markdown("### ðŸ“‹ Daftar Biaya")
+    st.markdown("### ðŸ"‹ Daftar Biaya")
 
     if not cart:
         st.info("Belum ada biaya ditambahkan.")
@@ -6698,23 +6698,23 @@ def render_opex_input():
         st.dataframe(df_display, width="stretch", hide_index=True)
 
         grand_total = sum(item["total_harga"] for item in cart)
-        st.markdown(f"### ðŸ’° Total OPEX: Rp {grand_total:,.0f} | ðŸ“‹ {len(cart)} item")
+        st.markdown(f"### ðŸ'° Total OPEX: Rp {grand_total:,.0f} | ðŸ"‹ {len(cart)} item")
 
         # Remove item
         col_r1, col_r2 = st.columns([3, 1])
         with col_r1:
             remove_idx = st.selectbox(
                 "Hapus item",
-                [f"{i+1}. {item['deskripsi']} ({item['kategori']}) â€” Rp {item['total_harga']:,.0f}" for i, item in enumerate(cart)],
+                [f"{i+1}. {item['deskripsi']} ({item['kategori']}) â€" Rp {item['total_harga']:,.0f}" for i, item in enumerate(cart)],
                 key="opex_remove",
             )
         with col_r2:
-            if st.button("ðŸ-‘ï¸ Hapus", width="stretch"):
+            if st.button("ðŸ-'ï¸ Hapus", width="stretch"):
                 idx = int(remove_idx.split(".")[0]) - 1
                 cart.pop(idx)
                 st.rerun()
 
-        # â”€â”€ Save â”€â”€
+        # â"€â"€ Save â"€â"€
         st.markdown("---")
         col_s1, col_s2, col_s3 = st.columns(3)
         with col_s1:
@@ -6724,7 +6724,7 @@ def render_opex_input():
         with col_s3:
             st.write("")
             st.write("")
-            if st.button("ðŸ’¾ Simpan OPEX", type="primary", width="stretch"):
+            if st.button("ðŸ'¾ Simpan OPEX", type="primary", width="stretch"):
                 if not faktur.strip():
                     st.error("No Referensi wajib diisi!")
                 else:
@@ -6742,7 +6742,7 @@ def render_opex_input():
                              metode_bayar, "PENDING", ket.strip()),
                         )
                         saved += 1
-                    st.success(f"âœ… {saved} biaya OPEX tersimpan! Status: PENDING (menunggu konfirmasi Finance)")
+                    st.success(f"âœ... {saved} biaya OPEX tersimpan! Status: PENDING (menunggu konfirmasi Finance)")
                     st.session_state.opex_cart = []
                     st.session_state.opex_faktur = _generate_opex_faktur(db)
                     st.rerun()
@@ -6752,7 +6752,7 @@ def render_opex_history():
     """Render riwayat OPEX."""
     db = st.session_state.db
 
-    st.subheader("ðŸ“‹ Riwayat Biaya OPEX")
+    st.subheader("ðŸ"‹ Riwayat Biaya OPEX")
 
     total_opex = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex")
     pending_opex = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE status_bayar = 'PENDING'")
@@ -6760,11 +6760,11 @@ def render_opex_history():
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("ðŸ“‹ Total Transaksi", total_trx["cnt"] if total_trx else 0)
+        st.metric("ðŸ"‹ Total Transaksi", total_trx["cnt"] if total_trx else 0)
     with col2:
-        st.metric("ðŸ’° Total OPEX", f"Rp {total_opex['total']:,.0f}" if total_opex else "Rp 0")
+        st.metric("ðŸ'° Total OPEX", f"Rp {total_opex['total']:,.0f}" if total_opex else "Rp 0")
     with col3:
-        st.metric("ðŸ“Œ Pending", f"Rp {pending_opex['total']:,.0f}" if pending_opex else "Rp 0")
+        st.metric("ðŸ"Œ Pending", f"Rp {pending_opex['total']:,.0f}" if pending_opex else "Rp 0")
 
     st.markdown("---")
 
@@ -6773,7 +6773,7 @@ def render_opex_history():
         "SELECT kategori, COUNT(*) as cnt, SUM(total_harga) as total FROM opex GROUP BY kategori ORDER BY total DESC"
     )
     if kat_rows:
-        st.markdown("### ðŸ“Š Breakdown per Kategori")
+        st.markdown("### ðŸ"Š Breakdown per Kategori")
         df_kat = pd.DataFrame([dict(r) for r in kat_rows])
         df_kat["Total"] = df_kat["total"].apply(lambda x: f"Rp {x:,.0f}")
         df_kat = df_kat.rename(columns={"kategori": "Kategori", "cnt": "Jumlah", "total": "_total"})
@@ -6781,7 +6781,7 @@ def render_opex_history():
 
     # Detail
     st.markdown("---")
-    st.markdown("### ðŸ“‹ Detail Transaksi OPEX")
+    st.markdown("### ðŸ"‹ Detail Transaksi OPEX")
     faktur_rows = db.fetch_all(
         "SELECT no_faktur, tanggal, kategori, metode_bayar, status_bayar, "
         "COUNT(*) as items, SUM(total_harga) as total "
@@ -6802,7 +6802,7 @@ def render_opex_history():
 def render_opex_dashboard():
     """Dashboard ringkasan OPEX."""
     db = st.session_state.db
-    st.subheader("ðŸ“Š Dashboard Biaya Operasional")
+    st.subheader("ðŸ"Š Dashboard Biaya Operasional")
 
     total_opex = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex")
     pending = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE status_bayar = 'PENDING'")
@@ -6814,14 +6814,14 @@ def render_opex_dashboard():
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("ðŸ’° Total OPEX", f"Rp {total_opex['total']:,.0f}" if total_opex else "Rp 0")
+        st.metric("ðŸ'° Total OPEX", f"Rp {total_opex['total']:,.0f}" if total_opex else "Rp 0")
     with col2:
-        st.metric("ðŸ“Œ Pending Bayar", f"Rp {pending['total']:,.0f}" if pending else "Rp 0")
+        st.metric("ðŸ"Œ Pending Bayar", f"Rp {pending['total']:,.0f}" if pending else "Rp 0")
     with col3:
-        st.metric("ðŸ“… Bulan Ini", f"Rp {bulan_ini['total']:,.0f}" if bulan_ini else "Rp 0")
+        st.metric("ðŸ"... Bulan Ini", f"Rp {bulan_ini['total']:,.0f}" if bulan_ini else "Rp 0")
     with col4:
         trx_count = db.fetch_one("SELECT COUNT(DISTINCT no_faktur) as cnt FROM opex")
-        st.metric("ðŸ“‹ Transaksi", trx_count["cnt"] if trx_count else 0)
+        st.metric("ðŸ"‹ Transaksi", trx_count["cnt"] if trx_count else 0)
 
     st.markdown("---")
     # Per kategori chart
@@ -6829,7 +6829,7 @@ def render_opex_dashboard():
         "SELECT kategori, SUM(total_harga) as total FROM opex GROUP BY kategori ORDER BY total DESC"
     )
     if kat_rows:
-        st.markdown("### ðŸ“Š Pengeluaran per Kategori")
+        st.markdown("### ðŸ"Š Pengeluaran per Kategori")
         for r in kat_rows:
             pct = (r["total"] / total_opex["total"] * 100) if total_opex and total_opex["total"] > 0 else 0
             st.progress(min(pct / 100, 1.0), text=f"{r['kategori']}: Rp {r['total']:,.0f} ({pct:.1f}%)")
@@ -7032,13 +7032,13 @@ def generate_finance_pdf(db, fee_map, biaya_per_resi, start_date, end_date):
 
 
 def render_finance_dashboard():
-    """Dashboard Finance Komprehensif â€” Kesehatan Cashflow, Profit, Aset, Grafik, & AI Audit."""
+    """Dashboard Finance Komprehensif â€" Kesehatan Cashflow, Profit, Aset, Grafik, & AI Audit."""
     db = st.session_state.db
     today = datetime.now()
     month_start = today.replace(day=1).strftime("%d-%m-%Y")
     today_str = today.strftime("%d-%m-%Y")
 
-    st.subheader("ðŸ’³ Dashboard Finance â€” Kesehatan Keuangan")
+    st.subheader("ðŸ'³ Dashboard Finance â€" Kesehatan Keuangan")
     st.caption(f"Analisa & rekomendasi keuangan per **{today.strftime('%d %B %Y, %H:%M')}**")
 
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -7125,12 +7125,12 @@ def render_finance_dashboard():
     # Profit margin check
     if bln_margin < 0:
         health_score -= 30
-        alerts.append(f"ðŸ”´ **RUGI!** Net Profit bulan ini negatif: Rp {bln_net:,.0f}")
-        recommendations.append("ðŸš¨ **URGENT**: Evaluasi semua biaya. Profit margin negatif â€” bisnis merugi.")
+        alerts.append(f"ðŸ"´ **RUGI!** Net Profit bulan ini negatif: Rp {bln_net:,.0f}")
+        recommendations.append("ðŸš¨ **URGENT**: Evaluasi semua biaya. Profit margin negatif â€" bisnis merugi.")
     elif bln_margin < 10:
         health_score -= 15
         alerts.append(f"ðŸŸ¡ Margin profit rendah: {bln_margin:.1f}% (target minimal 10%)")
-        recommendations.append("ðŸ“‰ **Margin Tipis**: Pertimbangkan menaikkan harga jual atau menurunkan biaya operasional.")
+        recommendations.append("ðŸ"‰ **Margin Tipis**: Pertimbangkan menaikkan harga jual atau menurunkan biaya operasional.")
     elif bln_margin < 20:
         health_score -= 5
         alerts.append(f"ðŸŸ¢ Margin profit cukup: {bln_margin:.1f}%")
@@ -7140,28 +7140,28 @@ def render_finance_dashboard():
     # Inventory missing modal
     if inv_no_modal > inv_count * 0.3:
         health_score -= 15
-        alerts.append(f"ðŸ”´ {inv_no_modal}/{inv_count} SKU belum punya Harga Modal ({inv_no_modal/inv_count*100:.0f}%)")
-        recommendations.append("ðŸ“‹ **Lengkapi Harga Modal**: Banyak SKU tanpa HPP â€” laba/rugi tidak akurat. Upload massal di Manajemen SKU.")
+        alerts.append(f"ðŸ"´ {inv_no_modal}/{inv_count} SKU belum punya Harga Modal ({inv_no_modal/inv_count*100:.0f}%)")
+        recommendations.append("ðŸ"‹ **Lengkapi Harga Modal**: Banyak SKU tanpa HPP â€" laba/rugi tidak akurat. Upload massal di Manajemen SKU.")
     elif inv_no_modal > 0:
         health_score -= 5
-        recommendations.append(f"ðŸ“ **{inv_no_modal} SKU** belum ada Harga Modal. Lengkapi agar perhitungan akurat.")
+        recommendations.append(f"ðŸ" **{inv_no_modal} SKU** belum ada Harga Modal. Lengkapi agar perhitungan akurat.")
 
     # Outstanding check
     if outstanding > bln_income * 0.5:
         health_score -= 10
-        alerts.append(f"ðŸ”´ Kewajiban pending Rp {outstanding:,.0f} â€” >50% dari income bulanan")
+        alerts.append(f"ðŸ"´ Kewajiban pending Rp {outstanding:,.0f} â€" >50% dari income bulanan")
         recommendations.append(f"âš ï¸ **Kewajiban Tinggi**: Segera lunasi tagihan pending Rp {outstanding:,.0f}.")
     elif outstanding > 0:
-        alerts.append(f"ðŸ“Œ Kewajiban pending: Rp {outstanding:,.0f}")
+        alerts.append(f"ðŸ"Œ Kewajiban pending: Rp {outstanding:,.0f}")
 
     # Inventory turnover (sales vs stock value)
     if inv_total > 0 and bln_modal > 0:
         turnover = bln_modal / inv_total
         if turnover < 0.1:
             health_score -= 5
-            recommendations.append("ðŸ“¦ **Stok Menumpuk**: Perputaran stok rendah. Evaluasi pembelian atau promo untuk mengurangi stok.")
+            recommendations.append("ðŸ"¦ **Stok Menumpuk**: Perputaran stok rendah. Evaluasi pembelian atau promo untuk mengurangi stok.")
         elif turnover > 0.5:
-            alerts.append("ðŸŸ¢ Perputaran stok baik â€” penjualan aktif.")
+            alerts.append("ðŸŸ¢ Perputaran stok baik â€" penjualan aktif.")
 
     # Expense ratio
     if bln_income > 0:
@@ -7170,13 +7170,13 @@ def render_finance_dashboard():
             health_score -= 10
             recommendations.append("âš ï¸ **Expense Ratio >95%**: Hampir semua pendapatan habis untuk biaya. Kurangi pengeluaran.")
         elif exp_ratio > 0.8:
-            recommendations.append("ðŸ“Š Expense ratio {:.0f}% â€” masih bisa dioptimalkan.".format(exp_ratio * 100))
+            recommendations.append("ðŸ"Š Expense ratio {:.0f}% â€" masih bisa dioptimalkan.".format(exp_ratio * 100))
 
     health_score = max(0, min(100, health_score))
     health_label = (
         "ðŸŸ¢ SEHAT" if health_score >= 80 else
         "ðŸŸ¡ HATI-HATI" if health_score >= 50 else
-        "ðŸ”´ KRITIS"
+        "ðŸ"´ KRITIS"
     )
 
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -7190,23 +7190,23 @@ def render_finance_dashboard():
             help="Skor 0-100 berdasarkan margin, stok, kewajiban, dan rasio biaya."
         )
     with col1:
-        st.metric("âœ… Net Profit (Bln)", f"Rp {bln_net:,.0f}", delta=f"{bln_margin:.1f}% margin")
+        st.metric("âœ... Net Profit (Bln)", f"Rp {bln_net:,.0f}", delta=f"{bln_margin:.1f}% margin")
     with col2:
-        st.metric("ðŸ“¦ Aset Stok", f"Rp {inv_total:,.0f}", help=f"{inv_count} SKU, {inv_no_modal} tanpa harga modal")
+        st.metric("ðŸ"¦ Aset Stok", f"Rp {inv_total:,.0f}", help=f"{inv_count} SKU, {inv_no_modal} tanpa harga modal")
     with col3:
-        st.metric("ðŸ’Ž Saldo Toko", f"Rp {saldo_toko:,.0f}", help="Akumulasi net profit - pencairan (all marketplace)")
+        st.metric("ðŸ'Ž Saldo Toko", f"Rp {saldo_toko:,.0f}", help="Akumulasi net profit - pencairan (all marketplace)")
     with col4:
-        st.metric("ðŸ“Œ Kewajiban", f"Rp {outstanding:,.0f}", delta="Segera dibayar" if outstanding > 0 else "âœ… Lunas")
+        st.metric("ðŸ"Œ Kewajiban", f"Rp {outstanding:,.0f}", delta="Segera dibayar" if outstanding > 0 else "âœ... Lunas")
 
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # ALERTS & RECOMMENDATIONS (AI)
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     st.markdown("---")
-    st.markdown("### ðŸ¤– AI Financial Audit & Rekomendasi")
+    st.markdown("### ðŸ¤- AI Financial Audit & Rekomendasi")
 
     if alerts:
         for a in alerts:
-            if "ðŸ”´" in a:
+            if "ðŸ"´" in a:
                 st.error(a)
             elif "ðŸŸ¡" in a:
                 st.warning(a)
@@ -7214,17 +7214,17 @@ def render_finance_dashboard():
                 st.info(a)
 
     if recommendations:
-        with st.expander("ðŸ’¡ **AI Recommendations** â€” Tindakan yang Disarankan", expanded=True):
+        with st.expander("ðŸ'¡ **AI Recommendations** â€" Tindakan yang Disarankan", expanded=True):
             for i, rec in enumerate(recommendations, 1):
                 st.markdown(f"{i}. {rec}")
     else:
-        st.success("âœ… Tidak ada rekomendasi khusus. Keuangan dalam kondisi baik.")
+        st.success("âœ... Tidak ada rekomendasi khusus. Keuangan dalam kondisi baik.")
 
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     # CHARTS: Daily Sales vs Expenses
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     st.markdown("---")
-    st.markdown("### ðŸ“Š Grafik Penjualan & Pengeluaran â€” 30 Hari Terakhir")
+    st.markdown("### ðŸ"Š Grafik Penjualan & Pengeluaran â€" 30 Hari Terakhir")
 
     chart_data = []
     for i in range(29, -1, -1):
@@ -7274,7 +7274,7 @@ def render_finance_dashboard():
     # MONTHLY TREND (6 months)
     # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     st.markdown("---")
-    st.markdown("### ðŸ“… Tren Bulanan â€” 6 Bulan Terakhir")
+    st.markdown("### ðŸ"... Tren Bulanan â€" 6 Bulan Terakhir")
     monthly_trend = []
     for m in range(5, -1, -1):
         ym = today - timedelta(days=30 * m)
@@ -7312,7 +7312,7 @@ def render_finance_dashboard():
     col_q1, col_q2, col_q3 = st.columns(3)
 
     with col_q1:
-        st.markdown("#### ðŸ“¦ Penjualan Bulan Ini")
+        st.markdown("#### ðŸ"¦ Penjualan Bulan Ini")
         mp_sales = {}
         for r in bln_sales:
             mp = r["marketplace"] or "Lainnya"
@@ -7321,15 +7321,15 @@ def render_finance_dashboard():
             st.metric(f"ðŸª {mp}", f"Rp {val:,.0f}")
 
     with col_q2:
-        st.markdown("#### ðŸ“¤ Pengeluaran Bulan Ini")
-        st.metric("ðŸ”» Fee Marketplace", f"Rp {bln_fee:,.0f}")
-        st.metric("ðŸ“¦ Biaya / Resi", f"Rp {bln_biaya:,.0f}")
-        st.metric("ðŸ“‹ Harga Modal", f"Rp {bln_modal:,.0f}")
-        st.metric("ðŸ“ OPEX", f"Rp {bln_opex_val:,.0f}")
-        st.metric("ðŸ›’ Pembelian", f"Rp {bln_pemb_val:,.0f}")
+        st.markdown("#### ðŸ"¤ Pengeluaran Bulan Ini")
+        st.metric("ðŸ"» Fee Marketplace", f"Rp {bln_fee:,.0f}")
+        st.metric("ðŸ"¦ Biaya / Resi", f"Rp {bln_biaya:,.0f}")
+        st.metric("ðŸ"‹ Harga Modal", f"Rp {bln_modal:,.0f}")
+        st.metric("ðŸ" OPEX", f"Rp {bln_opex_val:,.0f}")
+        st.metric("ðŸ›' Pembelian", f"Rp {bln_pemb_val:,.0f}")
 
     with col_q3:
-        st.markdown("#### ðŸ“Š Rasio Keuangan")
+        st.markdown("#### ðŸ"Š Rasio Keuangan")
         st.metric("Margin Profit", f"{bln_margin:.1f}%")
         exp_ratio_q = (bln_expense / bln_income * 100) if bln_income > 0 else 0
         st.metric("Expense Ratio", f"{exp_ratio_q:.1f}%")
@@ -7343,11 +7343,11 @@ def render_finance_dashboard():
     st.markdown("---")
     col_dl1, col_dl2 = st.columns([3, 1])
     with col_dl1:
-        st.caption("ðŸ”- **Quick Links**: ðŸ’° Laba Rugi Harian | ðŸ’µ Cashflow & Pencairan | ðŸ·ï¸ Manajemen SKU | âœ… Konfirmasi Bayar")
+        st.caption("ðŸ"- **Quick Links**: ðŸ'° Laba Rugi Harian | ðŸ'µ Cashflow & Pencairan | ðŸ·ï¸ Manajemen SKU | âœ... Konfirmasi Bayar")
     with col_dl2:
-        if st.button("ðŸ“¥ **Download Laporan PDF**", width="stretch", type="primary", key="fin_download_pdf",
+        if st.button("ðŸ"¥ **Download Laporan PDF**", width="stretch", type="primary", key="fin_download_pdf",
                      help="Download laporan keuangan lengkap dalam format PDF (Gross, Net Profit, Cashflow Harian, Bulanan)"):
-            with st.spinner("ðŸ“„ Membuat laporan PDF..."):
+            with st.spinner("ðŸ"„ Membuat laporan PDF..."):
                 pdf_path = generate_finance_pdf(
                     db, fee_map, biaya_per_resi,
                     start_date=today.replace(day=1),
@@ -7369,7 +7369,7 @@ def render_finance_dashboard():
 def render_finance_opex():
     """Konfirmasi pembayaran OPEX."""
     db = st.session_state.db
-    st.subheader("âœ… Konfirmasi Pembayaran OPEX")
+    st.subheader("âœ... Konfirmasi Pembayaran OPEX")
 
     pending = db.fetch_all(
         "SELECT no_faktur, tanggal, kategori, metode_bayar, "
@@ -7379,10 +7379,10 @@ def render_finance_opex():
     )
 
     if not pending:
-        st.success("âœ… Semua biaya OPEX sudah LUNAS.")
+        st.success("âœ... Semua biaya OPEX sudah LUNAS.")
         return
 
-    st.markdown(f"### ðŸ“‹ {len(pending)} OPEX Menunggu Konfirmasi")
+    st.markdown(f"### ðŸ"‹ {len(pending)} OPEX Menunggu Konfirmasi")
 
     df = []
     for r in pending:
@@ -7400,12 +7400,12 @@ def render_finance_opex():
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("âœ… Konfirmasi LUNAS", type="primary", width="stretch", key="opex_lunas_btn"):
+        if st.button("âœ... Konfirmasi LUNAS", type="primary", width="stretch", key="opex_lunas_btn"):
             db.execute("UPDATE opex SET status_bayar = 'LUNAS' WHERE no_faktur = ?", (selected_ref,))
-            st.success(f"OPEX '{selected_ref}' dikonfirmasi LUNAS! âœ…")
+            st.success(f"OPEX '{selected_ref}' dikonfirmasi LUNAS! âœ...")
             st.rerun()
     with col2:
-        if st.button("ðŸ“‹ Konfirmasi KONTRA BON", width="stretch", key="opex_kontrabon_btn"):
+        if st.button("ðŸ"‹ Konfirmasi KONTRA BON", width="stretch", key="opex_kontrabon_btn"):
             db.execute("UPDATE opex SET status_bayar = 'KONTRA BON' WHERE no_faktur = ?", (selected_ref,))
             st.warning(f"OPEX '{selected_ref}' dicatat sebagai KONTRA BON.")
             st.rerun()
@@ -7414,7 +7414,7 @@ def render_finance_opex():
 def render_finance_history():
     """Riwayat pembayaran SKU + OPEX."""
     db = st.session_state.db
-    st.subheader("ðŸ“‹ Riwayat Pembayaran")
+    st.subheader("ðŸ"‹ Riwayat Pembayaran")
 
     # Lunas SKU
     sku_lunas = db.fetch_all(
@@ -7433,7 +7433,7 @@ def render_finance_history():
         "GROUP BY no_faktur ORDER BY created_at DESC LIMIT 50"
     )
 
-    tab1, tab2 = st.tabs(["ðŸ“¦ Pembayaran SKU", "ðŸ“‹ Pembayaran OPEX"])
+    tab1, tab2 = st.tabs(["ðŸ"¦ Pembayaran SKU", "ðŸ"‹ Pembayaran OPEX"])
     with tab1:
         if sku_lunas:
             df_s = pd.DataFrame([dict(r) for r in sku_lunas])
@@ -7467,23 +7467,23 @@ def render_admin_users():
     db = st.session_state.db
     current_user = st.session_state.user
 
-    st.subheader("ðŸ‘¥ Manajemen User & Role")
+    st.subheader("ðŸ'¥ Manajemen User & Role")
 
-    # â”€â”€ Stats â”€â”€
+    # â"€â"€ Stats â"€â"€
     total_users = db.fetch_one("SELECT COUNT(*) as cnt FROM users")
     active_users = db.fetch_one("SELECT COUNT(*) as cnt FROM users WHERE active = 1")
 
     col_s1, col_s2, col_s3 = st.columns(3)
     with col_s1:
-        st.metric("ðŸ‘¤ Total User", total_users["cnt"] if total_users else 0)
+        st.metric("ðŸ'¤ Total User", total_users["cnt"] if total_users else 0)
     with col_s2:
-        st.metric("âœ… Aktif", active_users["cnt"] if active_users else 0)
+        st.metric("âœ... Aktif", active_users["cnt"] if active_users else 0)
     with col_s3:
-        st.metric("ðŸ›‘ Nonaktif", (total_users["cnt"] or 0) - (active_users["cnt"] or 0))
+        st.metric("ðŸ›' Nonaktif", (total_users["cnt"] or 0) - (active_users["cnt"] or 0))
 
     st.markdown("---")
 
-    # â”€â”€ Add User â”€â”€
+    # â"€â"€ Add User â"€â"€
     with st.expander("âž• Tambah User Baru", expanded=False):
         col_a1, col_a2 = st.columns(2)
         with col_a1:
@@ -7491,9 +7491,9 @@ def render_admin_users():
             new_nama = st.text_input("Nama Lengkap", key="new_user_nama", placeholder="Nama lengkap")
         with col_a2:
             new_password = st.text_input("Password", type="password", key="new_user_password", placeholder="Minimal 4 karakter")
-            new_role = st.selectbox("Role", ROLE_CHOICES, format_func=lambda r: f"{ROLES[r]['label']} â€” {ROLES[r]['desc']}", key="new_user_role")
+            new_role = st.selectbox("Role", ROLE_CHOICES, format_func=lambda r: f"{ROLES[r]['label']} â€" {ROLES[r]['desc']}", key="new_user_role")
 
-        if st.button("ðŸ’¾ Simpan User", type="primary"):
+        if st.button("ðŸ'¾ Simpan User", type="primary"):
             if not new_username.strip() or not new_nama.strip() or len(new_password) < 4:
                 st.error("Username, nama, dan password (min 4 karakter) wajib diisi!")
             else:
@@ -7505,21 +7505,21 @@ def render_admin_users():
                         "INSERT INTO users (username, password_hash, nama_lengkap, role) VALUES (?, ?, ?, ?)",
                         (new_username.strip().lower(), hash_password(new_password), new_nama.strip(), new_role),
                     )
-                    st.success(f"âœ… User '{new_username}' berhasil dibuat!")
+                    st.success(f"âœ... User '{new_username}' berhasil dibuat!")
                     st.rerun()
 
     st.markdown("---")
 
-    # â”€â”€ User List â”€â”€
+    # â"€â"€ User List â"€â"€
     users = db.fetch_all("SELECT id, username, nama_lengkap, role, active, created_at, last_login FROM users ORDER BY role, username")
     if users:
-        st.markdown("### ðŸ“‹ Daftar User")
+        st.markdown("### ðŸ"‹ Daftar User")
 
         # Build table data
         user_data = []
         for u in users:
             role_label = ROLES.get(u["role"], {}).get("label", u["role"])
-            status = "âœ… Aktif" if u["active"] else "ðŸ›‘ Nonaktif"
+            status = "âœ... Aktif" if u["active"] else "ðŸ›' Nonaktif"
             last_login = u["last_login"] or "Belum pernah"
             created = u["created_at"] or "-"
             user_data.append({
@@ -7541,7 +7541,7 @@ def render_admin_users():
             hide_index=True,
         )
 
-        # â”€â”€ Edit / Delete â”€â”€
+        # â"€â"€ Edit / Delete â"€â"€
         st.markdown("---")
         st.markdown("### âœï¸ Edit / Kelola User")
 
@@ -7565,7 +7565,7 @@ def render_admin_users():
 
         col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
-            if st.button("ðŸ’¾ Update User", width="stretch", type="primary", key="update_user_btn"):
+            if st.button("ðŸ'¾ Update User", width="stretch", type="primary", key="update_user_btn"):
                 if not edit_nama.strip():
                     st.error("Nama tidak boleh kosong!")
                 else:
@@ -7573,12 +7573,12 @@ def render_admin_users():
                         "UPDATE users SET nama_lengkap = ?, role = ?, active = ? WHERE id = ?",
                         (edit_nama.strip(), edit_role, int(edit_active), selected_user["id"]),
                     )
-                    st.success(f"âœ… User '{selected_user['username']}' diupdate!")
+                    st.success(f"âœ... User '{selected_user['username']}' diupdate!")
                     st.rerun()
 
         with col_btn2:
             new_pass = st.text_input("Password Baru", type="password", placeholder="Kosongkan jika tidak diganti", key="edit_user_pass")
-            if st.button("ðŸ”‘ Reset Password", width="stretch", key="reset_pass_btn"):
+            if st.button("ðŸ"' Reset Password", width="stretch", key="reset_pass_btn"):
                 if len(new_pass) < 4:
                     st.error("Password baru minimal 4 karakter!")
                 else:
@@ -7586,12 +7586,12 @@ def render_admin_users():
                         "UPDATE users SET password_hash = ? WHERE id = ?",
                         (hash_password(new_pass), selected_user["id"]),
                     )
-                    st.success(f"âœ… Password '{selected_user['username']}' direset!")
+                    st.success(f"âœ... Password '{selected_user['username']}' direset!")
                     st.rerun()
 
         with col_btn3:
             if selected_user["username"] != current_user["username"]:
-                if st.button("ðŸ-‘ï¸ Hapus User", width="stretch", type="secondary", key="delete_user_btn"):
+                if st.button("ðŸ-'ï¸ Hapus User", width="stretch", type="secondary", key="delete_user_btn"):
                     db.execute("DELETE FROM users WHERE id = ?", (selected_user["id"],))
                     st.warning(f"User '{selected_user['username']}' dihapus.")
                     st.rerun()
@@ -7605,56 +7605,56 @@ def render_admin_users():
 # ==================== SIDEBAR NAVIGATION ====================
 # Sub-menu definitions per main menu
 OPERATIONAL_SUB_MENUS = {
-    "ðŸ“Š Dashboard": "Dashboard",
-    "ðŸ“· SCAN Operasional": "Scan_Operasional",
-    "ðŸ“¦ Input Resi & Pesanan": "Sales_Input",
-    "ðŸ”„ Retur & Klaim": "Retur_Klaim",
-    "ðŸ¤– AI Supervisor": "AI_Supervisor",
-    "ðŸ“‹ Handover": "Handover",
+    "ðŸ"Š Dashboard": "Dashboard",
+    "ðŸ"· SCAN Operasional": "Scan_Operasional",
+    "ðŸ"¦ Input Resi & Pesanan": "Sales_Input",
+    "ðŸ"„ Retur & Klaim": "Retur_Klaim",
+    "ðŸ¤- AI Supervisor": "AI_Supervisor",
+    "ðŸ"‹ Handover": "Handover",
     "ðŸšš Ekspedisi": "Ekspedisi",
     "ðŸª Toko": "Toko",
     "ï¿½ Daftar Barang Besar": "Barang_Besar",
-    "ï¿½ðŸ“ˆ Reports": "Reports",
+    "ï¿½ðŸ"ˆ Reports": "Reports",
 }
 
 SALES_SUB_MENUS = {
-    "ðŸ“Š Dashboard Penjualan": "Sales_Dashboard",
-    "ðŸ“‹ Riwayat Penjualan": "Sales_History",
-    "ðŸ“ Arsip Penjualan": "Sales_Archive",
+    "ðŸ"Š Dashboard Penjualan": "Sales_Dashboard",
+    "ðŸ"‹ Riwayat Penjualan": "Sales_History",
+    "ðŸ" Arsip Penjualan": "Sales_Archive",
 }
 
 PURCHASE_SUB_MENUS = {
-    "ðŸ“Š Dashboard Pembelian": "Purchase_Dashboard",
+    "ðŸ"Š Dashboard Pembelian": "Purchase_Dashboard",
     "ðŸ·ï¸ Manajemen SKU": "Purchase_SKU",
-    "ðŸ›’ Input Pembelian SKU": "Purchase_Input",
-    "ðŸ“‹ Riwayat Pembelian SKU": "Purchase_History",
-    "ðŸ“ Arsip Pembelian": "Purchase_Archive",
+    "ðŸ›' Input Pembelian SKU": "Purchase_Input",
+    "ðŸ"‹ Riwayat Pembelian SKU": "Purchase_History",
+    "ðŸ" Arsip Pembelian": "Purchase_Archive",
 }
 
 OPEX_SUB_MENUS = {
-    "ðŸ“Š Dashboard OPEX": "Opex_Dashboard",
-    "ðŸ“ Input Biaya OPEX": "Opex_Input",
-    "ðŸ“‹ Riwayat OPEX": "Opex_History",
+    "ðŸ"Š Dashboard OPEX": "Opex_Dashboard",
+    "ðŸ" Input Biaya OPEX": "Opex_Input",
+    "ðŸ"‹ Riwayat OPEX": "Opex_History",
 }
 
 FINANCE_SUB_MENUS = {
-    "ðŸ“Š Dashboard Finance": "Finance_Dashboard",
-    "ðŸ’° Laba Rugi Harian": "Laba_Rugi",
-    "ðŸ’µ Cashflow & Pencairan": "Cashflow",
-    "âœ… Konfirmasi Bayar SKU": "Finance_SKU",
-    "âœ… Konfirmasi Bayar OPEX": "Finance_OPEX",
-    "ðŸ“‹ Riwayat Pembayaran": "Finance_History",
+    "ðŸ"Š Dashboard Finance": "Finance_Dashboard",
+    "ðŸ'° Laba Rugi Harian": "Laba_Rugi",
+    "ðŸ'µ Cashflow & Pencairan": "Cashflow",
+    "âœ... Konfirmasi Bayar SKU": "Finance_SKU",
+    "âœ... Konfirmasi Bayar OPEX": "Finance_OPEX",
+    "ðŸ"‹ Riwayat Pembayaran": "Finance_History",
 }
 
 ADMIN_SUB_MENUS = {
-    "ðŸ‘¥ Manajemen User": "Admin_Users",
+    "ðŸ'¥ Manajemen User": "Admin_Users",
 }
 
 
 def render_sidebar():
-    """Render the sidebar navigation with main-menu â†’ sub-menu hierarchy + role-based filtering."""
+    """Render the sidebar navigation with main-menu â†' sub-menu hierarchy + role-based filtering."""
     with st.sidebar:
-        # â”€â”€ Logo â”€â”€
+        # â"€â"€ Logo â"€â"€
         st.markdown(
             """
             <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:20px;">
@@ -7666,28 +7666,28 @@ def render_sidebar():
             unsafe_allow_html=True,
         )
 
-        # â”€â”€ User info â”€â”€
+        # â"€â"€ User info â"€â"€
         user = st.session_state.get("user", {})
         if user:
             role_label = ROLES.get(user.get("role", ""), {}).get("label", user.get("role", "?"))
             st.markdown(f"""
             <div style="background:#1C1C1E;border-radius:10px;padding:10px 14px;margin-bottom:12px;">
-                <div style="font-size:14px;font-weight:600;color:#FFFFFF;">ðŸ‘¤ {user.get('nama_lengkap', 'User')}</div>
-                <div style="font-size:12px;color:#AEAEB2;">ðŸ”‘ Role: <strong style="color:#0A84FF;">{role_label}</strong></div>
+                <div style="font-size:14px;font-weight:600;color:#FFFFFF;">ðŸ'¤ {user.get('nama_lengkap', 'User')}</div>
+                <div style="font-size:12px;color:#AEAEB2;">ðŸ"' Role: <strong style="color:#0A84FF;">{role_label}</strong></div>
             </div>
             """, unsafe_allow_html=True)
 
-        # â”€â”€ Main Menu (filtered by role) â”€â”€
+        # â"€â"€ Main Menu (filtered by role) â"€â"€
         user_role = user.get("role", "operator") if user else "operator"
         allowed_menus = get_user_menus(user_role)
 
-        MAIN_MENU_OPTIONS = ["ðŸ“¦ Operasional", "ðŸ’° Penjualan", "ðŸ›’ Pembelian SKU", "ðŸ“‹ Pembelian OPEX", "ðŸ’³ Finance", "âš™ï¸ Admin"]
+        MAIN_MENU_OPTIONS = ["ðŸ"¦ Operasional", "ðŸ'° Penjualan", "ðŸ›' Pembelian SKU", "ðŸ"‹ Pembelian OPEX", "ðŸ'³ Finance", "âš™ï¸ Admin"]
         MAIN_MENU_MAP = {
-            "ðŸ“¦ Operasional": "Operasional",
-            "ðŸ’° Penjualan": "Penjualan",
-            "ðŸ›’ Pembelian SKU": "Pembelian",
-            "ðŸ“‹ Pembelian OPEX": "OPEX",
-            "ðŸ’³ Finance": "Finance",
+            "ðŸ"¦ Operasional": "Operasional",
+            "ðŸ'° Penjualan": "Penjualan",
+            "ðŸ›' Pembelian SKU": "Pembelian",
+            "ðŸ"‹ Pembelian OPEX": "OPEX",
+            "ðŸ'³ Finance": "Finance",
             "âš™ï¸ Admin": "Admin",
         }
 
@@ -7696,10 +7696,10 @@ def render_sidebar():
         visible_map = {lbl: MAIN_MENU_MAP[lbl] for lbl in visible_labels}
 
         if not visible_labels:
-            visible_labels = ["ðŸ“¦ Operasional"]
-            visible_map = {"ðŸ“¦ Operasional": "Operasional"}
+            visible_labels = ["ðŸ"¦ Operasional"]
+            visible_map = {"ðŸ"¦ Operasional": "Operasional"}
 
-        # â”€â”€ Determine current main menu safely â”€â”€
+        # â"€â"€ Determine current main menu safely â"€â"€
         current_main = st.session_state.get("main_menu", "Operasional")
         if current_main not in visible_map.values():
             current_main = list(visible_map.values())[0]
@@ -7715,7 +7715,7 @@ def render_sidebar():
             }
             st.session_state.page = _default_pages.get(current_main, "Dashboard")
 
-        # â”€â”€ Main Menu Selectbox (sync only when invalid) â”€â”€
+        # â"€â"€ Main Menu Selectbox (sync only when invalid) â"€â"€
         selectbox_key = "sidebar_main_menu_select"
         current_selectbox_val = st.session_state.get(selectbox_key)
 
@@ -7737,7 +7737,7 @@ def render_sidebar():
         )
         new_main_menu = visible_map[selected_main_label]
 
-        # â”€â”€ Detect main menu switch & reset page immediately â”€â”€
+        # â"€â"€ Detect main menu switch & reset page immediately â"€â"€
         if new_main_menu != current_main:
             st.session_state.main_menu = new_main_menu
             # Reset page to the default for the new main menu
@@ -7752,7 +7752,7 @@ def render_sidebar():
             st.session_state.page = default_pages.get(new_main_menu, "Dashboard")
             st.rerun()  # Rerun so sub-menu renders fresh with correct page
 
-        # â”€â”€ Sub Menu (depends on main menu) â”€â”€
+        # â"€â"€ Sub Menu (depends on main menu) â"€â"€
         main_menu = current_main  # Use current_main (before selectbox change)
 
         if main_menu == "Operasional":
@@ -7776,7 +7776,7 @@ def render_sidebar():
 
         st.markdown("---")
 
-        # â”€â”€ Role-based sub-menu filtering (non-admin) â”€â”€
+        # â"€â"€ Role-based sub-menu filtering (non-admin) â"€â"€
         if user_role != "admin":
             sub_menus = {
                 lbl: page_key
@@ -7789,13 +7789,13 @@ def render_sidebar():
                 _render_sidebar_footer()
                 return
 
-        # â”€â”€ Ensure page is valid for current sub_menus â”€â”€
+        # â"€â"€ Ensure page is valid for current sub_menus â"€â"€
         current_page = st.session_state.get("page", default_page)
         if current_page not in sub_menus.values():
             current_page = default_page
             st.session_state.page = default_page
 
-        # â”€â”€ Sub Menu Radio (key-managed, sync only when invalid) â”€â”€
+        # â"€â"€ Sub Menu Radio (key-managed, sync only when invalid) â"€â"€
         radio_key = "sidebar_sub_menu_radio"
         valid_labels = list(sub_menus.keys())
 
@@ -7826,12 +7826,12 @@ def render_sidebar():
 
         st.markdown("---")
 
-        # â”€â”€ Stats summary (only for Operasional) â”€â”€
+        # â"€â"€ Stats summary (only for Operasional) â"€â"€
         if main_menu == "Operasional":
             stats = get_stats(st.session_state.db)
-            st.caption(f"ðŸ“¦ Pesanan dgn Resi: {stats.get('TOTAL_SALES', 0):,}")
-            st.caption(f"âœ… Packed: {stats.get('PACKED', 0):,} | â³ Pending: {stats.get('PENDING', 0):,} | âŒ Cancel: {stats.get('CANCEL', 0):,}")
-            st.caption(f"ï¿½ Instant: {stats.get('INSTANT', 0):,} | ðŸ“¦ Reguler: {stats.get('PACKED_REGULER', 0):,} | Besar: {stats.get('PACKED_BESAR', 0):,}")
+            st.caption(f"ðŸ"¦ Pesanan dgn Resi: {stats.get('TOTAL_SALES', 0):,}")
+            st.caption(f"âœ... Packed: {stats.get('PACKED', 0):,} | â³ Pending: {stats.get('PENDING', 0):,} | âŒ Cancel: {stats.get('CANCEL', 0):,}")
+            st.caption(f"ï¿½ Instant: {stats.get('INSTANT', 0):,} | ðŸ"¦ Reguler: {stats.get('PACKED_REGULER', 0):,} | Besar: {stats.get('PACKED_BESAR', 0):,}")
 
         st.markdown("---")
 
@@ -7840,7 +7840,7 @@ def render_sidebar():
 
 def _render_sidebar_footer():
     """Render the sidebar footer: logout + version."""
-    if st.button("ðŸ”’ Logout", width="stretch", key="sidebar_logout_btn"):
+    if st.button("ðŸ"' Logout", width="stretch", key="sidebar_logout_btn"):
         # Invalidate all auth tokens for this user
         user = st.session_state.get("user")
         if user:
@@ -7867,52 +7867,52 @@ def main():
     inject_pwa()  # PWA: load pwa-init.js (client-side fallback)
     init_session()
 
-    # â”€â”€ Auth guard â”€â”€
+    # â"€â"€ Auth guard â"€â"€
     if not st.session_state.get("authenticated", False):
         render_login()
         return
 
-    # â”€â”€ Render sidebar FIRST (it updates st.session_state.page from widget clicks) â”€â”€
+    # â"€â"€ Render sidebar FIRST (it updates st.session_state.page from widget clicks) â"€â"€
     render_sidebar()
 
-    # â”€â”€ Read page AFTER sidebar (gets the latest value from user click) â”€â”€
+    # â"€â"€ Read page AFTER sidebar (gets the latest value from user click) â"€â"€
     user = st.session_state.user
     page = st.session_state.get("page", "Dashboard")
 
-    # â”€â”€ Role-based page access check â”€â”€
+    # â"€â"€ Role-based page access check â"€â"€
     if not user_has_access(user["role"], page):
-        st.error(f"â›” Akses ditolak! Role **{ROLES.get(user['role'], {}).get('label', user['role'])}** tidak memiliki akses ke halaman ini.")
+        st.error(f"â›" Akses ditolak! Role **{ROLES.get(user['role'], {}).get('label', user['role'])}** tidak memiliki akses ke halaman ini.")
         st.info("Silakan pilih menu yang tersedia di sidebar.")
         return
 
     # Page title
     if page == "Dashboard":
-        st.title("ðŸ“Š Dashboard Operasional")
+        st.title("ðŸ"Š Dashboard Operasional")
 
         col_title, col_refresh = st.columns([5, 1])
         with col_title:
-            st.caption(f"Selamat datang di iScan Pro â€” {datetime.now().strftime('%d %B %Y, %H:%M')}")
+            st.caption(f"Selamat datang di iScan Pro â€" {datetime.now().strftime('%d %B %Y, %H:%M')}")
         with col_refresh:
-            if st.button("ðŸ”„ Refresh", width="stretch", key="dashboard_refresh", help="Klik untuk memperbarui data"):
+            if st.button("ðŸ"„ Refresh", width="stretch", key="dashboard_refresh", help="Klik untuk memperbarui data"):
                 st.rerun()
 
         db = st.session_state.db
 
-        # Stats â€” selaras dengan Scan Operasional
+        # Stats â€" selaras dengan Scan Operasional
         stats = get_stats(db)
         render_stats_cards(stats)
 
-        # â”€â”€ Info orders tanpa resi â”€â”€
+        # â"€â"€ Info orders tanpa resi â"€â"€
         orders_tanpa_resi = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan WHERE no_resi = '' OR no_resi IS NULL")
         total_orders_all = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan")
         jika_ada = orders_tanpa_resi["cnt"] if orders_tanpa_resi else 0
         if jika_ada > 0:
             st.warning(
                 f"âš ï¸ **{jika_ada}** dari **{total_orders_all['cnt']}** pesanan belum memiliki No Resi. "
-                f"Update di menu **ðŸ“¦ Input Resi & Pesanan** agar bisa di-scan."
+                f"Update di menu **ðŸ"¦ Input Resi & Pesanan** agar bisa di-scan."
             )
 
-        # â”€â”€ Success Rate â”€â”€
+        # â"€â"€ Success Rate â"€â"€
         st.markdown("---")
         total_sales = stats.get("TOTAL_SALES", 0)
         packed = stats.get("PACKED", 0)
@@ -7928,45 +7928,45 @@ def main():
             # Detail metrics
             sr_col1, sr_col2, sr_col3, sr_col4 = st.columns(4)
             with sr_col1:
-                st.metric("ðŸ“¦ Pesanan dgn Resi", f"{total_sales:,}")
+                st.metric("ðŸ"¦ Pesanan dgn Resi", f"{total_sales:,}")
             with sr_col2:
-                st.metric("âœ… Packed", f"{packed:,}")
+                st.metric("âœ... Packed", f"{packed:,}")
             with sr_col3:
                 st.metric("âŒ Cancel", f"{cancel:,}")
             with sr_col4:
                 belum = stats.get("BELUM_SCAN", 0)
-                st.metric("ðŸ“‹ Belum Scan", f"{belum:,}")
+                st.metric("ðŸ"‹ Belum Scan", f"{belum:,}")
 
             # Status indicator
             if success_rate >= 100:
                 st.success(f"ðŸŽ‰ **100% Sukses!** Semua {total_sales:,} pesanan sudah ditangani (Packed + Cancel).")
             elif success_rate >= 80:
-                st.info(f"ðŸ“ˆ Progress baik: {resolved:,} dari {total_sales:,} resi sudah ditangani ({success_rate:.1f}%).")
+                st.info(f"ðŸ"ˆ Progress baik: {resolved:,} dari {total_sales:,} resi sudah ditangani ({success_rate:.1f}%).")
             elif success_rate > 0:
                 st.warning(f"â³ Baru {resolved:,} dari {total_sales:,} resi yang ditangani ({success_rate:.1f}%).")
             else:
-                st.info("ðŸ“­ Belum ada aktivitas scan hari ini. Mulai scan di halaman SCAN Operasional.")
+                st.info("ðŸ"­ Belum ada aktivitas scan hari ini. Mulai scan di halaman SCAN Operasional.")
 
-        # â”€â”€ Kategori Breakdown: Reguler vs Barang Besar â”€â”€
+        # â"€â"€ Kategori Breakdown: Reguler vs Barang Besar â"€â"€
         if packed > 0:
             st.markdown("---")
-            st.subheader("ðŸ“¦ Breakdown Kategori Packing")
+            st.subheader("ðŸ"¦ Breakdown Kategori Packing")
             packed_reguler = stats.get("PACKED_REGULER", 0)
             packed_besar = stats.get("PACKED_BESAR", 0)
 
             kat_col1, kat_col2, kat_col3 = st.columns([1, 1, 2])
             with kat_col1:
-                st.metric("ðŸ“¦ Reguler", f"{packed_reguler:,}")
+                st.metric("ðŸ"¦ Reguler", f"{packed_reguler:,}")
             with kat_col2:
-                st.metric("ðŸ“¦ Barang Besar", f"{packed_besar:,}")
+                st.metric("ðŸ"¦ Barang Besar", f"{packed_besar:,}")
             with kat_col3:
                 if packed_reguler + packed_besar > 0:
                     besar_pct = packed_besar / (packed_reguler + packed_besar) * 100
                     st.caption(f"Barang besar: {besar_pct:.1f}% dari total packing")
 
-        # â”€â”€ Recent scans preview (dari scan_aktif + penjualan) â”€â”€
+        # â"€â"€ Recent scans preview (dari scan_aktif + penjualan) â"€â"€
         st.markdown("---")
-        st.subheader("ðŸ“‹ Scan Terbaru (Packing)")
+        st.subheader("ðŸ"‹ Scan Terbaru (Packing)")
         scans = db.fetch_all(
             "SELECT s.waktu, s.tanggal, s.resi, s.toko, s.status, s.kategori, s.keterangan_barang, "
             "p.marketplace, p.no_pesanan, p.nama_produk, p.kurir "
@@ -8006,9 +8006,9 @@ def main():
             if total_scans and total_scans["cnt"] > 10:
                 st.caption(f"... dan {total_scans['cnt'] - 10} data lainnya. Lihat di halaman SCAN Operasional.")
         else:
-            st.info("ðŸ“­ Belum ada data scan.")
+            st.info("ðŸ"­ Belum ada data scan.")
 
-        # Expedition summary chips â€” dari scan_aktif
+        # Expedition summary chips â€" dari scan_aktif
         st.markdown("---")
         st.subheader("ðŸšš Ringkasan per Ekspedisi (Packing)")
         rows = db.fetch_all(
@@ -8020,19 +8020,19 @@ def main():
             cols = st.columns(min(len(rows), 5))
             for i, r in enumerate(rows):
                 with cols[i % 5]:
-                    label = r["ekspedisi"] if r["ekspedisi"] and r["ekspedisi"] != "Unknown" else "â“Unknown"
+                    label = r["ekspedisi"] if r["ekspedisi"] and r["ekspedisi"] != "Unknown" else "â"Unknown"
                     st.metric(label, r["cnt"])
         else:
             st.caption("Belum ada data.")
 
     elif page == "Scan_Operasional":
-        st.title("ðŸ“· SCAN Operasional â€” Packing & Verifikasi")
+        st.title("ðŸ"· SCAN Operasional â€" Packing & Verifikasi")
         st.caption("Scan resi fisik untuk verifikasi packing. Cocokkan dengan data pesanan dari Input Resi & Pesanan.")
 
         db = st.session_state.db
         cache = st.session_state.cache
 
-        # â”€â”€ Stats operasional â”€â”€
+        # â"€â"€ Stats operasional â"€â"€
         packed = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED'")
         pending_scan = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PENDING'")
         cancel_scan = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'CANCEL'")
@@ -8051,18 +8051,18 @@ def main():
         # Row 1: Total Orders, Total Resi, Packed, Tanpa Resi
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("ðŸ“¦ Total Orders", f"{orders_cnt:,}", help="Semua pesanan unik (dengan & tanpa resi)")
+            st.metric("ðŸ"¦ Total Orders", f"{orders_cnt:,}", help="Semua pesanan unik (dengan & tanpa resi)")
         with col2:
             st.metric("ðŸ·ï¸ Total Resi", f"{resi_cnt:,}", help="Unique resi yang harus di-scan")
         with col3:
-            st.metric("âœ… Packed", f"{packed_cnt:,}")
+            st.metric("âœ... Packed", f"{packed_cnt:,}")
         with col4:
             st.metric("âš ï¸ Tanpa Resi", f"{tanpa_cnt:,}", help="Pesanan belum memiliki No Resi")
 
         # Row 2: Belum Scan, Pending, Cancel, Sisa
         col5, col6, col7, col8 = st.columns(4)
         with col5:
-            st.metric("ðŸ“‹ Belum Scan", f"{belum_scan:,}",
+            st.metric("ðŸ"‹ Belum Scan", f"{belum_scan:,}",
                      help=f"Resi yang belum di-scan. Bisa jadi paket dibatalkan sistem.")
         with col6:
             st.metric("â³ Pending", f"{pending_cnt:,}", help="Resi di-scan tapi tidak ada di data penjualan")
@@ -8070,23 +8070,23 @@ def main():
             st.metric("âŒ Cancel", f"{cancel_cnt:,}")
         with col8:
             sisa = orders_cnt - packed_cnt - cancel_cnt
-            st.metric("ðŸ” Sisa", f"{max(0, sisa):,}",
+            st.metric("ðŸ" Sisa", f"{max(0, sisa):,}",
                      help="Total pesanan yang belum selesai (termasuk tanpa resi & belum scan)")
 
-        # â”€â”€ Info bar â”€â”€
+        # â"€â"€ Info bar â"€â"€
         if orders_cnt > 0:
             orders_dengan_resi = orders_cnt - tanpa_cnt
             st.info(
-                f"ðŸ“Š **{orders_cnt}** Total Pesanan â†’ "
+                f"ðŸ"Š **{orders_cnt}** Total Pesanan â†' "
                 f"**{orders_dengan_resi}** punya Resi ({resi_cnt} unique) + "
                 f"**{tanpa_cnt}** tanpa Resi | "
                 f"**{belum_scan}** resi belum di-scan | "
                 f"**{packed_cnt}** packed | **{cancel_cnt}** cancel"
             )
 
-        # â”€â”€ Daftar Belum Scan (resi ada, belum diproses) â”€â”€
+        # â"€â"€ Daftar Belum Scan (resi ada, belum diproses) â"€â"€
         if belum_scan > 0:
-            with st.expander(f"ðŸ“‹ {belum_scan} Resi Belum Di-Scan â€” Kemungkinan dibatalkan sistem? Klik untuk lihat & intervensi", expanded=False):
+            with st.expander(f"ðŸ"‹ {belum_scan} Resi Belum Di-Scan â€" Kemungkinan dibatalkan sistem? Klik untuk lihat & intervensi", expanded=False):
                 st.caption("Pesanan dengan resi yang belum di-scan. Gunakan mode âŒ CANCEL atau upload pembatalan di Input Resi & Pesanan.")
                 belum_list = db.fetch_all(
                     "SELECT p.marketplace, p.no_pesanan, p.no_resi, p.nama_produk, p.kurir, p.nama_toko, p.qty, p.total_harga, p.status_pesanan "
@@ -8146,9 +8146,9 @@ def main():
                             else:
                                 st.warning("Masukkan No Resi atau No Pesanan.")
 
-        # â”€â”€ Pesanan Tanpa Resi (expandable) â”€â”€
+        # â"€â"€ Pesanan Tanpa Resi (expandable) â"€â"€
         if tanpa_cnt > 0:
-            with st.expander(f"âš ï¸ {tanpa_cnt} Pesanan Belum Memiliki No Resi â€” Klik untuk lihat", expanded=False):
+            with st.expander(f"âš ï¸ {tanpa_cnt} Pesanan Belum Memiliki No Resi â€" Klik untuk lihat", expanded=False):
                 st.caption("Update No Resi di halaman Input Resi & Pesanan agar bisa di-scan.")
                 tanpa_list = db.fetch_all(
                     "SELECT marketplace, no_pesanan, nama_produk, nama_toko, qty, total_harga, tanggal_pesanan "
@@ -8168,27 +8168,27 @@ def main():
 
         st.markdown("---")
 
-        # â”€â”€ Mode â”€â”€
+        # â"€â"€ Mode â"€â"€
         col_m1, col_m2, col_m3 = st.columns([1, 1, 2])
         with col_m1:
             scan_mode = st.radio(
                 "Mode Scan",
-                ["ðŸ“¦ PACK", "ðŸš€ INSTANT", "âŒ CANCEL"],
+                ["ðŸ"¦ PACK", "ðŸš€ INSTANT", "âŒ CANCEL"],
                 horizontal=True,
                 key="scan_ops_mode",
                 help="PACK = reguler, INSTANT = kiriman prioritas (siap diambil kurir), CANCEL = batalkan"
             )
         with col_m2:
-            # Barang Besar toggle â€” hanya aktif saat PACK/INSTANT mode
+            # Barang Besar toggle â€" hanya aktif saat PACK/INSTANT mode
             is_besar = st.checkbox(
-                "ðŸ“¦ Barang Besar",
+                "ðŸ"¦ Barang Besar",
                 value=False,
                 key="scan_ops_besar",
                 help="Centang untuk scan barang besar. Data dipisah dari paket reguler.",
                 disabled=(scan_mode == "âŒ CANCEL"),
             )
         with col_m3:
-            # â”€â”€ Pilih Toko (dari Manajemen Toko) â”€â”€
+            # â"€â"€ Pilih Toko (dari Manajemen Toko) â"€â"€
             toko_list = db.fetch_all("SELECT nama FROM toko ORDER BY nama")
             toko_options = [t["nama"] for t in toko_list] if toko_list else ["Mitra Mulia Abadi"]
             # Default: pakai session state, atau toko pertama
@@ -8209,14 +8209,14 @@ def main():
         if scan_mode == "ðŸš€ INSTANT":
             kategori = "BESAR" if is_besar else "REGULER"
             tipe_kiriman = "INSTANT"
-        elif scan_mode == "ðŸ“¦ PACK":
+        elif scan_mode == "ðŸ"¦ PACK":
             kategori = "BESAR" if is_besar else "REGULER"
             tipe_kiriman = "REGULER"
         else:
             kategori = "REGULER"
             tipe_kiriman = "REGULER"
 
-        # â”€â”€ Keterangan Barang Besar â”€â”€
+        # â"€â"€ Keterangan Barang Besar â"€â"€
         keterangan_barang = ""
         if is_besar and scan_mode != "âŒ CANCEL":
             st.markdown("---")
@@ -8227,7 +8227,7 @@ def main():
             kat_col1, kat_col2 = st.columns([2, 2])
             with kat_col1:
                 selected_barang = st.selectbox(
-                    "ðŸ“‹ Pilih Barang Besar",
+                    "ðŸ"‹ Pilih Barang Besar",
                     besar_options,
                     key="scan_ops_pilih_barang",
                     help="Pilih dari daftar barang besar yang sudah terdaftar, atau pilih 'Tambah Baru' untuk input manual."
@@ -8244,18 +8244,18 @@ def main():
                     # Tampilkan keterangan tambahan jika ada
                     matched = [b for b in daftar_besar if b["nama_barang"] == selected_barang]
                     if matched and matched[0]["keterangan"]:
-                        st.caption(f"ðŸ“ {matched[0]['keterangan']}")
+                        st.caption(f"ðŸ" {matched[0]['keterangan']}")
 
             if not keterangan_barang and selected_barang == "âž• Tambah Baru...":
                 st.warning("âš ï¸ Isi nama barang terlebih dahulu sebelum scan.")
 
-        # â”€â”€ Scan input â”€â”€
+        # â"€â"€ Scan input â"€â"€
         st.markdown("---")
         scan_col1, scan_col2 = st.columns([4, 1])
         with scan_col1:
             if scan_mode == "ðŸš€ INSTANT":
                 placeholder_text = "Scan resi kiriman INSTANT/Prioritas..."
-            elif scan_mode == "ðŸ“¦ PACK":
+            elif scan_mode == "ðŸ"¦ PACK":
                 placeholder_text = "Scan resi fisik paket..."
             else:
                 placeholder_text = "Scan/ketik resi CANCEL..."
@@ -8268,8 +8268,8 @@ def main():
         with scan_col2:
             if scan_mode == "ðŸš€ INSTANT":
                 btn_label = "ðŸš€ Instant"
-            elif scan_mode == "ðŸ“¦ PACK":
-                btn_label = "ðŸ“· Scan"
+            elif scan_mode == "ðŸ"¦ PACK":
+                btn_label = "ðŸ"· Scan"
             else:
                 btn_label = "âŒ Cancel"
             scan_btn = st.button(btn_label, width="stretch", type="primary", key="scan_ops_btn")
@@ -8281,7 +8281,7 @@ def main():
                 if not cleaned:
                     st.error(f"Format resi tidak valid: '{resi_to_scan}'")
                 else:
-                    # Check duplicate â€” cek by resi langsung DAN by no_pesanan â†’ resi
+                    # Check duplicate â€" cek by resi langsung DAN by no_pesanan â†' resi
                     penj_match = None
                     existing_scan = db.fetch_one(
                         "SELECT id, status, waktu, tanggal, toko FROM scan_aktif WHERE resi = ?",
@@ -8300,12 +8300,12 @@ def main():
                             )
 
                     if existing_scan:
-                        status_emoji = {"PACKED": "âœ…", "PENDING": "â³", "CANCEL": "âŒ"}.get(existing_scan["status"], "ðŸ“‹")
+                        status_emoji = {"PACKED": "âœ...", "PENDING": "â³", "CANCEL": "âŒ"}.get(existing_scan["status"], "ðŸ"‹")
                         st.toast("ðŸš« DOUBLE SCAN!", icon="ðŸš«")
                         linked_resi = penj_match["no_resi"] if penj_match else cleaned
                         st.error(
                             f"ðŸš« **DOUBLE SCAN DITOLAK!**\n\n"
-                            f"`{cleaned}` â†’ Resi `{linked_resi}` sudah di-scan:\n"
+                            f"`{cleaned}` â†' Resi `{linked_resi}` sudah di-scan:\n"
                             f"â€¢ Status: {status_emoji} **{existing_scan['status']}**\n"
                             f"â€¢ Waktu: {existing_scan['waktu']} | Tanggal: {existing_scan['tanggal']}\n"
                             f"â€¢ Toko: {existing_scan['toko']}\n\n"
@@ -8317,7 +8317,7 @@ def main():
                         tanggal = now.strftime("%d-%m-%Y")
 
                         if scan_mode == "âŒ CANCEL":
-                            # â”€â”€ CANCEL mode: cari by resi ATAU no_pesanan â”€â”€
+                            # â"€â"€ CANCEL mode: cari by resi ATAU no_pesanan â"€â"€
                             match_cancel = db.fetch_one(
                                 "SELECT no_resi, no_pesanan, nama_toko FROM penjualan WHERE no_resi = ? OR no_pesanan = ? LIMIT 1",
                                 (cleaned, cleaned),
@@ -8339,10 +8339,10 @@ def main():
                                     (cleaned, cleaned),
                                 )
                                 extra = f" (No Pesanan: {match_cancel['no_pesanan']})" if match_cancel and cleaned != match_cancel["no_resi"] else ""
-                                st.error(f"âŒ **CANCEL!** `{cleaned}`{extra} â€” nilai penjualan dikurangi.")
+                                st.error(f"âŒ **CANCEL!** `{cleaned}`{extra} â€" nilai penjualan dikurangi.")
                             st.rerun()
 
-                        # â”€â”€ PACK mode: cari by no_resi ATAU no_pesanan â”€â”€
+                        # â"€â"€ PACK mode: cari by no_resi ATAU no_pesanan â"€â"€
                         match = db.fetch_one(
                             "SELECT no_resi, no_pesanan, marketplace, nama_produk, sku_terdeteksi, kurir, nama_toko "
                             "FROM penjualan WHERE (no_resi = ? OR no_pesanan = ?) AND status_pesanan != 'CANCEL' LIMIT 1",
@@ -8359,11 +8359,11 @@ def main():
                                 (real_resi,),
                             )
                             if existing:
-                                status_emoji = {"PACKED": "âœ…", "PENDING": "â³", "CANCEL": "âŒ"}.get(existing["status"], "ðŸ“‹")
+                                status_emoji = {"PACKED": "âœ...", "PENDING": "â³", "CANCEL": "âŒ"}.get(existing["status"], "ðŸ"‹")
                                 st.toast("ðŸš« DOUBLE SCAN!", icon="ðŸš«")
                                 st.error(
                                     f"ðŸš« **DOUBLE SCAN DITOLAK!**\n\n"
-                                    f"{'No Pesanan' if is_order_scan else 'Resi'} `{cleaned}` â†’ Resi `{real_resi}` sudah di-scan:\n"
+                                    f"{'No Pesanan' if is_order_scan else 'Resi'} `{cleaned}` â†' Resi `{real_resi}` sudah di-scan:\n"
                                     f"â€¢ Status: {status_emoji} **{existing['status']}**\n"
                                     f"â€¢ Waktu: {existing['waktu']} | Tanggal: {existing['tanggal']}\n"
                                     f"â€¢ Toko: {existing['toko']}"
@@ -8374,7 +8374,7 @@ def main():
                                     "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman, marketplace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                     (waktu, tanggal, real_resi, match["kurir"] or "Unknown", scan_toko, "PACKED", kategori, keterangan_barang, tipe_kiriman, match.get("marketplace", "")),
                                 )
-                                # Update penjualan â€” pakai no_resi DAN no_pesanan sekaligus untuk memastikan
+                                # Update penjualan â€" pakai no_resi DAN no_pesanan sekaligus untuk memastikan
                                 db.execute(
                                     "UPDATE penjualan SET status_pesanan = 'PACKED' WHERE no_resi = ? OR no_pesanan = ?",
                                     (real_resi, match["no_pesanan"]),
@@ -8387,16 +8387,16 @@ def main():
                                 if not verify or verify["cnt"] == 0:
                                     st.warning(f"âš ï¸ Gagal update status penjualan untuk resi `{real_resi}`. Coba refresh.")
 
-                                scan_type = "No Pesanan â†’ Resi" if is_order_scan else "Resi"
+                                scan_type = "No Pesanan â†' Resi" if is_order_scan else "Resi"
                                 tipe_label = "ðŸš€ INSTANT" if tipe_kiriman == "INSTANT" else "PACKED"
-                                st.success(f"âœ… **{tipe_label}!** ({scan_type}) `{real_resi}`")
+                                st.success(f"âœ... **{tipe_label}!** ({scan_type}) `{real_resi}`")
                                 st.info(
-                                    f"ðŸ“¦ {match['marketplace']} | {match['no_pesanan']}\n"
+                                    f"ðŸ"¦ {match['marketplace']} | {match['no_pesanan']}\n"
                                     f"ðŸ›ï¸ {match['nama_produk'][:50]}\n"
                                     f"ðŸª {match['nama_toko'] or '-'} | ðŸšš {match['kurir'] or '-'} | SKU: {match['sku_terdeteksi'] or '?'}"
                                 )
 
-                                # â”€â”€ Auto-save barang besar baru ke daftar â”€â”€
+                                # â"€â"€ Auto-save barang besar baru ke daftar â"€â"€
                                 if is_besar and keterangan_barang:
                                     existing_brg = db.fetch_one(
                                         "SELECT id FROM daftar_barang_besar WHERE nama_barang = ?",
@@ -8411,7 +8411,7 @@ def main():
                                         except:
                                             pass  # ignore duplicate
 
-                                # â”€â”€ Auto-sync toko ke toko table â”€â”€
+                                # â"€â"€ Auto-sync toko ke toko table â"€â"€
                                 if match["nama_toko"]:
                                     try:
                                         db.execute(
@@ -8428,7 +8428,7 @@ def main():
                             )
                             st.warning(f"â³ **PENDING!** `{cleaned}` belum ada di data penjualan (baik sebagai No Resi maupun No Pesanan).")
 
-                            # â”€â”€ Auto-save barang besar baru ke daftar (PENDING path) â”€â”€
+                            # â"€â"€ Auto-save barang besar baru ke daftar (PENDING path) â"€â"€
                             if is_besar and keterangan_barang:
                                 existing_brg = db.fetch_one(
                                     "SELECT id FROM daftar_barang_besar WHERE nama_barang = ?",
@@ -8446,8 +8446,8 @@ def main():
 
         st.markdown("---")
 
-        # â”€â”€ Scan History Table â”€â”€
-        st.subheader("ðŸ“‹ Riwayat Scan Packing")
+        # â"€â"€ Scan History Table â"€â"€
+        st.subheader("ðŸ"‹ Riwayat Scan Packing")
 
         # Filter kategori
         filter_col1, filter_col2 = st.columns([1, 3])
@@ -8467,7 +8467,7 @@ def main():
             "GROUP BY s.resi ORDER BY MAX(s.id) DESC LIMIT 100"
         )
         if not scans:
-            st.info("ðŸ“­ Belum ada scan. Mulai scan resi fisik.")
+            st.info("ðŸ"­ Belum ada scan. Mulai scan resi fisik.")
         else:
             df_scans = pd.DataFrame([dict(r) for r in scans])
 
@@ -8502,32 +8502,32 @@ def main():
             styled = df_scans[available_cols].style.map(color_packed, subset=["Status"]).map(color_kategori, subset=["Kategori"])
             st.dataframe(styled, width="stretch", height=400, hide_index=True)
 
-            # â”€â”€ Statistik per Kategori â”€â”€
+            # â"€â"€ Statistik per Kategori â"€â"€
             if "Kategori" in df_scans.columns:
                 st.markdown("---")
-                st.caption("ðŸ“Š Distribusi Kategori:")
+                st.caption("ðŸ"Š Distribusi Kategori:")
                 reg_count = len(df_scans[df_scans["Kategori"] == "REGULER"]) if kategori_filter == "Semua" else 0
                 besar_count = len(df_scans[df_scans["Kategori"] == "BESAR"]) if kategori_filter == "Semua" else 0
                 if kategori_filter == "Semua":
                     cat_col1, cat_col2 = st.columns(2)
                     with cat_col1:
-                        st.metric("ðŸ“¦ Reguler", reg_count)
+                        st.metric("ðŸ"¦ Reguler", reg_count)
                     with cat_col2:
-                        st.metric("ðŸ“¦ Barang Besar", besar_count)
+                        st.metric("ðŸ"¦ Barang Besar", besar_count)
 
-            # â”€â”€ Actions â”€â”€
+            # â"€â"€ Actions â"€â"€
             st.markdown("---")
             col_a1, col_a2, col_a3 = st.columns(3)
             with col_a1:
                 delete_resi = st.text_input("Hapus Resi", placeholder="Nomor resi...", key="scan_ops_del_resi")
-                if st.button("ðŸ-‘ï¸ Hapus", width="stretch", key="scan_ops_del_btn"):
+                if st.button("ðŸ-'ï¸ Hapus", width="stretch", key="scan_ops_del_btn"):
                     if delete_resi.strip():
                         cleaned_del = Validator.sanitize_resi(delete_resi.strip())
                         if cleaned_del:
                             # Revert penjualan status sebelum hapus scan
                             db.execute("UPDATE penjualan SET status_pesanan = '' WHERE no_resi = ?", (cleaned_del,))
                             db.execute("DELETE FROM scan_aktif WHERE resi = ?", (cleaned_del,))
-                            st.success(f"'{cleaned_del}' dihapus â€” status penjualan dikembalikan.")
+                            st.success(f"'{cleaned_del}' dihapus â€" status penjualan dikembalikan.")
                             st.rerun()
             with col_a2:
                 if st.button("â†©ï¸ Undo Terakhir", width="stretch", key="scan_ops_undo"):
@@ -8536,11 +8536,11 @@ def main():
                         # Revert penjualan status sebelum hapus scan
                         db.execute("UPDATE penjualan SET status_pesanan = '' WHERE no_resi = ?", (row["resi"],))
                         db.execute("DELETE FROM scan_aktif WHERE id = ?", (row["id"],))
-                        st.success("Scan terakhir di-undo â€” status penjualan dikembalikan.")
+                        st.success("Scan terakhir di-undo â€" status penjualan dikembalikan.")
                         st.rerun()
             with col_a3:
                 # Export packed items only
-                if st.button("ðŸ“Š Export Packed (Excel)", width="stretch", type="primary", key="scan_ops_export"):
+                if st.button("ðŸ"Š Export Packed (Excel)", width="stretch", type="primary", key="scan_ops_export"):
                     packed_items = db.fetch_all(
                         "SELECT s.waktu, s.tanggal, s.resi, s.ekspedisi, s.toko, s.status, "
                         "p.marketplace, p.no_pesanan, p.nama_produk, p.sku_terdeteksi "
@@ -8556,27 +8556,27 @@ def main():
                             df_exp.to_excel(writer, index=False, sheet_name="Packed")
                         with open(filepath, "rb") as fp:
                             st.download_button("â¬‡ï¸ Download Packing List", fp, file_name=filename)
-                        st.success(f"âœ… {filename}")
+                        st.success(f"âœ... {filename}")
                     else:
                         st.warning("Tidak ada data PACKED.")
 
     elif page == "Scan History":
-        st.title("ðŸ“‹ Scan History")
+        st.title("ðŸ"‹ Scan History")
         render_scan_history()
 
     elif page == "Handover":
-        st.title("ðŸ“‹ Handover â€” Serah Terima per Kurir")
+        st.title("ðŸ"‹ Handover â€" Serah Terima per Kurir")
         db = st.session_state.db
 
-        # â”€â”€ Stats â”€â”€
+        # â"€â"€ Stats â"€â"€
         packed = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED' AND tipe_kiriman = 'REGULER'")
         instant = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED' AND tipe_kiriman = 'INSTANT'")
         packed_besar = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED' AND kategori = 'BESAR'")
-        st.caption(f"ðŸ“¦ Reguler: {packed['cnt']} | ðŸš€ Instant: {instant['cnt']} | ðŸ“¦ Barang Besar: {packed_besar['cnt']}")
+        st.caption(f"ðŸ"¦ Reguler: {packed['cnt']} | ðŸš€ Instant: {instant['cnt']} | ðŸ"¦ Barang Besar: {packed_besar['cnt']}")
 
         st.markdown("---")
 
-        tab_reg, tab_inst = st.tabs(["ðŸ“¦ Reguler", "ðŸš€ Instant / Prioritas"])
+        tab_reg, tab_inst = st.tabs(["ðŸ"¦ Reguler", "ðŸš€ Instant / Prioritas"])
 
         # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• TAB REGULER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         with tab_reg:
@@ -8584,7 +8584,7 @@ def main():
 
         # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• TAB INSTANT â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         with tab_inst:
-            st.caption("Kiriman Instant/Prioritas â€” sudah di-scan, siap diambil kurir. Konfirmasi setelah kurir mengambil paket.")
+            st.caption("Kiriman Instant/Prioritas â€" sudah di-scan, siap diambil kurir. Konfirmasi setelah kurir mengambil paket.")
             _render_handover_tab(db, "INSTANT")
 
     elif page == "Ekspedisi":
@@ -8596,26 +8596,26 @@ def main():
         render_toko()
 
     elif page == "Barang_Besar":
-        st.title("ðŸ“¦ Daftar Barang Besar")
+        st.title("ðŸ"¦ Daftar Barang Besar")
         st.caption("Kelola daftar barang besar untuk keperluan scan packing (bak cuci, wastafel, tempat sampah, gerobak, dll).")
 
         db = st.session_state.db
 
-        # â”€â”€ Form Tambah Barang â”€â”€
+        # â"€â"€ Form Tambah Barang â"€â"€
         with st.expander("âž• Tambah Barang Besar Baru", expanded=False):
             col1, col2 = st.columns(2)
             with col1:
                 nama_baru = st.text_input("Nama Barang", placeholder="Contoh: Bak Cuci Piring", key="besar_nama")
             with col2:
                 ket_baru = st.text_input("Keterangan (opsional)", placeholder="Ukuran, bahan, dll", key="besar_ket")
-            if st.button("ðŸ’¾ Simpan", type="primary"):
+            if st.button("ðŸ'¾ Simpan", type="primary"):
                 if nama_baru.strip():
                     try:
                         db.execute(
                             "INSERT INTO daftar_barang_besar (nama_barang, keterangan) VALUES (?, ?)",
                             (nama_baru.strip(), ket_baru.strip()),
                         )
-                        st.success(f"âœ… '{nama_baru.strip()}' ditambahkan!")
+                        st.success(f"âœ... '{nama_baru.strip()}' ditambahkan!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Gagal: {e}")
@@ -8624,31 +8624,31 @@ def main():
 
         st.markdown("---")
 
-        # â”€â”€ Daftar Barang Besar â”€â”€
+        # â"€â"€ Daftar Barang Besar â"€â"€
         daftar = db.fetch_all("SELECT id, nama_barang, keterangan, created_at FROM daftar_barang_besar ORDER BY nama_barang")
 
         if not daftar:
-            st.info("ðŸ“­ Belum ada daftar barang besar. Tambahkan di atas.")
+            st.info("ðŸ"­ Belum ada daftar barang besar. Tambahkan di atas.")
         else:
-            st.subheader(f"ðŸ“‹ Daftar Barang Besar ({len(daftar)} items)")
+            st.subheader(f"ðŸ"‹ Daftar Barang Besar ({len(daftar)} items)")
 
             for item in daftar:
                 col1, col2, col3 = st.columns([3, 1, 1])
                 with col1:
                     st.markdown(f"**{item['nama_barang']}**")
                     if item["keterangan"]:
-                        st.caption(f"ðŸ“ {item['keterangan']}")
+                        st.caption(f"ðŸ" {item['keterangan']}")
                 with col2:
                     st.caption(f"ðŸ• {item['created_at'][:10] if item['created_at'] else '-'}")
                 with col3:
-                    if st.button("ðŸ-‘ï¸", key=f"del_besar_{item['id']}", help=f"Hapus {item['nama_barang']}"):
+                    if st.button("ðŸ-'ï¸", key=f"del_besar_{item['id']}", help=f"Hapus {item['nama_barang']}"):
                         db.execute("DELETE FROM daftar_barang_besar WHERE id = ?", (item['id'],))
-                        st.success(f"ðŸ-‘ï¸ '{item['nama_barang']}' dihapus.")
+                        st.success(f"ðŸ-'ï¸ '{item['nama_barang']}' dihapus.")
                         st.rerun()
 
-        # â”€â”€ Statistik Barang Besar di Scan â”€â”€
+        # â"€â"€ Statistik Barang Besar di Scan â"€â"€
         st.markdown("---")
-        st.subheader("ðŸ“Š Statistik Scan Barang Besar")
+        st.subheader("ðŸ"Š Statistik Scan Barang Besar")
         besar_scans = db.fetch_all(
             "SELECT s.keterangan_barang, s.kategori, COUNT(*) as cnt "
             "FROM scan_aktif s "
@@ -8667,40 +8667,40 @@ def main():
             st.caption("Belum ada data scan barang besar.")
 
     elif page == "Reports":
-        st.title("ðŸ“Š Reports")
+        st.title("ðŸ"Š Reports")
         render_reports()
 
     elif page == "Sales_Input":
-        st.title("ðŸ“¦ Input Resi & Pesanan (Marketplace)")
+        st.title("ðŸ"¦ Input Resi & Pesanan (Marketplace)")
         render_sales_input()
 
     elif page == "Retur_Klaim":
-        st.title("ðŸ”„ Retur & Klaim â€” Proses Paket Kembalian")
+        st.title("ðŸ"„ Retur & Klaim â€" Proses Paket Kembalian")
         render_retur_klaim()
 
     elif page == "Sales_Daily_Report":
-        st.title("ðŸ“Š Laporan Penjualan Harian")
+        st.title("ðŸ"Š Laporan Penjualan Harian")
         render_sales_daily_report()
 
     elif page == "AI_Supervisor":
-        st.title("ðŸ¤– AI Supervisor â€” Pantauan & Rekomendasi")
+        st.title("ðŸ¤- AI Supervisor â€" Pantauan & Rekomendasi")
         render_ai_supervisor()
 
-    # â”€â”€ Penjualan Pages â”€â”€
+    # â"€â"€ Penjualan Pages â"€â"€
     elif page == "Sales_Dashboard":
-        st.title("ðŸ’° Dashboard Penjualan")
+        st.title("ðŸ'° Dashboard Penjualan")
 
         col_title, col_refresh = st.columns([5, 1])
         with col_title:
-            st.caption(f"Ringkasan penjualan marketplace â€” {datetime.now().strftime('%d %B %Y, %H:%M')}")
+            st.caption(f"Ringkasan penjualan marketplace â€" {datetime.now().strftime('%d %B %Y, %H:%M')}")
         with col_refresh:
-            if st.button("ðŸ”„ Refresh", width="stretch", key="sales_dash_refresh", help="Klik untuk memperbarui data"):
+            if st.button("ðŸ"„ Refresh", width="stretch", key="sales_dash_refresh", help="Klik untuk memperbarui data"):
                 st.rerun()
 
         db = st.session_state.db
 
-        # â”€â”€ Stats: selaras dengan Scan Operasional â”€â”€
-        # Unique resi (paket fisik yang harus di-scan) â€” sama dengan Scan Operasional
+        # â"€â"€ Stats: selaras dengan Scan Operasional â"€â"€
+        # Unique resi (paket fisik yang harus di-scan) â€" sama dengan Scan Operasional
         total_resi_unique = db.fetch_one("SELECT COUNT(DISTINCT no_resi) as cnt FROM penjualan WHERE no_resi != '' AND no_resi IS NOT NULL")
         total_unique_resi = total_resi_unique["cnt"] if total_resi_unique else 0
 
@@ -8717,7 +8717,7 @@ def main():
         # Total Revenue Input: semua baris
         total_rev_input = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM penjualan")
 
-        # Real Packed: dari scan_aktif (ground truth â€” unik per resi)
+        # Real Packed: dari scan_aktif (ground truth â€" unik per resi)
         real_packed = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED'")
         real_cnt = real_packed["cnt"] if real_packed else 0
 
@@ -8745,14 +8745,14 @@ def main():
             (datetime.now().strftime("%d-%m-%Y"),),
         )
 
-        # â”€â”€ Kartu Statistik â”€â”€
-        st.subheader("ðŸ“Š Ringkasan Penjualan")
+        # â"€â"€ Kartu Statistik â"€â"€
+        st.subheader("ðŸ"Š Ringkasan Penjualan")
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
-            st.metric("ðŸ“¦ Total Orders", f"{total_orders_cnt:,}",
+            st.metric("ðŸ"¦ Total Orders", f"{total_orders_cnt:,}",
                      help=f"Unique orders: {total_orders_cnt} | Unique resi: {total_unique_resi} | Orders tanpa resi: {orders_tanpa_resi['cnt']}")
         with col2:
-            st.metric("âœ… Real Terkirim (PACKED)", f"{real_cnt:,}",
+            st.metric("âœ... Real Terkirim (PACKED)", f"{real_cnt:,}",
                      help="Jumlah resi yang berhasil dipacking (dari Scan Operasional)")
         with col3:
             st.metric("âŒ Cancel", f"{cancel_cnt:,}",
@@ -8762,18 +8762,18 @@ def main():
             st.metric("â³ Belum Diproses", f"{max(0, belum):,}",
                      help=f"Dari {total_unique_resi} unique resi yang harus di-scan. Total baris (incl. multi-SKU): {total_rows_resi['cnt']}")
         with col5:
-            st.metric("ðŸ“… Input Hari Ini", f"{today_sales['cnt']}" if today_sales else "0")
+            st.metric("ðŸ"... Input Hari Ini", f"{today_sales['cnt']}" if today_sales else "0")
 
-        # â”€â”€ Revenue Comparison â”€â”€
+        # â"€â"€ Revenue Comparison â"€â"€
         st.markdown("---")
-        st.subheader("ðŸ’° Perbandingan Revenue")
+        st.subheader("ðŸ'° Perbandingan Revenue")
         rev_col1, rev_col2, rev_col3 = st.columns(3)
         with rev_col1:
             tr = total_rev_input["total"] if total_rev_input else 0
-            st.metric("ðŸ“‹ Total Revenue (Input)", f"Rp {tr:,.0f}")
+            st.metric("ðŸ"‹ Total Revenue (Input)", f"Rp {tr:,.0f}")
         with rev_col2:
             rr = real_rev["total"] if real_rev else 0
-            st.metric("âœ… Real Revenue (Terkirim)", f"Rp {rr:,.0f}",
+            st.metric("âœ... Real Revenue (Terkirim)", f"Rp {rr:,.0f}",
                      delta=f"Rp {rr - tr:,.0f}" if tr != rr else None)
         with rev_col3:
             cr = cancel_rev["total"] if cancel_rev else 0
@@ -8788,10 +8788,10 @@ def main():
 
         st.markdown("---")
 
-        # â”€â”€ Per Marketplace (input vs packed via JOIN scan_aktif) â”€â”€
+        # â"€â"€ Per Marketplace (input vs packed via JOIN scan_aktif) â"€â"€
         col_left, col_right = st.columns(2)
         with col_left:
-            st.subheader("ðŸ“Š Per Marketplace")
+            st.subheader("ðŸ"Š Per Marketplace")
             mp_data = db.fetch_all(
                 "SELECT p.marketplace, "
                 "COUNT(DISTINCT p.no_pesanan) as total_orders, "
@@ -8831,7 +8831,7 @@ def main():
                 df_toko["Rev Real"] = df_toko["Rev Real"].apply(lambda x: f"Rp {x:,.0f}")
                 st.dataframe(df_toko, width="stretch", hide_index=True)
 
-        # â”€â”€ Top SKU (hanya PACKED) â”€â”€
+        # â"€â"€ Top SKU (hanya PACKED) â"€â"€
         st.markdown("---")
         st.subheader("ðŸ† Top SKU Terkirim (Real)")
         top_sku = db.fetch_all(
@@ -8851,7 +8851,7 @@ def main():
         else:
             st.info("Belum ada SKU yang berhasil dikirim (PACKED).")
 
-        # â”€â”€ Recent Orders â”€â”€
+        # â"€â"€ Recent Orders â"€â"€
         st.markdown("---")
         st.subheader("ðŸ›ï¸ Pesanan Terbaru")
         recent = db.fetch_all(
@@ -8867,7 +8867,7 @@ def main():
                 if x is None or x == 0:
                     return "Rp 0"
                 if x < 1000 and x != int(x):
-                    # Small decimal â€” possibly mis-parsed Indonesian thousands (91.25 = 91,250)
+                    # Small decimal â€" possibly mis-parsed Indonesian thousands (91.25 = 91,250)
                     return f"Rp {x:,.2f}"
                 return f"Rp {x:,.0f}"
             df_rec["total_harga"] = df_rec["total_harga"].apply(fmt_rupiah)
@@ -8886,34 +8886,34 @@ def main():
             st.dataframe(styled, width="stretch", hide_index=True)
 
     elif page == "Sales_History":
-        st.title("ðŸ“‹ Riwayat Penjualan")
+        st.title("ðŸ"‹ Riwayat Penjualan")
         st.info("ðŸš§ Fitur Penjualan akan segera hadir. Halaman ini akan menampilkan riwayat transaksi penjualan dengan filter & pencarian.")
         st.markdown("""
         **Rencana Fitur:**
-        - ðŸ” Pencarian & filter transaksi
-        - ðŸ“‹ Tabel riwayat penjualan
+        - ðŸ" Pencarian & filter transaksi
+        - ðŸ"‹ Tabel riwayat penjualan
         - âœï¸ Edit / hapus transaksi
-        - ðŸ“¤ Export ke Excel
+        - ðŸ"¤ Export ke Excel
         """)
 
     elif page == "Sales_Archive":
-        st.title("ðŸ“ Arsip Penjualan")
+        st.title("ðŸ" Arsip Penjualan")
         st.info("ðŸš§ Fitur Penjualan akan segera hadir. Halaman ini akan menyimpan arsip laporan penjualan dalam format Excel.")
         st.markdown("""
         **Rencana Fitur:**
-        - ðŸ’¾ Simpan laporan penjualan ke Excel
-        - ðŸ“¥ Download arsip penjualan
-        - ðŸ-‘ï¸ Hapus arsip lama
+        - ðŸ'¾ Simpan laporan penjualan ke Excel
+        - ðŸ"¥ Download arsip penjualan
+        - ðŸ-'ï¸ Hapus arsip lama
         """)
 
-    # â”€â”€ Pembelian Pages â”€â”€
+    # â"€â"€ Pembelian Pages â"€â"€
     elif page == "Purchase_Dashboard":
-        st.title("ðŸ›’ Dashboard Pembelian")
-        st.caption(f"Ringkasan inventaris & pembelian â€” {datetime.now().strftime('%d %B %Y, %H:%M')}")
+        st.title("ðŸ›' Dashboard Pembelian")
+        st.caption(f"Ringkasan inventaris & pembelian â€" {datetime.now().strftime('%d %B %Y, %H:%M')}")
 
         db = st.session_state.db
 
-        # â”€â”€ Stats Cards â”€â”€
+        # â"€â"€ Stats Cards â"€â"€
         total_sku = db.fetch_one("SELECT COUNT(*) as cnt FROM sku")
         total_stok = db.fetch_one("SELECT COALESCE(SUM(stok), 0) as total FROM sku")
         total_value = db.fetch_one("SELECT COALESCE(SUM(stok * harga_beli), 0) as total FROM sku")
@@ -8922,12 +8922,12 @@ def main():
 
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
-            st.metric("ðŸ“¦ Total SKU", total_sku["cnt"] if total_sku else 0)
+            st.metric("ðŸ"¦ Total SKU", total_sku["cnt"] if total_sku else 0)
         with col2:
-            st.metric("ðŸ“Š Total Stok", f"{total_stok['total']:,}" if total_stok else "0")
+            st.metric("ðŸ"Š Total Stok", f"{total_stok['total']:,}" if total_stok else "0")
         with col3:
             val = total_value["total"] if total_value else 0
-            st.metric("ðŸ’° Nilai Inventaris", f"Rp {val:,.0f}")
+            st.metric("ðŸ'° Nilai Inventaris", f"Rp {val:,.0f}")
         with col4:
             st.metric("âš ï¸ Stok Menipis", low_stock["cnt"] if low_stock else 0)
         with col5:
@@ -8935,7 +8935,7 @@ def main():
 
         st.markdown("---")
 
-        # â”€â”€ SKU dengan stok menipis / habis â”€â”€
+        # â"€â"€ SKU dengan stok menipis / habis â"€â"€
         alert_sku = db.fetch_all(
             "SELECT kode_sku, nama_barang, stok, satuan, supplier FROM sku WHERE stok <= 10 ORDER BY stok ASC"
         )
@@ -8948,9 +8948,9 @@ def main():
             })
             st.dataframe(df_alert, width="stretch", hide_index=True)
 
-        # â”€â”€ Ringkasan per Kategori â”€â”€
+        # â"€â"€ Ringkasan per Kategori â"€â"€
         st.markdown("---")
-        st.subheader("ðŸ“Š Ringkasan per Kategori")
+        st.subheader("ðŸ"Š Ringkasan per Kategori")
         kat_rows = db.fetch_all(
             "SELECT kategori, COUNT(*) as jml_sku, SUM(stok) as total_stok, "
             "SUM(stok * harga_beli) as total_nilai FROM sku WHERE kategori != '' "
@@ -8965,19 +8965,19 @@ def main():
             df_kat["Total Nilai (Rp)"] = df_kat["Total Nilai (Rp)"].apply(lambda x: f"Rp {x:,.0f}")
             st.dataframe(df_kat, width="stretch", hide_index=True)
 
-        # â”€â”€ Quick links â”€â”€
+        # â"€â"€ Quick links â"€â"€
         st.markdown("---")
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            st.info("ðŸ·ï¸ **Manajemen SKU** â€” Tambah, edit, hapus data SKU barang dan update stok secara manual.")
+            st.info("ðŸ·ï¸ **Manajemen SKU** â€" Tambah, edit, hapus data SKU barang dan update stok secara manual.")
         with col_b:
-            st.info("ðŸ›’ **Input Pembelian** â€” Catat pembelian dari supplier, auto-update stok SKU.")
+            st.info("ðŸ›' **Input Pembelian** â€" Catat pembelian dari supplier, auto-update stok SKU.")
         with col_c:
-            st.info("ðŸ“‹ **Riwayat Pembelian** â€” Lihat & filter history transaksi pembelian.")
+            st.info("ðŸ"‹ **Riwayat Pembelian** â€" Lihat & filter history transaksi pembelian.")
 
-        # â”€â”€ Recent Purchases â”€â”€
+        # â"€â"€ Recent Purchases â"€â"€
         st.markdown("---")
-        st.subheader("ðŸ›’ Pembelian Terbaru")
+        st.subheader("ðŸ›' Pembelian Terbaru")
         recent_purchases = db.fetch_all(
             "SELECT no_faktur, tanggal, supplier, metode_bayar, status_bayar, COUNT(*) as items, SUM(total_harga) as total "
             "FROM pembelian GROUP BY no_faktur ORDER BY created_at DESC LIMIT 5"
@@ -8997,73 +8997,73 @@ def main():
             total_pending = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM pembelian WHERE status_bayar = 'PENDING'")
             total_kontrabon = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM pembelian WHERE status_bayar = 'KONTRA BON'")
             if total_pembelian:
-                pd_text = f" | ðŸ“Œ Pending: **Rp {total_pending['total']:,.0f}**" if total_pending and total_pending["total"] > 0 else ""
+                pd_text = f" | ðŸ"Œ Pending: **Rp {total_pending['total']:,.0f}**" if total_pending and total_pending["total"] > 0 else ""
                 kb_text = f" | âš ï¸ Kontrabon: **Rp {total_kontrabon['total']:,.0f}**" if total_kontrabon and total_kontrabon["total"] > 0 else ""
-                st.caption(f"ðŸ’° Total seluruh pembelian: **Rp {total_pembelian['total']:,.0f}**{pd_text}{kb_text}")
+                st.caption(f"ðŸ'° Total seluruh pembelian: **Rp {total_pembelian['total']:,.0f}**{pd_text}{kb_text}")
         else:
-            st.info("Belum ada transaksi pembelian. Mulai dari menu ðŸ›’ Input Pembelian.")
+            st.info("Belum ada transaksi pembelian. Mulai dari menu ðŸ›' Input Pembelian.")
 
     elif page == "Purchase_SKU":
         st.title("ðŸ·ï¸ Manajemen SKU")
         render_sku()
 
     elif page == "Purchase_Input":
-        st.title("ðŸ›’ Input Pembelian ke Supplier")
+        st.title("ðŸ›' Input Pembelian ke Supplier")
         render_purchase_input()
 
     elif page == "Purchase_History":
-        st.title("ðŸ“‹ Riwayat Pembelian")
+        st.title("ðŸ"‹ Riwayat Pembelian")
         render_purchase_history()
 
     elif page == "Purchase_Finance":
-        st.title("ðŸ’³ Finance â€” Konfirmasi Pembayaran")
+        st.title("ðŸ'³ Finance â€" Konfirmasi Pembayaran")
         render_purchase_finance()
 
     elif page == "Purchase_Archive":
-        st.title("ðŸ“ Arsip Pembelian")
+        st.title("ðŸ" Arsip Pembelian")
         render_purchase_archive()
 
-    # â”€â”€ OPEX Pages â”€â”€
+    # â"€â"€ OPEX Pages â"€â"€
     elif page == "Opex_Dashboard":
-        st.title("ðŸ“Š Dashboard Biaya Operasional (OPEX)")
+        st.title("ðŸ"Š Dashboard Biaya Operasional (OPEX)")
         render_opex_dashboard()
 
     elif page == "Opex_Input":
-        st.title("ðŸ“ Input Biaya Operasional (OPEX)")
+        st.title("ðŸ" Input Biaya Operasional (OPEX)")
         render_opex_input()
 
     elif page == "Opex_History":
-        st.title("ðŸ“‹ Riwayat Biaya Operasional (OPEX)")
+        st.title("ðŸ"‹ Riwayat Biaya Operasional (OPEX)")
         render_opex_history()
 
-    # â”€â”€ Finance Pages â”€â”€
+    # â"€â"€ Finance Pages â"€â"€
     elif page == "Finance_Dashboard":
-        st.title("ðŸ’³ Dashboard Finance")
+        st.title("ðŸ'³ Dashboard Finance")
         render_finance_dashboard()
 
     elif page == "Laba_Rugi":
-        st.title("ðŸ’° Laba Rugi Harian")
+        st.title("ðŸ'° Laba Rugi Harian")
         render_laba_rugi()
 
     elif page == "Cashflow":
-        st.title("ðŸ’µ Cashflow & Pencairan Marketplace")
+        st.title("ðŸ'µ Cashflow & Pencairan Marketplace")
         render_cashflow()
 
     elif page == "Finance_SKU":
-        st.title("âœ… Konfirmasi Pembayaran â€” Pembelian SKU")
+        st.title("âœ... Konfirmasi Pembayaran â€" Pembelian SKU")
         render_purchase_finance()  # Reuse existing function
 
     elif page == "Finance_OPEX":
-        st.title("âœ… Konfirmasi Pembayaran â€” Biaya OPEX")
+        st.title("âœ... Konfirmasi Pembayaran â€" Biaya OPEX")
         render_finance_opex()
 
     elif page == "Finance_History":
-        st.title("ðŸ“‹ Riwayat Pembayaran")
+        st.title("ðŸ"‹ Riwayat Pembayaran")
         render_finance_history()
 
-    # â”€â”€ Admin â”€â”€
+    # â"€â"€ Admin â"€â"€
     elif page == "Admin_Users":
-        st.title("âš™ï¸ Admin â€” Manajemen User & Role")
+        st.title("âš™ï¸ Admin â€" Manajemen User & Role")
         render_admin_users()
 
 
