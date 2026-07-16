@@ -883,9 +883,14 @@ def init_session():
     if "last_scan" not in st.session_state:
         st.session_state.last_scan = None
     if "main_menu" not in st.session_state:
-        st.session_state.main_menu = "Operasional"
+        st.session_state.main_menu = st.query_params.get("menu", "Operasional")
     if "page" not in st.session_state:
-        st.session_state.page = "Dashboard"
+        st.session_state.page = st.query_params.get("page", "Dashboard")
+
+    # ── Persist current menu/page to URL for refresh resilience ──
+    if st.session_state.get("authenticated"):
+        st.query_params["menu"] = st.session_state.main_menu
+        st.query_params["page"] = st.session_state.page
 
 
 # ==================== HELPER FUNCTIONS ====================
