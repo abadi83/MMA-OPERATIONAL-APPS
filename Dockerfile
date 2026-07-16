@@ -7,6 +7,10 @@
 
 FROM python:3.12-slim
 
+# Force UTF-8 encoding
+ENV PYTHONUTF8=1
+ENV LANG=C.UTF-8
+
 LABEL maintainer="MMA (Mitra Mulia Abadi)"
 LABEL description="iScan Pro — Aplikasi scanning resi pengiriman"
 

@@ -916,7 +916,7 @@ def get_active_scans(db: Database) -> list:
 
 
 def get_stats(db: Database):
-    """Get scan statistics — diselaraskan dengan Scan Operasional (PACKED/PENDING/CANCEL)."""
+    """Get scan statistics - diselaraskan dengan Scan Operasional (PACKED/PENDING/CANCEL)."""
     rows = db.fetch_all("SELECT status, COUNT(*) as cnt FROM scan_aktif GROUP BY status")
     stats = {"KIRIM": 0, "RETUR": 0, "PENDING": 0, "PACKED": 0, "CANCEL": 0}
 
