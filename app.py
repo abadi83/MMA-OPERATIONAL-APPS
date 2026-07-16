@@ -45,7 +45,7 @@ def inject_pwa():
     NOTE: Streamlit sanitizes inline scripts for security. The <script src>
     approach below is a best-effort client-side fallback. For full PWA support
     (manifest in <head>, service worker, A2HS), deploy behind Nginx with
-    sub_filter enabled — see deploy/nginx-iscan.conf.
+    sub_filter enabled - see deploy/nginx-iscan.conf.
     """
     st.html('<script src="/app/static/pwa-init.js"></script>')
 
@@ -376,7 +376,7 @@ class Database:
                 if cursor.fetchone()[0] == 0:
                     cursor.execute(
                         "INSERT INTO modal (jenis, tanggal, jumlah, keterangan) VALUES (?, ?, ?, ?)",
-                        ("AWAL", datetime.now().strftime("%d-%m-%Y"), 0, "Modal awal — isi dengan jumlah sebenarnya"),
+                        ("AWAL", datetime.now().strftime("%d-%m-%Y"), 0, "Modal awal - isi dengan jumlah sebenarnya"),
                     )
             except:
                 pass
@@ -604,24 +604,24 @@ import secrets
 ROLES = {
     "admin": {
         "label": "Admin",
-        "desc": "Full access — semua menu termasuk manajemen user",
+        "desc": "Full access - semua menu termasuk manajemen user",
         "menus": ["Operasional", "Penjualan", "Pembelian", "OPEX", "Finance", "Akuntansi", "Master_Data", "Admin"],
     },
     "supervisor": {
         "label": "Supervisor",
-        "desc": "Monitoring — dashboard, AI supervisor, reports",
+        "desc": "Monitoring - dashboard, AI supervisor, reports",
         "menus": ["Operasional"],
         "pages": ["Dashboard", "AI_Supervisor", "Reports", "Handover", "Ekspedisi", "Retur_Klaim"],
     },
     "operator": {
         "label": "Operator",
-        "desc": "Operasional — scan, input resi, handover, retur",
+        "desc": "Operasional - scan, input resi, handover, retur",
         "menus": ["Operasional"],
         "pages": ["Dashboard", "Scan_Operasional", "Sales_Input", "Handover", "Retur_Klaim", "Ekspedisi"],
     },
     "gudang": {
         "label": "Gudang",
-        "desc": "Warehouse — Master Data, pembelian SKU & OPEX",
+        "desc": "Warehouse - Master Data, pembelian SKU & OPEX",
         "menus": ["Operasional", "Master_Data", "Pembelian", "OPEX"],
         "pages": ["Dashboard",
                   "Master_SKU", "Master_Supplier", "Master_Kategori", "Master_Toko", "Master_Barang_Besar", "Master_Gudang",
@@ -630,7 +630,7 @@ ROLES = {
     },
     "finance": {
         "label": "Finance",
-        "desc": "Keuangan — konfirmasi bayar SKU & OPEX, dashboard finance, akuntansi",
+        "desc": "Keuangan - konfirmasi bayar SKU & OPEX, dashboard finance, akuntansi",
         "menus": ["Pembelian", "OPEX", "Finance", "Akuntansi"],
         "pages": ["Purchase_Dashboard", "Purchase_History",
                   "Opex_Dashboard", "Opex_History",
@@ -837,7 +837,7 @@ def init_session():
         auth_token = st.query_params.get("auth")
         if auth_token:
             logging.info(f"[AUTH] Found token in query params (len={len(auth_token)})")
-        # 2) Check Cookie header (from page refresh — browser sends cookie)
+        # 2) Check Cookie header (from page refresh - browser sends cookie)
         if not auth_token:
             import re
             try:
@@ -858,9 +858,9 @@ def init_session():
                 st.session_state.user = user
                 inject_auth_cookie_js(auth_token)  # refresh cookie expiry
                 logging.info(f"[AUTH] Auto-login SUCCESS: {user['username']} (src={'query' if st.query_params.get('auth') else 'cookie'})")
-                # No st.rerun(), no query_params.clear() — let main() render dashboard
+                # No st.rerun(), no query_params.clear() - let main() render dashboard
             else:
-                # Invalid token — clean up client-side only
+                # Invalid token - clean up client-side only
                 st.html("""<script>
                 try { localStorage.removeItem("iscan_auth_token"); } catch(e) {}
                 document.cookie = "iscan_sid=;path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT";
@@ -1064,7 +1064,7 @@ def export_to_excel(db: Database, folder: str, judul: str = None) -> str:
         (judul, filename, now.strftime("%d-%m-%Y %H:%M")),
     )
 
-    # Clear active scans — revert penjualan status_pesanan terlebih dahulu
+    # Clear active scans - revert penjualan status_pesanan terlebih dahulu
     db.execute(
         "UPDATE penjualan SET status_pesanan = '' WHERE no_resi IN (SELECT resi FROM scan_aktif)"
     )
@@ -1108,7 +1108,7 @@ def export_handover_report(db: Database, folder: str, ekspedisi_filter: str = No
 
 # ==================== UI COMPONENTS ====================
 def render_stats_cards(stats: dict):
-    """Render statistics cards — diselaraskan dengan Scan Operasional."""
+    """Render statistics cards - diselaraskan dengan Scan Operasional."""
     cols = st.columns(5)
     with cols[0]:
         st.metric("📦 Pesanan dgn Resi", f"{stats.get('TOTAL_SALES', 0):,}")
@@ -1339,7 +1339,7 @@ def render_archive():
                     mod_time = datetime.fromtimestamp(os.path.getmtime(filepath))
                     col_f1, col_f2 = st.columns([3, 1])
                     with col_f1:
-                        st.markdown(f"📄 **{f}** — {size_kb:.1f} KB — {mod_time.strftime('%d-%m-%Y %H:%M')}")
+                        st.markdown(f"📄 **{f}** - {size_kb:.1f} KB - {mod_time.strftime('%d-%m-%Y %H:%M')}")
                     with col_f2:
                         with open(filepath, "rb") as fp:
                             st.download_button(
@@ -1358,7 +1358,7 @@ def render_archive():
             filepath = os.path.join(Config.ARSIP_FOLDER, arsip["nama_file"])
             col_a1, col_a2, col_a3 = st.columns([3, 1, 1])
             with col_a1:
-                st.markdown(f"📄 **{arsip['judul']}** — _{arsip['tanggal']}_")
+                st.markdown(f"📄 **{arsip['judul']}** - _{arsip['tanggal']}_")
                 if os.path.exists(filepath):
                     size_kb = os.path.getsize(filepath) / 1024
                     st.caption(f"File: {arsip['nama_file']} ({size_kb:.1f} KB)")
@@ -1385,7 +1385,7 @@ def render_archive():
 
 
 def render_ekspedisi():
-    """Render expedition management page — data dari Scan Operasional."""
+    """Render expedition management page - data dari Scan Operasional."""
     db = st.session_state.db
 
     st.subheader("🚚 Manajemen Ekspedisi")
@@ -1863,13 +1863,13 @@ def render_sku():
         st.warning(
             f"🚫 **{missing} SKU ({pct:.0f}%) belum memiliki Harga Modal (Harga Beli)!**\n\n"
             f"SKU tanpa Harga Beli **tidak terhitung di Nilai Inventaris** dan **tidak bisa dihitung laba/rugi-nya**.\n\n"
-            f"💡 **Cara update**: Upload massal Excel via fitur **📥 Upload Massal SKU** di bawah — "
+            f"💡 **Cara update**: Upload massal Excel via fitur **📥 Upload Massal SKU** di bawah - "
             f"cukup kolom Kode SKU + Harga Beli, centang 'Hanya update field yang terisi' agar data lain tidak tertimpa.\n\n"
             f"ℹ️ *Harga Jual diambil otomatis dari data pesanan marketplace (Input Resi & Pesanan), bukan dari SKU.*"
         )
 
     # ── Upload Massal SKU dari Excel ──
-    with st.expander("📥 Upload Massal SKU (Excel — Ipos / ERP MMA)", expanded=False):
+    with st.expander("📥 Upload Massal SKU (Excel - Ipos / ERP MMA)", expanded=False):
         st.markdown("""
         Upload file Excel berisi data SKU untuk diimport secara massal.
         **Upsert:** Jika `Kode SKU` sudah ada → data diupdate & stok ditambahkan. Jika belum ada → insert baru.
@@ -1984,7 +1984,7 @@ def render_sku():
                                 with st.expander("📊 Ringkasan Agregasi Stok", expanded=True):
                                     for item in result["aggregation_summary"]:
                                         st.markdown(
-                                            f"• **{item['kode']}** — {item['nama']}: "
+                                            f"• **{item['kode']}** - {item['nama']}: "
                                             f"stok {item['stok_sebelum']} → **{item['stok_sesudah']}** "
                                             f"({'+' if item['selisih'] >= 0 else ''}{item['selisih']})"
                                         )
@@ -2109,7 +2109,7 @@ def render_sku():
 
     # ── Edit / Hapus / Tambah Stok per SKU ──
     st.markdown("### ⚙️ Edit / Update Stok SKU")
-    sku_options = {f"{r['kode_sku']} — {r['nama_barang']}": r for r in sku_list} if sku_list else {}
+    sku_options = {f"{r['kode_sku']} - {r['nama_barang']}": r for r in sku_list} if sku_list else {}
 
     if sku_options:
         col_a1, col_a2 = st.columns([2, 1])
@@ -2130,7 +2130,7 @@ def render_sku():
                     st.rerun()
 
         if selected_sku:
-            with st.expander(f"✏️ Edit: {selected_sku['kode_sku']} — {selected_sku['nama_barang']}", expanded=True):
+            with st.expander(f"✏️ Edit: {selected_sku['kode_sku']} - {selected_sku['nama_barang']}", expanded=True):
                 col_e1, col_e2, col_e3 = st.columns(3)
                 with col_e1:
                     edit_kode = st.text_input("Kode SKU", value=selected_sku["kode_sku"], key=f"edit_sku_kode_{selected_sku['id']}")
@@ -2278,7 +2278,7 @@ def render_purchase_input():
     # ── Add Item Form ──
     st.markdown("### ➕ Tambah Item")
 
-    # Load ALL SKU data — supplier only for auto-fill, NOT for filtering
+    # Load ALL SKU data - supplier only for auto-fill, NOT for filtering
     all_sku = db.fetch_all(
         "SELECT kode_sku, nama_barang, satuan, harga_beli, stok, supplier FROM sku ORDER BY kode_sku"
     )
@@ -2288,7 +2288,7 @@ def render_purchase_input():
     else:
         # Search input: cari by Kode SKU ATAU Nama Barang
         search_term = st.text_input(
-            "🔍 Cari SKU (Kode atau Nama Barang) — kosongkan untuk lihat semua",
+            "🔍 Cari SKU (Kode atau Nama Barang) - kosongkan untuk lihat semua",
             placeholder="Ketik kode SKU atau nama barang...",
             key="purchase_search_sku",
         )
@@ -2316,7 +2316,7 @@ def render_purchase_input():
         sku_options_map = {}
         if filtered_sku:
             sku_options_map = {
-                f"{s['kode_sku']} — {s['nama_barang']} | Stok: {s['stok']} | {s['supplier'] or 'Tanpa Supplier'}": s
+                f"{s['kode_sku']} - {s['nama_barang']} | Stok: {s['stok']} | {s['supplier'] or 'Tanpa Supplier'}": s
                 for s in filtered_sku
             }
             sku_labels = list(sku_options_map.keys())
@@ -2405,7 +2405,7 @@ def render_purchase_input():
             # Remove item
             remove_idx = st.selectbox(
                 "Hapus item dari keranjang",
-                [f"{i+1}. {item['kode_sku']} — {item['nama_barang']} (Qty: {item['qty']})" for i, item in enumerate(cart)],
+                [f"{i+1}. {item['kode_sku']} - {item['nama_barang']} (Qty: {item['qty']})" for i, item in enumerate(cart)],
                 key="purchase_remove_item",
             )
         with col_c2:
@@ -2468,7 +2468,7 @@ def render_purchase_input():
                 key="purchase_metode_bayar",
                 help="Transfer = bayar via bank, Cash = tunai, Kontrabon = bayar nanti (hutang)"
             )
-            # Semua PO baru berstatus PENDING — menunggu konfirmasi Finance
+            # Semua PO baru berstatus PENDING - menunggu konfirmasi Finance
             status_bayar = "PENDING"
             st.caption("📌 Status: PENDING (menunggu konfirmasi Finance)")
         with col_s3:
@@ -2543,11 +2543,11 @@ def render_purchase_input():
 
                     # ── Show price change warnings ──
                     if price_changes:
-                        with st.expander(f"⚠️ **{len(price_changes)} perubahan Harga Beli terdeteksi** — Klik untuk detail", expanded=True):
+                        with st.expander(f"⚠️ **{len(price_changes)} perubahan Harga Beli terdeteksi** - Klik untuk detail", expanded=True):
                             for pc in price_changes:
                                 arah = "📈 NAIK" if pc["selisih"] > 0 else "📉 TURUN"
                                 st.markdown(
-                                    f"• **{pc['kode']}** — {pc['nama']} | "
+                                    f"• **{pc['kode']}** - {pc['nama']} | "
                                     f"Harga Lama: Rp {pc['lama']:,.0f} → Harga Baru: Rp {pc['baru']:,.0f} "
                                     f"({arah} Rp {abs(pc['selisih']):,.0f})"
                                 )
@@ -2813,7 +2813,7 @@ def render_purchase_history():
                     revisi_metode = st.selectbox("Metode Bayar", metode_options, index=idx_metode, key="revisi_metode_select")
                     st.session_state.revisi_metode = revisi_metode
                 with col_p2:
-                    # Preserve existing status_bayar — hanya Finance yang bisa mengubah
+                    # Preserve existing status_bayar - hanya Finance yang bisa mengubah
                     revisi_status = st.session_state.get("revisi_status", current_status)
                     if revisi_status == "PENDING":
                         st.warning("📌 Status: **PENDING** (menunggu konfirmasi Finance)")
@@ -2833,7 +2833,7 @@ def render_purchase_history():
                 for i, item in enumerate(revisi_cart):
                     col_r1, col_r2, col_r3, col_r4, col_r5 = st.columns([2, 1, 1.5, 1, 0.5])
                     with col_r1:
-                        st.markdown(f"**{item['kode_sku']}** — {item['nama_barang']} ({item['satuan']})")
+                        st.markdown(f"**{item['kode_sku']}** - {item['nama_barang']} ({item['satuan']})")
                     with col_r2:
                         new_qty = st.number_input(
                             "Qty", min_value=1, value=item["qty"], step=1,
@@ -2877,7 +2877,7 @@ def render_purchase_history():
                 add_options = {}
                 if filtered_add:
                     add_options = {
-                        f"{s['kode_sku']} — {s['nama_barang']} | Stok: {s['stok']}": s
+                        f"{s['kode_sku']} - {s['nama_barang']} | Stok: {s['stok']}": s
                         for s in filtered_add[:100]
                     }
 
@@ -3009,10 +3009,10 @@ def render_purchase_history():
 
 
 def render_purchase_finance():
-    """Render halaman Finance — konfirmasi pembayaran PO yang PENDING."""
+    """Render halaman Finance - konfirmasi pembayaran PO yang PENDING."""
     db = st.session_state.db
 
-    st.subheader("💳 Finance — Konfirmasi Pembayaran PO")
+    st.subheader("💳 Finance - Konfirmasi Pembayaran PO")
 
     # ── Stats ──
     pending_count = db.fetch_one("SELECT COUNT(DISTINCT no_faktur) as cnt FROM pembelian WHERE status_bayar = 'PENDING'")
@@ -3290,7 +3290,7 @@ def render_purchase_archive():
                 mod_time = datetime.fromtimestamp(os.path.getmtime(filepath))
                 col_f1, col_f2 = st.columns([3, 1])
                 with col_f1:
-                    st.markdown(f"📄 **{f}** — {size_kb:.1f} KB — {mod_time.strftime('%d-%m-%Y %H:%M')}")
+                    st.markdown(f"📄 **{f}** - {size_kb:.1f} KB - {mod_time.strftime('%d-%m-%Y %H:%M')}")
                 with col_f2:
                     with open(filepath, "rb") as fp:
                         st.download_button("⬇️ Download", fp, file_name=f, key=f"dl_purchase_{f}", width="stretch")
@@ -3641,7 +3641,7 @@ def _render_marketplace_tab(db, marketplace, mp_key):
 
 
 def render_sales_input():
-    """Render upload pesanan dari marketplace — tab terpisah per marketplace."""
+    """Render upload pesanan dari marketplace - tab terpisah per marketplace."""
     db = st.session_state.db
 
     st.subheader("📦 Input Resi & No Pesanan (Marketplace)")
@@ -3803,7 +3803,7 @@ def render_sales_daily_report():
         st.info(f"📭 Tidak ada data penjualan untuk tanggal {rpt_date_str}.")
     else:
         distinct_orders_header = len(set(r["no_pesanan"] for r in rows))
-        st.markdown(f"### 📋 {distinct_orders_header} Pesanan ({len(rows)} item) — {rpt_date_str}")
+        st.markdown(f"### 📋 {distinct_orders_header} Pesanan ({len(rows)} item) - {rpt_date_str}")
 
         df_rpt = pd.DataFrame([dict(r) for r in rows])
         df_rpt = df_rpt.rename(columns={
@@ -3931,7 +3931,7 @@ def render_sales_daily_report():
 
         # ── Pendapatan Lain: Hasil Klaim (jurnal koreksi) ──
         st.markdown("---")
-        st.markdown("### 💰 Pendapatan Lain — Hasil Klaim (Jurnal Koreksi)")
+        st.markdown("### 💰 Pendapatan Lain - Hasil Klaim (Jurnal Koreksi)")
 
         klaim_params = []
         if mp_filter != "Semua":
@@ -3955,7 +3955,7 @@ def render_sales_daily_report():
             col_k1, col_k2 = st.columns([3, 1])
             with col_k1:
                 st.info(
-                    f"📋 **{len(klaim_income)} klaim berhasil** — Pendapatan hasil klaim dari marketplace "
+                    f"📋 **{len(klaim_income)} klaim berhasil** - Pendapatan hasil klaim dari marketplace "
                     f"yang sudah disetujui dan dicairkan."
                 )
             with col_k2:
@@ -3998,15 +3998,15 @@ def render_sales_daily_report():
 
 
 def render_bulk_cancel_upload(db):
-    """Upload & proses pembatalan massal dari marketplace — Bulk CANCEL."""
+    """Upload & proses pembatalan massal dari marketplace - Bulk CANCEL."""
     with st.expander(
-        "📤 **Upload Pembatalan Marketplace** — Bulk CANCEL pesanan yang dibatalkan sistem",
+        "📤 **Upload Pembatalan Marketplace** - Bulk CANCEL pesanan yang dibatalkan sistem",
         expanded=False,
     ):
         st.caption(
             "Upload file Excel dari marketplace berisi daftar pesanan yang **dibatalkan oleh sistem** "
             "(Shopee/TikTok/Lazada). Sistem akan otomatis menandai pesanan sebagai CANCEL, "
-            "meng-update data penjualan, dan mencatat di riwayat scan — termasuk pesanan **tanpa No Resi**."
+            "meng-update data penjualan, dan mencatat di riwayat scan - termasuk pesanan **tanpa No Resi**."
         )
 
         # ── Manual Checker: cek satu No Pesanan tanpa perlu upload ──
@@ -4083,7 +4083,7 @@ def render_bulk_cancel_upload(db):
 
             # Show results
             if found and row:
-                st.success(f"✅ **DITEMUKAN!** — `{cek_clean}`")
+                st.success(f"✅ **DITEMUKAN!** - `{cek_clean}`")
                 st.json({
                     "No Pesanan (DB)": row["no_pesanan"],
                     "Marketplace": row["marketplace"],
@@ -4093,7 +4093,7 @@ def render_bulk_cancel_upload(db):
                     "Toko": row["nama_toko"],
                 })
             else:
-                st.error(f"❌ **TIDAK DITEMUKAN** — `{cek_clean}` tidak ada di database.")
+                st.error(f"❌ **TIDAK DITEMUKAN** - `{cek_clean}` tidak ada di database.")
                 # Show all strategies tried
                 with st.expander("🔍 Detail strategi yang dicoba"):
                     for name, result in strategies_tried:
@@ -4190,7 +4190,7 @@ def render_bulk_cancel_upload(db):
                             excel_cols,
                             key="bc_map_resi",
                             index=_auto_detect_sales_column(excel_cols, resi_keys),
-                            help="Kolom No Resi — jika kosong, sistem tetap akan memproses pembatalan.",
+                            help="Kolom No Resi - jika kosong, sistem tetap akan memproses pembatalan.",
                         )
                         map_status = st.selectbox(
                             "Status Pesanan (opsional)",
@@ -4205,7 +4205,7 @@ def render_bulk_cancel_upload(db):
                             excel_cols,
                             key="bc_map_ket",
                             index=_auto_detect_sales_column(excel_cols, ket_keys),
-                            help="Alasan pembatalan — akan disimpan di keterangan.",
+                            help="Alasan pembatalan - akan disimpan di keterangan.",
                         )
                         map_mp = st.selectbox(
                             "Marketplace (opsional)",
@@ -4340,7 +4340,7 @@ def render_bulk_cancel_upload(db):
                                         keterangan = _safe_str(row.get(map_ket)) if map_ket else ""
                                         marketplace = _safe_str(row.get(map_mp)) if map_mp else ""
 
-                                        # Find in penjualan — multi-strategy matching
+                                        # Find in penjualan - multi-strategy matching
                                         existing = None
 
                                         # Strategy 1: Exact match (no_pesanan + marketplace)
@@ -4441,7 +4441,7 @@ def render_bulk_cancel_upload(db):
                                         if marketplace:
                                             cancel_ket = f"[{marketplace}] {cancel_ket}"
 
-                                        # Update penjualan — set CANCEL + zero out financials
+                                        # Update penjualan - set CANCEL + zero out financials
                                         db.execute(
                                             "UPDATE penjualan SET status_pesanan = 'CANCEL', "
                                             "qty = 0, total_harga = 0, harga_jual = 0, "
@@ -4455,7 +4455,7 @@ def render_bulk_cancel_upload(db):
                                         tanggal = now.strftime("%d-%m-%Y")
 
                                         if penj_resi:
-                                            # Has resi — insert with resi
+                                            # Has resi - insert with resi
                                             dup = db.fetch_one(
                                                 "SELECT id FROM scan_aktif WHERE resi = ?",
                                                 (penj_resi,),
@@ -4470,7 +4470,7 @@ def render_bulk_cancel_upload(db):
                                                      existing.get("marketplace", marketplace)),
                                                 )
                                         else:
-                                            # No resi — still insert cancel using no_pesanan as identifier
+                                            # No resi - still insert cancel using no_pesanan as identifier
                                             tanpa_resi_cancelled += 1
                                             dup = db.fetch_one(
                                                 "SELECT id FROM scan_aktif WHERE resi = ?",
@@ -4525,7 +4525,7 @@ def render_bulk_cancel_upload(db):
                                             st.caption(f"... dan {len(error_details) - 30} error lainnya.")
 
                                 if not_found_details:
-                                    with st.expander(f"🔍 {len(not_found_details)} No Pesanan Tidak Ditemukan — Lihat sampel"):
+                                    with st.expander(f"🔍 {len(not_found_details)} No Pesanan Tidak Ditemukan - Lihat sampel"):
                                         st.caption("Berikut adalah sampel No Pesanan yang tidak cocok dengan database:")
                                         df_nf = pd.DataFrame(not_found_details[:30])
                                         # Determine which columns to show
@@ -4603,10 +4603,10 @@ def render_bulk_cancel_upload(db):
 
 
 def render_retur_klaim():
-    """Retur & Klaim — scan paket retur dari kurir, tentukan diterima atau klaim."""
+    """Retur & Klaim - scan paket retur dari kurir, tentukan diterima atau klaim."""
     db = st.session_state.db
 
-    st.subheader("🔄 Retur & Klaim — Proses Paket Kembalian")
+    st.subheader("🔄 Retur & Klaim - Proses Paket Kembalian")
     st.caption(
         "Scan No Resi atau No Pesanan saat kurir mengembalikan paket. "
         "Tentukan apakah retur **Diterima** atau masuk proses **Klaim**."
@@ -4728,7 +4728,7 @@ def render_retur_klaim():
                         width="stretch",
                         type="primary",
                         key="retur_btn_diterima",
-                        help="Retur diterima — barang kembali ke stok",
+                        help="Retur diterima - barang kembali ke stok",
                     )
                 with act_col2:
                     btn_klaim = st.button(
@@ -4736,7 +4736,7 @@ def render_retur_klaim():
                         width="stretch",
                         type="secondary",
                         key="retur_btn_klaim",
-                        help="Retur masuk klaim — perlu investigasi",
+                        help="Retur masuk klaim - perlu investigasi",
                     )
 
                 # ── Klaim reason ──
@@ -4834,7 +4834,7 @@ def render_retur_klaim():
                             db.execute(
                                 "UPDATE penjualan SET status_pesanan = 'KLAIM_BERHASIL', "
                                 "keterangan = ? WHERE id = ?",
-                                (f"Klaim disetujui: Rp {nominal_klaim:,.0f} — {final_alasan}", match["id"] if "id" in match.keys() else None),
+                                (f"Klaim disetujui: Rp {nominal_klaim:,.0f} - {final_alasan}", match["id"] if "id" in match.keys() else None),
                             )
                             # Insert ke scan_aktif sebagai catatan klaim
                             dup = db.fetch_one("SELECT id FROM scan_aktif WHERE resi = ? AND status = 'KLAIM'",
@@ -4852,7 +4852,7 @@ def render_retur_klaim():
                                      match["marketplace"] if match else ""),
                                 )
                             st.success(
-                                f"💰 **KLAIM BERHASIL!** `{cleaned}` — "
+                                f"💰 **KLAIM BERHASIL!** `{cleaned}` - "
                                 f"Pendapatan klaim: **Rp {nominal_klaim:,.0f}** tercatat di penjualan."
                             )
                         elif status_klaim_select == "GAGAL":
@@ -4863,7 +4863,7 @@ def render_retur_klaim():
                                     (f"Klaim gagal: {final_alasan}",
                                      match["no_pesanan"], match["no_resi"]),
                                 )
-                            st.warning(f"❌ Klaim GAGAL untuk `{cleaned}` — kerugian tidak tertagih.")
+                            st.warning(f"❌ Klaim GAGAL untuk `{cleaned}` - kerugian tidak tertagih.")
                         else:
                             if match:
                                 db.execute(
@@ -4872,7 +4872,7 @@ def render_retur_klaim():
                                     (f"Klaim diproses: {final_alasan}",
                                      match["no_pesanan"], match["no_resi"]),
                                 )
-                            st.info(f"⏳ Klaim PENDING untuk `{cleaned}` — menunggu hasil.")
+                            st.info(f"⏳ Klaim PENDING untuk `{cleaned}` - menunggu hasil.")
 
                         st.session_state.retur_show_klaim_form = False
                         st.rerun()
@@ -4909,7 +4909,7 @@ def render_retur_klaim():
                     if match:
                         db.execute(
                             "UPDATE penjualan SET status_pesanan = 'RETUR', "
-                            "keterangan = 'Retur diterima — stok dikembalikan (nilai asli tetap)' "
+                            "keterangan = 'Retur diterima - stok dikembalikan (nilai asli tetap)' "
                             "WHERE no_pesanan = ? OR no_resi = ?",
                             (match["no_pesanan"], match["no_resi"]),
                         )
@@ -4925,7 +4925,7 @@ def render_retur_klaim():
                                  match["no_resi"] if match["no_resi"] else cleaned,
                                  match["kurir"] if match else "RETUR",
                                  match["nama_toko"] if match else "",
-                                 "RETUR", "REGULER", "Retur diterima — stok pulih", "REGULER",
+                                 "RETUR", "REGULER", "Retur diterima - stok pulih", "REGULER",
                                  match["marketplace"] if match else ""),
                             )
 
@@ -4948,10 +4948,10 @@ def render_retur_klaim():
                                 f"stok {existing_sku['stok']} → **{new_stok}** (+{retur_qty})"
                             )
                         else:
-                            st.caption(f"⚠️ SKU `{sku_code}` tidak ditemukan — stok tidak di-update.")
+                            st.caption(f"⚠️ SKU `{sku_code}` tidak ditemukan - stok tidak di-update.")
 
                     st.success(
-                        f"✅ **DITERIMA** — `{cleaned}` retur diterima. "
+                        f"✅ **DITERIMA** - `{cleaned}` retur diterima. "
                         f"Stok dikembalikan. Transaksi asli tetap utuh, koreksi tercatat di jurnal retur."
                     )
                     st.rerun()
@@ -5080,10 +5080,10 @@ def _save_setting(db, kunci: str, nilai: str):
 
 # ==================== LABA RUGI HARIAN ====================
 def render_laba_rugi():
-    """Laba Rugi Harian — Gross Omset - Potongan Marketplace - Biaya/Resi - Modal = Net Profit."""
+    """Laba Rugi Harian - Gross Omset - Potongan Marketplace - Biaya/Resi - Modal = Net Profit."""
     db = st.session_state.db
 
-    st.subheader("💰 Laba Rugi Harian — Berdasarkan Pesanan Terkirim (PACKED)")
+    st.subheader("💰 Laba Rugi Harian - Berdasarkan Pesanan Terkirim (PACKED)")
     st.caption(
         "Menghitung keuntungan bersih harian dari pesanan yang sudah di-packing. "
         "**Gross Omset** = total penjualan | **Net Profit** = omset dikurangi potongan marketplace, "
@@ -5370,7 +5370,7 @@ def render_laba_rugi():
 
 # ==================== CASHFLOW & PENC AIRAN ====================
 def render_cashflow():
-    """Cashflow — Laporan Keuangan ala Marketplace: Saldo, Penjualan, Biaya, Pencairan per platform."""
+    """Cashflow - Laporan Keuangan ala Marketplace: Saldo, Penjualan, Biaya, Pencairan per platform."""
     db = st.session_state.db
 
     st.subheader("💵 Cashflow & Pencairan Marketplace")
@@ -5562,7 +5562,7 @@ def render_cashflow():
     # 📊 PER-MARKETPLACE SALDO CARDS
     # ═══════════════════════════════════════════
     st.markdown("### 💎 Saldo per Marketplace")
-    st.caption("Saldo = (Penjualan + Klaim - Fee - Biaya - Modal) - Pencairan — **uang yang masih di marketplace, belum dicairkan**.")
+    st.caption("Saldo = (Penjualan + Klaim - Fee - Biaya - Modal) - Pencairan - **uang yang masih di marketplace, belum dicairkan**.")
 
     saldo_cols = st.columns(len(MARKETPLACES))
     mp_colors = {"Shopee": "#EE4D2D", "TikTok": "#000000", "Lazada": "#0F1568"}
@@ -5799,12 +5799,12 @@ def _hitung_all_time_net(db, fee_map, biaya_per_resi):
 
 
 def render_ai_supervisor():
-    """AI Supervisor — analisa & rekomendasi kinerja operasional."""
+    """AI Supervisor - analisa & rekomendasi kinerja operasional."""
     db = st.session_state.db
     today_str = datetime.now().strftime("%d-%m-%Y")
     today_date = datetime.now().strftime("%Y-%m-%d")
 
-    st.subheader("🤖 AI Supervisor — Analisa Kinerja Operasional")
+    st.subheader("🤖 AI Supervisor - Analisa Kinerja Operasional")
     st.caption("AI menganalisa seluruh pipeline: Pesanan Masuk → Packing → Handover → Selesai")
 
     # ═══════════════════════════════════════════
@@ -5932,7 +5932,7 @@ def render_ai_supervisor():
         success_rate = (packed / total_orders_cnt * 100) if total_orders_cnt > 0 else 0
 
         if packing_rate >= 90:
-            insights.append(("✅", "Efisiensi packing sangat baik", f"{packing_rate:.0f}% resi sudah dipacking — tim operasional bekerja optimal.", "good"))
+            insights.append(("✅", "Efisiensi packing sangat baik", f"{packing_rate:.0f}% resi sudah dipacking - tim operasional bekerja optimal.", "good"))
         elif packing_rate >= 60:
             insights.append(("⚡", "Packing berjalan normal", f"{packing_rate:.0f}% sudah dipacking, masih ada {with_resi_cnt - packed} resi dalam antrian.", "normal"))
         elif packing_rate > 0:
@@ -5944,9 +5944,9 @@ def render_ai_supervisor():
         if total_orders_cnt > 0:
             cancel_rate = (cancel / total_orders_cnt * 100)
             if cancel_rate > 10:
-                alerts.append(("🔴", "Cancel Rate Tinggi", f"{cancel_rate:.0f}% pesanan dibatalkan — perlu investigasi penyebab cancel."))
+                alerts.append(("🔴", "Cancel Rate Tinggi", f"{cancel_rate:.0f}% pesanan dibatalkan - perlu investigasi penyebab cancel."))
             elif cancel_rate > 5:
-                alerts.append(("⚠️", "Cancel Rate Meningkat", f"{cancel_rate:.0f}% cancel — pantau terus dan evaluasi stok/proses."))
+                alerts.append(("⚠️", "Cancel Rate Meningkat", f"{cancel_rate:.0f}% cancel - pantau terus dan evaluasi stok/proses."))
 
         # Orders without resi
         if tanpa_resi_cnt > 0:
@@ -5961,7 +5961,7 @@ def render_ai_supervisor():
             if pending > 20:
                 alerts.append(("🔴", "Banyak Scan Pending", f"{pending} resi di-scan tapi tidak ada di data penjualan. Cek ulang data impor."))
             else:
-                alerts.append(("⚠️", "Scan Pending Terdeteksi", f"{pending} resi pending — pastikan data penjualan sudah lengkap."))
+                alerts.append(("⚠️", "Scan Pending Terdeteksi", f"{pending} resi pending - pastikan data penjualan sudah lengkap."))
 
         # SKU matching
         if sku_match_pct < 70:
@@ -5981,7 +5981,7 @@ def render_ai_supervisor():
                 alerts.insert(0, ("🚀", "PRIORITAS! Pesanan Instant Menunggu", 
                     f"{instant_waiting} dari {instant_total} pesanan instant/same-day BELUM dipacking! Dahulukan sebelum reguler."))
                 insights.append(("🚀", "Pesanan Instant Perlu Prioritas", 
-                    f"{instant_waiting} pesanan instant ({instant_unpacked_pct:.0f}%) masih menunggu — SLA pengiriman lebih ketat.", "warn"))
+                    f"{instant_waiting} pesanan instant ({instant_unpacked_pct:.0f}%) masih menunggu - SLA pengiriman lebih ketat.", "warn"))
             else:
                 instant_done_pct = (instant_done / instant_total * 100) if instant_total > 0 else 0
                 insights.append(("✅", "Semua Instant Terpacking", 
@@ -5992,11 +5992,11 @@ def render_ai_supervisor():
     # ═══════════════════════════════════════════
     if instant_waiting > 0:
         recommendations.insert(0, ("🚀", "DAHULUKAN INSTANT!", 
-            f"🚨 {instant_waiting} pesanan instant/same-day belum dipacking. SLA ketat — kerjakan SEKARANG sebelum reguler!"))
+            f"🚨 {instant_waiting} pesanan instant/same-day belum dipacking. SLA ketat - kerjakan SEKARANG sebelum reguler!"))
     if tanpa_resi_cnt > 0:
         recommendations.append(("📋", "Update No Resi", f"Prioritaskan update {tanpa_resi_cnt} pesanan tanpa resi di menu Input Resi & Pesanan."))
     if pending > 0:
-        recommendations.append(("🔍", "Verifikasi Pending", f"Cek {pending} scan pending — pastikan data penjualan sesuai dengan resi fisik."))
+        recommendations.append(("🔍", "Verifikasi Pending", f"Cek {pending} scan pending - pastikan data penjualan sesuai dengan resi fisik."))
     if handover_ready > 0:
         recommendations.append(("📤", "Siapkan Handover", f"{handover_ready} resi siap handover. Export laporan handover untuk kurir."))
     if cancel > 10:
@@ -6004,7 +6004,7 @@ def render_ai_supervisor():
     if packed > 0 and with_resi_cnt > 0 and (with_resi_cnt - packed) > 0:
         recommendations.append(("🎯", "Target Packing", f"Selesaikan {with_resi_cnt - packed} resi tersisa untuk capai 100% packing rate."))
     if sku_match_pct < 85:
-        recommendations.append(("🏷️", "Perbaiki SKU", f"Tingkatkan SKU matching ({sku_match_pct:.0f}%) — update file Excel dengan kode SKU yang benar."))
+        recommendations.append(("🏷️", "Perbaiki SKU", f"Tingkatkan SKU matching ({sku_match_pct:.0f}%) - update file Excel dengan kode SKU yang benar."))
 
     # ═══════════════════════════════════════════
     # 🎨 RENDER DASHBOARD
@@ -6041,7 +6041,7 @@ def render_ai_supervisor():
     st.markdown(f"""
     <div style="background: {health_color}22; border: 2px solid {health_color}; border-radius: 16px; padding: 20px; margin-bottom: 20px; text-align: center;">
         <h2 style="margin: 0; color: {health_color};">{health_emoji} Skor Kesehatan Operasional: {health_score}/100</h2>
-        <p style="margin: 5px 0 0 0; color: #AEAEB2; font-size: 14px;">Status: <strong style="color: {health_color};">{health_label}</strong> — diperbarui {datetime.now().strftime('%H:%M')}</p>
+        <p style="margin: 5px 0 0 0; color: #AEAEB2; font-size: 14px;">Status: <strong style="color: {health_color};">{health_label}</strong> - diperbarui {datetime.now().strftime('%H:%M')}</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -6072,7 +6072,7 @@ def render_ai_supervisor():
         st.markdown(f"""
         <div style="background: #FF453A22; border: 2px solid #FF453A; border-radius: 12px; padding: 14px; margin: 12px 0;">
             <strong style="color: #FF453A; font-size: 16px;">🚀 INSTANT PRIORITY!</strong><br>
-            <span style="color: #FF9F0A;">{instant_waiting} dari {instant_total} pesanan <strong>instant/same-day</strong> ({instant_pct:.0f}%) belum dipacking — 
+            <span style="color: #FF9F0A;">{instant_waiting} dari {instant_total} pesanan <strong>instant/same-day</strong> ({instant_pct:.0f}%) belum dipacking - 
             <u>dahulukan sebelum reguler!</u></span> &nbsp;
             <span style="color: #30D158;">✅ {instant_done} sudah selesai.</span>
         </div>
@@ -6093,7 +6093,7 @@ def render_ai_supervisor():
             </div>
             """, unsafe_allow_html=True)
     else:
-        st.success("✅ Tidak ada alert — semua berjalan normal!")
+        st.success("✅ Tidak ada alert - semua berjalan normal!")
 
     # ── AI Insights ──
     st.markdown("---")
@@ -6229,7 +6229,7 @@ def render_ai_supervisor():
             // Pilih suara Indonesia terbaik (perempuan, natural)
             var voices = speechSynthesis.getVoices();
             if (voices.length === 0) {
-                // Voices belum load — tunggu dan retry
+                // Voices belum load - tunggu dan retry
                 speechSynthesis.onvoiceschanged = function() {
                     speechSynthesis.onvoiceschanged = null;
                     speakMsg(msg);
@@ -6264,7 +6264,7 @@ def render_ai_supervisor():
         if datetime.now().timestamp() < st.session_state.voice_snooze_until:
             remaining = int(st.session_state.voice_snooze_until - datetime.now().timestamp())
             snooze_active = True
-            st.info(f"🔇 Snooze aktif — suara dinonaktifkan selama {remaining // 60}m {remaining % 60}d lagi.")
+            st.info(f"🔇 Snooze aktif - suara dinonaktifkan selama {remaining // 60}m {remaining % 60}d lagi.")
         else:
             st.session_state.voice_snooze_until = None
 
@@ -6275,7 +6275,7 @@ def render_ai_supervisor():
                      f"Dahulukan segera sebelum reguler. ")
     elif alerts:
         first_alert = alerts[0]
-        voice_msg = f"{first_alert[1]}. {first_alert[2].split(chr(8212))[0].strip().rstrip('.')}. "  # chr(8212) = —
+        voice_msg = f"{first_alert[1]}. {first_alert[2].split(chr(8212))[0].strip().rstrip('.')}. "  # chr(8212) = -
         if recommendations:
             voice_msg += f"Rekomendasi: {recommendations[0][1]}."
     elif total_orders_cnt == 0:
@@ -6324,18 +6324,18 @@ def render_ai_supervisor():
             """, height=30)
             st.caption(f"🔊 Voice diputar | _{voice_msg[:80]}..._")
         else:
-            st.caption(f"🔊 Alert sudah diucapkan — klik 'Analisa Ulang' untuk refresh.")
+            st.caption(f"🔊 Alert sudah diucapkan - klik 'Analisa Ulang' untuk refresh.")
 
     elif voice_enabled and snooze_active:
         st.caption("🔇 Suara ditunda (snooze).")
     elif voice_enabled and not voice_msg:
-        st.caption("✅ Tidak ada alert — semua aman.")
+        st.caption("✅ Tidak ada alert - semua aman.")
 
     # ═══════════════════════════════════════════
     # 🔄 AUTO-REFRESH (via JavaScript timer)
     # ═══════════════════════════════════════════
     if voice_enabled and not snooze_active:
-        # Inject auto-refresh timer — reload halaman setiap voice_interval detik
+        # Inject auto-refresh timer - reload halaman setiap voice_interval detik
         import streamlit.components.v1 as components
         components.html(f"""
         <html><body style="margin:0;padding:0;">
@@ -6354,7 +6354,7 @@ def render_ai_supervisor():
         </script>
         </body></html>
         """, height=0)
-        st.caption(f"🔄 Auto-refresh aktif — halaman refresh setiap {voice_interval} detik.")
+        st.caption(f"🔄 Auto-refresh aktif - halaman refresh setiap {voice_interval} detik.")
 
     # ── Manual Refresh ──
     st.markdown("---")
@@ -6369,7 +6369,7 @@ def render_ai_supervisor():
 
 
 def _render_handover_tab(db, tipe_kiriman: str):
-    """Render satu tab Handover (REGULER atau INSTANT) — dengan Marketplace filter, unique resi, TTD Elektronik."""
+    """Render satu tab Handover (REGULER atau INSTANT) - dengan Marketplace filter, unique resi, TTD Elektronik."""
     tipe_label = "🚀 Instant" if tipe_kiriman == "INSTANT" else "📦 Reguler"
     now = datetime.now()
 
@@ -6465,7 +6465,7 @@ def _render_handover_tab(db, tipe_kiriman: str):
 
         # Mode 1: One-click per resi
         if items:
-            st.markdown("**Klik per resi — lebih cepat:**")
+            st.markdown("**Klik per resi - lebih cepat:**")
             # Show in compact grid with confirm buttons
             for idx, item in enumerate(items):
                 c_col1, c_col2, c_col3, c_col4, c_col5 = st.columns([2, 2, 3, 1.5, 1.5])
@@ -6481,7 +6481,7 @@ def _render_handover_tab(db, tipe_kiriman: str):
                     if st.button("✅ Diambil", key=f"instant_ambil_{item['resi']}_{idx}"):
                         db.execute("DELETE FROM scan_aktif WHERE resi = ? AND tipe_kiriman = 'INSTANT'", (item["resi"],))
                         db.execute("UPDATE penjualan SET status_pesanan = 'TERKIRIM' WHERE no_resi = ?", (item["resi"],))
-                        st.success(f"✅ `{item['resi']}` diserahkan ke kurir — status: TERKIRIM.")
+                        st.success(f"✅ `{item['resi']}` diserahkan ke kurir - status: TERKIRIM.")
                         st.rerun()
 
         # Mode 2: Scan/ketik resi (buat yang pakai barcode scanner)
@@ -6502,7 +6502,7 @@ def _render_handover_tab(db, tipe_kiriman: str):
                     if c_clean:
                         db.execute("DELETE FROM scan_aktif WHERE resi = ? AND tipe_kiriman = 'INSTANT'", (c_clean,))
                         db.execute("UPDATE penjualan SET status_pesanan = 'TERKIRIM' WHERE no_resi = ?", (c_clean,))
-                        st.success(f"✅ `{c_clean}` dikonfirmasi — sudah diambil kurir & status: TERKIRIM.")
+                        st.success(f"✅ `{c_clean}` dikonfirmasi - sudah diambil kurir & status: TERKIRIM.")
                         st.rerun()
                 else:
                     st.warning("Masukkan No Resi.")
@@ -6585,7 +6585,7 @@ def _render_handover_tab(db, tipe_kiriman: str):
             # Show printable view
             st.markdown("---")
             st.markdown("## 📋 SURAT SERAH TERIMA PAKET")
-            st.markdown(f"**iScan Pro By MMA** — Handover {tipe_label}")
+            st.markdown(f"**iScan Pro By MMA** - Handover {tipe_label}")
             st.markdown(f"Tanggal: **{now.strftime('%d %B %Y')}** | Jam: **{now.strftime('%H:%M')}**")
             st.markdown(f"Kurir/Ekspedisi: **{selected_kurir}**")
             if mp_filter != "Semua Marketplace":
@@ -6683,7 +6683,7 @@ def render_reports():
         st.markdown("### Sales Report")
         st.caption("Generate laporan penjualan/pengiriman.")
 
-        # Summary per expedition — mencakup semua status
+        # Summary per expedition - mencakup semua status
         rows = db.fetch_all(
             "SELECT ekspedisi, status, COUNT(*) as cnt FROM scan_aktif GROUP BY ekspedisi, status ORDER BY ekspedisi"
         )
@@ -6744,7 +6744,7 @@ def render_login():
         <div style="text-align:center;margin-bottom:30px;">
             <span style="font-size:42px;font-weight:800;color:#FFFFFF;">iScan</span>
             <span style="font-size:32px;font-weight:700;color:#0A84FF;">Pro</span>
-            <br><span style="font-size:14px;color:#AEAEB2;">By MMA — Mitra Mulia Abadi</span>
+            <br><span style="font-size:14px;color:#AEAEB2;">By MMA - Mitra Mulia Abadi</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -6823,7 +6823,7 @@ def _generate_opex_faktur(db) -> str:
 
 
 def render_opex_input():
-    """Render form input biaya operasional (OPEX) — Variable Harian & Tetap Bulanan."""
+    """Render form input biaya operasional (OPEX) - Variable Harian & Tetap Bulanan."""
     db = st.session_state.db
 
     st.subheader("📝 Input Biaya Operasional (OPEX)")
@@ -6858,9 +6858,9 @@ def render_opex_input():
         st.session_state.opex_tipe = opex_tipe
     with tipe_col2:
         if opex_tipe.startswith("📦"):
-            st.info("📦 **Variable Harian** — biaya packing & operasional yang berubah tiap hari.")
+            st.info("📦 **Variable Harian** - biaya packing & operasional yang berubah tiap hari.")
         else:
-            st.info("🏢 **Tetap Bulanan** — biaya rutin yang dibayar per bulan.")
+            st.info("🏢 **Tetap Bulanan** - biaya rutin yang dibayar per bulan.")
 
     is_variable = opex_tipe.startswith("📦")
 
@@ -6964,7 +6964,7 @@ def render_opex_input():
         with col_r1:
             remove_idx = st.selectbox(
                 "Hapus item",
-                [f"{i+1}. [{item.get('tipe','?')}] {item['deskripsi']} ({item['kategori']}) — Rp {item['total_harga']:,.0f}" for i, item in enumerate(cart)],
+                [f"{i+1}. [{item.get('tipe','?')}] {item['deskripsi']} ({item['kategori']}) - Rp {item['total_harga']:,.0f}" for i, item in enumerate(cart)],
                 key="opex_remove",
             )
         with col_r2:
@@ -7061,10 +7061,10 @@ def render_opex_history():
 
 
 def render_opex_dashboard():
-    """Dashboard ringkasan OPEX — Variable Harian vs Tetap Bulanan."""
+    """Dashboard ringkasan OPEX - Variable Harian vs Tetap Bulanan."""
     db = st.session_state.db
     st.subheader("📊 Dashboard Biaya Operasional")
-    st.caption("Biaya Packing Variable (harian) + OPEX Tetap (bulanan) — masuk ke perhitungan laba rugi.")
+    st.caption("Biaya Packing Variable (harian) + OPEX Tetap (bulanan) - masuk ke perhitungan laba rugi.")
 
     # ── Totals ──
     total_var = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM opex WHERE tipe = 'VARIABLE'")
@@ -7338,13 +7338,13 @@ def generate_finance_pdf(db, fee_map, biaya_per_resi, start_date, end_date):
 
 
 def render_finance_dashboard():
-    """Dashboard Finance Komprehensif — Kesehatan Cashflow, Profit, Aset, Grafik, & AI Audit."""
+    """Dashboard Finance Komprehensif - Kesehatan Cashflow, Profit, Aset, Grafik, & AI Audit."""
     db = st.session_state.db
     today = datetime.now()
     month_start = today.replace(day=1).strftime("%d-%m-%Y")
     today_str = today.strftime("%d-%m-%Y")
 
-    st.subheader("💳 Dashboard Finance — Kesehatan Keuangan")
+    st.subheader("💳 Dashboard Finance - Kesehatan Keuangan")
     st.caption(f"Analisa & rekomendasi keuangan per **{today.strftime('%d %B %Y, %H:%M')}**")
 
     # ═══════════════════════════════════
@@ -7386,7 +7386,7 @@ def render_finance_dashboard():
     )
     bln_klaim_val = bln_klaim["tot"] if bln_klaim else 0
 
-    # OPEX + Pembelian bulan ini (LUNAS) — split Variable vs Tetap
+    # OPEX + Pembelian bulan ini (LUNAS) - split Variable vs Tetap
     bln_opex = db.fetch_one(
         "SELECT COALESCE(SUM(total_harga), 0) as tot FROM opex WHERE status_bayar='LUNAS' AND tanggal >= ?",
         (month_start,),
@@ -7442,7 +7442,7 @@ def render_finance_dashboard():
     if bln_margin < 0:
         health_score -= 30
         alerts.append(f"🔴 **RUGI!** Net Profit bulan ini negatif: Rp {bln_net:,.0f}")
-        recommendations.append("🚨 **URGENT**: Evaluasi semua biaya. Profit margin negatif — bisnis merugi.")
+        recommendations.append("🚨 **URGENT**: Evaluasi semua biaya. Profit margin negatif - bisnis merugi.")
     elif bln_margin < 10:
         health_score -= 15
         alerts.append(f"🟡 Margin profit rendah: {bln_margin:.1f}% (target minimal 10%)")
@@ -7457,7 +7457,7 @@ def render_finance_dashboard():
     if inv_no_modal > inv_count * 0.3:
         health_score -= 15
         alerts.append(f"🔴 {inv_no_modal}/{inv_count} SKU belum punya Harga Modal ({inv_no_modal/inv_count*100:.0f}%)")
-        recommendations.append("📋 **Lengkapi Harga Modal**: Banyak SKU tanpa HPP — laba/rugi tidak akurat. Upload massal di Manajemen SKU.")
+        recommendations.append("📋 **Lengkapi Harga Modal**: Banyak SKU tanpa HPP - laba/rugi tidak akurat. Upload massal di Manajemen SKU.")
     elif inv_no_modal > 0:
         health_score -= 5
         recommendations.append(f"📝 **{inv_no_modal} SKU** belum ada Harga Modal. Lengkapi agar perhitungan akurat.")
@@ -7465,7 +7465,7 @@ def render_finance_dashboard():
     # Outstanding check
     if outstanding > bln_income * 0.5:
         health_score -= 10
-        alerts.append(f"🔴 Kewajiban pending Rp {outstanding:,.0f} — >50% dari income bulanan")
+        alerts.append(f"🔴 Kewajiban pending Rp {outstanding:,.0f} - >50% dari income bulanan")
         recommendations.append(f"⚠️ **Kewajiban Tinggi**: Segera lunasi tagihan pending Rp {outstanding:,.0f}.")
     elif outstanding > 0:
         alerts.append(f"📌 Kewajiban pending: Rp {outstanding:,.0f}")
@@ -7477,7 +7477,7 @@ def render_finance_dashboard():
             health_score -= 5
             recommendations.append("📦 **Stok Menumpuk**: Perputaran stok rendah. Evaluasi pembelian atau promo untuk mengurangi stok.")
         elif turnover > 0.5:
-            alerts.append("🟢 Perputaran stok baik — penjualan aktif.")
+            alerts.append("🟢 Perputaran stok baik - penjualan aktif.")
 
     # Expense ratio
     if bln_income > 0:
@@ -7486,7 +7486,7 @@ def render_finance_dashboard():
             health_score -= 10
             recommendations.append("⚠️ **Expense Ratio >95%**: Hampir semua pendapatan habis untuk biaya. Kurangi pengeluaran.")
         elif exp_ratio > 0.8:
-            recommendations.append("📊 Expense ratio {:.0f}% — masih bisa dioptimalkan.".format(exp_ratio * 100))
+            recommendations.append("📊 Expense ratio {:.0f}% - masih bisa dioptimalkan.".format(exp_ratio * 100))
 
     health_score = max(0, min(100, health_score))
     health_label = (
@@ -7530,7 +7530,7 @@ def render_finance_dashboard():
                 st.info(a)
 
     if recommendations:
-        with st.expander("💡 **AI Recommendations** — Tindakan yang Disarankan", expanded=True):
+        with st.expander("💡 **AI Recommendations** - Tindakan yang Disarankan", expanded=True):
             for i, rec in enumerate(recommendations, 1):
                 st.markdown(f"{i}. {rec}")
     else:
@@ -7540,7 +7540,7 @@ def render_finance_dashboard():
     # CHARTS: Daily Sales vs Expenses
     # ═══════════════════════════════════
     st.markdown("---")
-    st.markdown("### 📊 Grafik Penjualan & Pengeluaran — 30 Hari Terakhir")
+    st.markdown("### 📊 Grafik Penjualan & Pengeluaran - 30 Hari Terakhir")
 
     chart_data = []
     for i in range(29, -1, -1):
@@ -7590,7 +7590,7 @@ def render_finance_dashboard():
     # MONTHLY TREND (6 months)
     # ═══════════════════════════════════
     st.markdown("---")
-    st.markdown("### 📅 Tren Bulanan — 6 Bulan Terakhir")
+    st.markdown("### 📅 Tren Bulanan - 6 Bulan Terakhir")
     monthly_trend = []
     for m in range(5, -1, -1):
         ym = today - timedelta(days=30 * m)
@@ -7808,7 +7808,7 @@ def render_admin_users():
             new_nama = st.text_input("Nama Lengkap", key="new_user_nama", placeholder="Nama lengkap")
         with col_a2:
             new_password = st.text_input("Password", type="password", key="new_user_password", placeholder="Minimal 4 karakter")
-            new_role = st.selectbox("Role", ROLE_CHOICES, format_func=lambda r: f"{ROLES[r]['label']} — {ROLES[r]['desc']}", key="new_user_role")
+            new_role = st.selectbox("Role", ROLE_CHOICES, format_func=lambda r: f"{ROLES[r]['label']} - {ROLES[r]['desc']}", key="new_user_role")
 
         if st.button("💾 Simpan User", type="primary"):
             if not new_username.strip() or not new_nama.strip() or len(new_password) < 4:
@@ -8173,8 +8173,8 @@ def render_master_data():
         st.subheader("⚙️ Update Harga & Edit SKU")
 
         all_sku_list = db.fetch_all("SELECT kode_sku, nama_barang, kategori, stok, satuan, supplier, harga_beli, harga_jual, keterangan, id FROM sku ORDER BY kode_sku")
-        sku_options = [f"{s['kode_sku']} — {s['nama_barang'][:40]}" for s in all_sku_list]
-        sku_map = {f"{s['kode_sku']} — {s['nama_barang'][:40]}": s for s in all_sku_list}
+        sku_options = [f"{s['kode_sku']} - {s['nama_barang'][:40]}" for s in all_sku_list]
+        sku_map = {f"{s['kode_sku']} - {s['nama_barang'][:40]}": s for s in all_sku_list}
 
         edit_col1, edit_col2 = st.columns([3, 1])
         with edit_col1:
@@ -8192,7 +8192,7 @@ def render_master_data():
             sku_data = sku_map.get(selected_sku_label)
             if sku_data:
                 with st.form("master_sku_edit_form"):
-                    st.markdown(f"**Edit: `{sku_data['kode_sku']}` — {sku_data['nama_barang']}**")
+                    st.markdown(f"**Edit: `{sku_data['kode_sku']}` - {sku_data['nama_barang']}**")
                     ec1, ec2, ec3 = st.columns(3)
                     with ec1:
                         new_kode = st.text_input("Kode SKU", value=sku_data["kode_sku"], key="master_sku_ekode")
@@ -8657,7 +8657,7 @@ def render_master_data():
 
 # ==================== AKUNTANSI: REKONSILIASI & LABA RUGI NERACA ====================
 def render_rekonsiliasi():
-    """Halaman Rekonsiliasi Marketplace — cocokkan penjualan dengan settlement file."""
+    """Halaman Rekonsiliasi Marketplace - cocokkan penjualan dengan settlement file."""
     db = st.session_state.db
 
     st.title("📋 Rekonsiliasi Marketplace")
@@ -8766,7 +8766,7 @@ def render_rekonsiliasi():
                             st.dataframe(df_m, width="stretch", height=300, hide_index=True)
 
                         if unmatched:
-                            st.markdown("#### ⚠️ Unmatched — Perlu Investigasi")
+                            st.markdown("#### ⚠️ Unmatched - Perlu Investigasi")
                             st.warning(f"{len(unmatched)} pesanan dari file settlement tidak ditemukan di database penjualan.")
                             df_u = pd.DataFrame(unmatched)
                             st.dataframe(df_u, width="stretch", height=250, hide_index=True)
@@ -8820,11 +8820,11 @@ def render_rekonsiliasi():
 
 
 def render_laba_rugi_neraca():
-    """Halaman Laba Rugi & Neraca — dashboard akuntansi terintegrasi."""
+    """Halaman Laba Rugi & Neraca - dashboard akuntansi terintegrasi."""
     db = st.session_state.db
 
     st.title("📊 Laba Rugi & Neraca")
-    st.caption("Dashboard akuntansi ringkas — menggabungkan data penjualan, OPEX, pencairan, dan inventaris.")
+    st.caption("Dashboard akuntansi ringkas - menggabungkan data penjualan, OPEX, pencairan, dan inventaris.")
 
     # ── Filter Tanggal ──
     st.markdown("### 📅 Periode Laporan")
@@ -8845,7 +8845,7 @@ def render_laba_rugi_neraca():
     # ═══════════════════ LABA RUGI (INCOME STATEMENT) ═══════════════════
     st.markdown("---")
     st.markdown("## 💰 Laporan Laba Rugi")
-    st.caption(f"Periode: {start_str} — {end_str}")
+    st.caption(f"Periode: {start_str} - {end_str}")
 
     # ── Pendapatan: Penjualan PACKED ──
     pendapatan_rows = db.fetch_all(
@@ -8887,7 +8887,7 @@ def render_laba_rugi_neraca():
     )
     total_opex_var = opex_var["tot"] if opex_var else 0
 
-    # ── OPEX Tetap (LUNAS) — proporsional ──
+    # ── OPEX Tetap (LUNAS) - proporsional ──
     opex_tetap = db.fetch_one(
         "SELECT COALESCE(SUM(total_harga), 0) as tot FROM opex "
         "WHERE tipe = 'TETAP' AND status_bayar = 'LUNAS' AND tanggal >= ? AND tanggal <= ?",
@@ -8957,14 +8957,14 @@ def render_laba_rugi_neraca():
         st.progress(min(exp_ratio, 1.0),
                     text=f"📊 Expense Ratio: {ratio_pct:.1f}% (Biaya / Pendapatan Bersih)")
         if ratio_pct > 90:
-            st.warning("⚠️ Expense ratio di atas 90% — margin sangat tipis!")
+            st.warning("⚠️ Expense ratio di atas 90% - margin sangat tipis!")
         elif ratio_pct < 50:
             st.success("✅ Expense ratio sehat di bawah 50%.")
 
     # ═══════════════════ NERACA (BALANCE SHEET) LENGKAP ═══════════════════
     st.markdown("---")
     st.markdown("## 📊 Neraca Keuangan Lengkap")
-    st.caption(f"Posisi per: {end_str} — mencakup Aset Lancar, Aset Tetap, Kewajiban, dan Ekuitas.")
+    st.caption(f"Posisi per: {end_str} - mencakup Aset Lancar, Aset Tetap, Kewajiban, dan Ekuitas.")
 
     # ── ASET LANCAR ──
     # Inventaris (stok)
@@ -9106,7 +9106,7 @@ def render_laba_rugi_neraca():
         if abs(selisih_neraca) < 100:
             st.success(f"✅ Neraca Seimbang (selisih Rp {selisih_neraca:,.0f})")
         else:
-            st.error(f"❌ Ada Selisih Rp {selisih_neraca:,.0f} — Perlu audit!")
+            st.error(f"❌ Ada Selisih Rp {selisih_neraca:,.0f} - Perlu audit!")
             st.caption("Selisih bisa disebabkan: HPP estimasi 40%, data pencairan belum lengkap, atau transaksi belum direkonsiliasi.")
 
     # ── Quick Ratio ──
@@ -9116,7 +9116,7 @@ def render_laba_rugi_neraca():
         st.info(
             f"{ratio_color} **Quick Ratio: {quick_ratio:.2f}** "
             f"(Kas + Piutang / Utang). "
-            f"{'Sehat — mampu bayar kewajiban jangka pendek.' if quick_ratio >= 1.5 else ('Cukup — perhatikan cashflow.' if quick_ratio >= 1.0 else '⚠️ Risiko likuiditas — kas & piutang tidak cukup menutup utang.')}"
+            f"{'Sehat - mampu bayar kewajiban jangka pendek.' if quick_ratio >= 1.5 else ('Cukup - perhatikan cashflow.' if quick_ratio >= 1.0 else '⚠️ Risiko likuiditas - kas & piutang tidak cukup menutup utang.')}"
         )
 
     # ── Export ──
@@ -9195,7 +9195,7 @@ def _auto_amortisasi_bulanan(db):
         db.execute(
             "INSERT INTO amortisasi (jenis, id_ref, periode_bulan, jumlah, keterangan) VALUES (?, ?, ?, ?, ?)",
             ("PINJAMAN", p["id"], bln_ini, round(total_bayar, 2),
-             f"Auto: Cicilan {p['nama_bank']} — Pokok Rp {cicilan_pokok_bln:,.0f} + Bunga Rp {bunga_bln_ini:,.0f}"),
+             f"Auto: Cicilan {p['nama_bank']} - Pokok Rp {cicilan_pokok_bln:,.0f} + Bunga Rp {bunga_bln_ini:,.0f}"),
         )
         new_sisa = max(0, p["sisa_pokok"] - cicilan_pokok_bln)
         new_status = "LUNAS" if new_sisa <= 0 else "AKTIF"
@@ -9252,12 +9252,12 @@ def _auto_amortisasi_bulanan(db):
     _save_setting(db, "last_amortisasi", bln_ini)
 
     if processed_loans > 0 or processed_prepaid > 0:
-        # Log silently — user will see results in Laba Rugi & Neraca
+        # Log silently - user will see results in Laba Rugi & Neraca
         pass  # No toast needed on startup, just process
 
 
 def render_aset_modal():
-    """Halaman Manajemen Aset Tetap & Modal — neraca lengkap."""
+    """Halaman Manajemen Aset Tetap & Modal - neraca lengkap."""
     db = st.session_state.db
 
     st.title("🏗️ Aset & Modal")
@@ -9714,7 +9714,7 @@ def render_aset_modal():
                 db.execute(
                     "INSERT INTO amortisasi (jenis, id_ref, periode_bulan, jumlah, keterangan) VALUES (?, ?, ?, ?, ?)",
                     ("SEWA_DIMUKA", b["id"], bln_ini_label, round(beban_bln, 2),
-                     f"Amortisasi {b['deskripsi']} — bln {bln_ini_label}"),
+                     f"Amortisasi {b['deskripsi']} - bln {bln_ini_label}"),
                 )
                 db.execute(
                     "UPDATE biaya_dibayar_dimuka SET sisa_belum_diakui = ?, status = ? WHERE id = ?",
@@ -10033,7 +10033,7 @@ def main():
         render_login()
         # After render_login, auth may have just succeeded (no rerun needed)
         if not st.session_state.get("authenticated", False):
-            return  # Still not authenticated — stop here
+            return  # Still not authenticated - stop here
 
     logging.info(f"[AUTH] main(): authenticated as {st.session_state.user.get('username','?') if st.session_state.user else '?'}")
 
@@ -10059,14 +10059,14 @@ def main():
 
         col_title, col_refresh = st.columns([5, 1])
         with col_title:
-            st.caption(f"Selamat datang di iScan Pro — {datetime.now().strftime('%d %B %Y, %H:%M')}")
+            st.caption(f"Selamat datang di iScan Pro - {datetime.now().strftime('%d %B %Y, %H:%M')}")
         with col_refresh:
             if st.button("🔄 Refresh", width="stretch", key="dashboard_refresh", help="Klik untuk memperbarui data"):
                 st.rerun()
 
         db = st.session_state.db
 
-        # Stats — selaras dengan Scan Operasional
+        # Stats - selaras dengan Scan Operasional
         stats = get_stats(db)
         render_stats_cards(stats)
 
@@ -10176,7 +10176,7 @@ def main():
         else:
             st.info("📭 Belum ada data scan.")
 
-        # Expedition summary chips — dari scan_aktif
+        # Expedition summary chips - dari scan_aktif
         st.markdown("---")
         st.subheader("🚚 Ringkasan per Ekspedisi (Packing)")
         rows = db.fetch_all(
@@ -10194,7 +10194,7 @@ def main():
             st.caption("Belum ada data.")
 
     elif page == "Scan_Operasional":
-        st.title("📷 SCAN Operasional — Packing & Verifikasi")
+        st.title("📷 SCAN Operasional - Packing & Verifikasi")
         st.caption("Scan resi fisik untuk verifikasi packing. Cocokkan dengan data pesanan dari Input Resi & Pesanan.")
 
         db = st.session_state.db
@@ -10254,7 +10254,7 @@ def main():
 
         # ── Daftar Belum Scan (resi ada, belum diproses) ──
         if belum_scan > 0:
-            with st.expander(f"📋 {belum_scan} Resi Belum Di-Scan — Kemungkinan dibatalkan sistem? Klik untuk lihat & intervensi", expanded=False):
+            with st.expander(f"📋 {belum_scan} Resi Belum Di-Scan - Kemungkinan dibatalkan sistem? Klik untuk lihat & intervensi", expanded=False):
                 st.caption("Pesanan dengan resi yang belum di-scan. Gunakan mode ❌ CANCEL atau upload pembatalan di Input Resi & Pesanan.")
                 belum_list = db.fetch_all(
                     "SELECT p.marketplace, p.no_pesanan, p.no_resi, p.nama_produk, p.kurir, p.nama_toko, p.qty, p.total_harga, p.status_pesanan "
@@ -10316,7 +10316,7 @@ def main():
 
         # ── Pesanan Tanpa Resi (expandable) ──
         if tanpa_cnt > 0:
-            with st.expander(f"⚠️ {tanpa_cnt} Pesanan Belum Memiliki No Resi — Klik untuk lihat", expanded=False):
+            with st.expander(f"⚠️ {tanpa_cnt} Pesanan Belum Memiliki No Resi - Klik untuk lihat", expanded=False):
                 st.caption("Update No Resi di halaman Input Resi & Pesanan agar bisa di-scan.")
                 tanpa_list = db.fetch_all(
                     "SELECT marketplace, no_pesanan, nama_produk, nama_toko, qty, total_harga, tanggal_pesanan "
@@ -10347,7 +10347,7 @@ def main():
                 help="PACK = reguler, INSTANT = kiriman prioritas (siap diambil kurir), CANCEL = batalkan"
             )
         with col_m2:
-            # Barang Besar toggle — hanya aktif saat PACK/INSTANT mode
+            # Barang Besar toggle - hanya aktif saat PACK/INSTANT mode
             is_besar = st.checkbox(
                 "📦 Barang Besar",
                 value=False,
@@ -10449,7 +10449,7 @@ def main():
                 if not cleaned:
                     st.error(f"Format resi tidak valid: '{resi_to_scan}'")
                 else:
-                    # Check duplicate — cek by resi langsung DAN by no_pesanan → resi
+                    # Check duplicate - cek by resi langsung DAN by no_pesanan → resi
                     penj_match = None
                     existing_scan = db.fetch_one(
                         "SELECT id, status, waktu, tanggal, toko FROM scan_aktif WHERE resi = ?",
@@ -10507,7 +10507,7 @@ def main():
                                     (cleaned, cleaned),
                                 )
                                 extra = f" (No Pesanan: {match_cancel['no_pesanan']})" if match_cancel and cleaned != match_cancel["no_resi"] else ""
-                                st.error(f"❌ **CANCEL!** `{cleaned}`{extra} — nilai penjualan dikurangi.")
+                                st.error(f"❌ **CANCEL!** `{cleaned}`{extra} - nilai penjualan dikurangi.")
                             st.rerun()
 
                         # ── PACK mode: cari by no_resi ATAU no_pesanan ──
@@ -10542,7 +10542,7 @@ def main():
                                     "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman, marketplace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                     (waktu, tanggal, real_resi, match["kurir"] or "Unknown", scan_toko, "PACKED", kategori, keterangan_barang, tipe_kiriman, match.get("marketplace", "")),
                                 )
-                                # Update penjualan — pakai no_resi DAN no_pesanan sekaligus untuk memastikan
+                                # Update penjualan - pakai no_resi DAN no_pesanan sekaligus untuk memastikan
                                 db.execute(
                                     "UPDATE penjualan SET status_pesanan = 'PACKED' WHERE no_resi = ? OR no_pesanan = ?",
                                     (real_resi, match["no_pesanan"]),
@@ -10695,7 +10695,7 @@ def main():
                             # Revert penjualan status sebelum hapus scan
                             db.execute("UPDATE penjualan SET status_pesanan = '' WHERE no_resi = ?", (cleaned_del,))
                             db.execute("DELETE FROM scan_aktif WHERE resi = ?", (cleaned_del,))
-                            st.success(f"'{cleaned_del}' dihapus — status penjualan dikembalikan.")
+                            st.success(f"'{cleaned_del}' dihapus - status penjualan dikembalikan.")
                             st.rerun()
             with col_a2:
                 if st.button("↩️ Undo Terakhir", width="stretch", key="scan_ops_undo"):
@@ -10704,7 +10704,7 @@ def main():
                         # Revert penjualan status sebelum hapus scan
                         db.execute("UPDATE penjualan SET status_pesanan = '' WHERE no_resi = ?", (row["resi"],))
                         db.execute("DELETE FROM scan_aktif WHERE id = ?", (row["id"],))
-                        st.success("Scan terakhir di-undo — status penjualan dikembalikan.")
+                        st.success("Scan terakhir di-undo - status penjualan dikembalikan.")
                         st.rerun()
             with col_a3:
                 # Export packed items only
@@ -10733,7 +10733,7 @@ def main():
         render_scan_history()
 
     elif page == "Handover":
-        st.title("📋 Handover — Serah Terima per Kurir")
+        st.title("📋 Handover - Serah Terima per Kurir")
         db = st.session_state.db
 
         # ── Stats ──
@@ -10752,7 +10752,7 @@ def main():
 
         # ═══════════════ TAB INSTANT ═══════════════
         with tab_inst:
-            st.caption("Kiriman Instant/Prioritas — sudah di-scan, siap diambil kurir. Konfirmasi setelah kurir mengambil paket.")
+            st.caption("Kiriman Instant/Prioritas - sudah di-scan, siap diambil kurir. Konfirmasi setelah kurir mengambil paket.")
             _render_handover_tab(db, "INSTANT")
 
     elif page == "Ekspedisi":
@@ -10787,7 +10787,7 @@ def main():
         render_sales_input()
 
     elif page == "Retur_Klaim":
-        st.title("🔄 Retur & Klaim — Proses Paket Kembalian")
+        st.title("🔄 Retur & Klaim - Proses Paket Kembalian")
         render_retur_klaim()
 
     elif page == "Sales_Daily_Report":
@@ -10795,7 +10795,7 @@ def main():
         render_sales_daily_report()
 
     elif page == "AI_Supervisor":
-        st.title("🤖 AI Supervisor — Pantauan & Rekomendasi")
+        st.title("🤖 AI Supervisor - Pantauan & Rekomendasi")
         render_ai_supervisor()
 
     # ── Penjualan Pages ──
@@ -10804,7 +10804,7 @@ def main():
 
         col_title, col_refresh = st.columns([5, 1])
         with col_title:
-            st.caption(f"Ringkasan penjualan marketplace — {datetime.now().strftime('%d %B %Y, %H:%M')}")
+            st.caption(f"Ringkasan penjualan marketplace - {datetime.now().strftime('%d %B %Y, %H:%M')}")
         with col_refresh:
             if st.button("🔄 Refresh", width="stretch", key="sales_dash_refresh", help="Klik untuk memperbarui data"):
                 st.rerun()
@@ -10812,7 +10812,7 @@ def main():
         db = st.session_state.db
 
         # ── Stats: selaras dengan Scan Operasional ──
-        # Unique resi (paket fisik yang harus di-scan) — sama dengan Scan Operasional
+        # Unique resi (paket fisik yang harus di-scan) - sama dengan Scan Operasional
         total_resi_unique = db.fetch_one("SELECT COUNT(DISTINCT no_resi) as cnt FROM penjualan WHERE no_resi != '' AND no_resi IS NOT NULL")
         total_unique_resi = total_resi_unique["cnt"] if total_resi_unique else 0
 
@@ -10829,7 +10829,7 @@ def main():
         # Total Revenue Input: semua baris
         total_rev_input = db.fetch_one("SELECT COALESCE(SUM(total_harga), 0) as total FROM penjualan")
 
-        # Real Packed: dari scan_aktif (ground truth — unik per resi)
+        # Real Packed: dari scan_aktif (ground truth - unik per resi)
         real_packed = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED'")
         real_cnt = real_packed["cnt"] if real_packed else 0
 
@@ -10979,7 +10979,7 @@ def main():
                 if x is None or x == 0:
                     return "Rp 0"
                 if x < 1000 and x != int(x):
-                    # Small decimal — possibly mis-parsed Indonesian thousands (91.25 = 91,250)
+                    # Small decimal - possibly mis-parsed Indonesian thousands (91.25 = 91,250)
                     return f"Rp {x:,.2f}"
                 return f"Rp {x:,.0f}"
             df_rec["total_harga"] = df_rec["total_harga"].apply(fmt_rupiah)
@@ -11021,7 +11021,7 @@ def main():
     # ── Pembelian Pages ──
     elif page == "Purchase_Dashboard":
         st.title("🛒 Dashboard Pembelian")
-        st.caption(f"Ringkasan inventaris & pembelian — {datetime.now().strftime('%d %B %Y, %H:%M')}")
+        st.caption(f"Ringkasan inventaris & pembelian - {datetime.now().strftime('%d %B %Y, %H:%M')}")
 
         db = st.session_state.db
 
@@ -11081,11 +11081,11 @@ def main():
         st.markdown("---")
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            st.info("🏷️ **Manajemen SKU** — Tambah, edit, hapus data SKU barang dan update stok secara manual.")
+            st.info("🏷️ **Manajemen SKU** - Tambah, edit, hapus data SKU barang dan update stok secara manual.")
         with col_b:
-            st.info("🛒 **Input Pembelian** — Catat pembelian dari supplier, auto-update stok SKU.")
+            st.info("🛒 **Input Pembelian** - Catat pembelian dari supplier, auto-update stok SKU.")
         with col_c:
-            st.info("📋 **Riwayat Pembelian** — Lihat & filter history transaksi pembelian.")
+            st.info("📋 **Riwayat Pembelian** - Lihat & filter history transaksi pembelian.")
 
         # ── Recent Purchases ──
         st.markdown("---")
@@ -11124,7 +11124,7 @@ def main():
         render_purchase_history()
 
     elif page == "Purchase_Finance":
-        st.title("💳 Finance — Konfirmasi Pembayaran")
+        st.title("💳 Finance - Konfirmasi Pembayaran")
         render_purchase_finance()
 
     elif page == "Purchase_Archive":
@@ -11158,11 +11158,11 @@ def main():
         render_cashflow()
 
     elif page == "Finance_SKU":
-        st.title("✅ Konfirmasi Pembayaran — Pembelian SKU")
+        st.title("✅ Konfirmasi Pembayaran - Pembelian SKU")
         render_purchase_finance()  # Reuse existing function
 
     elif page == "Finance_OPEX":
-        st.title("✅ Konfirmasi Pembayaran — Biaya OPEX")
+        st.title("✅ Konfirmasi Pembayaran - Biaya OPEX")
         render_finance_opex()
 
     elif page == "Finance_History":
@@ -11181,9 +11181,10 @@ def main():
 
     # ── Admin ──
     elif page == "Admin_Users":
-        st.title("⚙️ Admin — Manajemen User & Role")
+        st.title("⚙️ Admin - Manajemen User & Role")
         render_admin_users()
 
 
 if __name__ == "__main__":
     main()
+
