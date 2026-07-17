@@ -26,11 +26,3 @@ font = "sans serif"
 [logger]
 level = "info"
 messageFormat = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-
-[theme]
-base = "dark"
-primaryColor = "#0A84FF"
-backgroundColor = "#0A0A0A"
-secondaryBackgroundColor = "#1C1C1E"
-textColor = "#FFFFFF"
-font = "sans serif"
