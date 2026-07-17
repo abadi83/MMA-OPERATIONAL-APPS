@@ -5,3 +5,5 @@ streamlit==1.56.0
 pandas>=1.4.0
 openpyxl>=3.0.0
 fpdf2>=2.8.0
+pyzbar>=0.1.9
+pillow>=9.0.0

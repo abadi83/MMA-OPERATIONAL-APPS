@@ -9585,12 +9585,55 @@ def render_iklan_harian():
 # ── GUDANG INVENTORY ──
 # ═══════════════════════════════════════════
 
+def _render_opname_by_sku(db, kode_sku):
+    """Tampilkan form opname setelah SKU terdeteksi dari scan."""
+    sku_info = db.fetch_one("SELECT * FROM sku WHERE kode_sku = ?", (kode_sku,))
+    if not sku_info:
+        st.error(f"❌ SKU `{kode_sku}` tidak ditemukan di database!")
+        return
+
+    stok_sistem = sku_info["stok"]
+    st.markdown(f"""
+    <div style="background:#1C1C1E;padding:16px;border-radius:12px;margin:10px 0;">
+        <h3 style="margin:0;color:#0A84FF;">{sku_info['nama_barang']}</h3>
+        <p style="margin:4px 0;color:#AEAEB2;">SKU: {kode_sku} | Kategori: {sku_info['kategori']} | Rak: {sku_info['posisi_rak'] or '-'}</p>
+        <p style="margin:4px 0;">Stok Sistem: <b>{stok_sistem}</b> | Modal: Rp {sku_info['harga_beli']:,.0f} | Jual: Rp {sku_info['harga_jual']:,.0f}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        stok_fisik = st.number_input("Stok Fisik (hitung manual)", min_value=0, value=stok_sistem, key=f"opname_scan_{kode_sku}")
+    with col2:
+        selisih = stok_fisik - stok_sistem
+        if selisih != 0:
+            st.metric("Selisih", f"{selisih:+d}", delta=f"{'Surplus' if selisih > 0 else 'Defisit'}")
+        else:
+            st.success("✅ Stok cocok!")
+
+    ket = st.text_input("Keterangan", placeholder="Rusak, Hilang, Expired...", key=f"opname_scan_ket_{kode_sku}")
+
+    if st.button("💾 Simpan Opname", type="primary", key=f"opname_scan_save_{kode_sku}"):
+        db.execute(
+            "INSERT INTO stock_opname (kode_sku, stok_sistem, stok_fisik, selisih, keterangan, operator, tanggal) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (kode_sku, stok_sistem, stok_fisik, selisih, ket,
+             st.session_state.user["username"] if st.session_state.user else "mobile", datetime.now().strftime("%d-%m-%Y %H:%M")),
+        )
+        db.execute("UPDATE sku SET stok = ?, updated_at = CURRENT_TIMESTAMP WHERE kode_sku = ?",
+                   (stok_fisik, kode_sku))
+        st.success(f"✅ Opname {kode_sku}: {stok_sistem} → {stok_fisik}")
+        st.rerun()
+
+
+# ═══════════════════════════════════════════
+
+
 def render_gudang_inventory():
     """Halaman Gudang Inventory - Stok, Opname, Rak."""
     st.title("📦 Gudang Inventory SKU")
     db = st.session_state.db
 
-    tab1, tab2, tab3 = st.tabs(["📊 Stok & Persediaan", "🔍 Stock Opname", "🗄️ Rak & Posisi"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Stok & Persediaan", "🔍 Stock Opname", "📸 Scan Opname (HP)", "🗄️ Rak & Posisi"])
 
     # ═══════════ TAB 1: STOK ═══════════
     with tab1:
@@ -9694,8 +9737,42 @@ def render_gudang_inventory():
             df_op = pd.DataFrame([dict(r) for r in opname_history])
             st.dataframe(df_op, width="stretch", hide_index=True)
 
-    # ═══════════ TAB 3: RAK ═══════════
+    # ═══════════ TAB 3: SCAN OPNAME (HP) ═══════════
     with tab3:
+        st.subheader("📸 Scan Opname via HP")
+        st.caption("Scan barcode SKU langsung dari kamera HP atau scanner external. Tanpa foto - langsung decode.")
+
+        scan_mode = st.radio("Mode Scan", ["📷 Kamera HP (decode otomatis)", "⌨️ Scan Text (scanner external)"], horizontal=True, key="opname_scan_mode")
+
+        if scan_mode == "📷 Kamera HP (decode otomatis)":
+            img_file = st.camera_input("Arahkan kamera ke barcode SKU", key="opname_camera", help="Pastikan barcode terlihat jelas")
+            if img_file:
+                try:
+                    from pyzbar.pyzbar import decode as barcode_decode
+                    from PIL import Image
+                    image = Image.open(img_file)
+                    decoded = barcode_decode(image)
+                    if decoded:
+                        scanned_sku = decoded[0].data.decode("utf-8").strip()
+                        st.success(f"✅ Barcode terdeteksi: **{scanned_sku}**")
+                        # Auto-fill & proceed
+                        _render_opname_by_sku(db, scanned_sku)
+                    else:
+                        st.error("❌ Barcode tidak terdeteksi. Coba lagi dengan pencahayaan cukup.")
+                except ImportError:
+                    st.error("⚠️ Library pyzbar belum terinstall. Jalankan: pip install pyzbar pillow")
+                except Exception as e:
+                    st.error(f"Error: {e}")
+        else:
+            scan_text = st.text_input("Scan/ketik kode SKU", placeholder="Tempel hasil scan barcode...", key="opname_scan_text")
+            if scan_text:
+                _render_opname_by_sku(db, scan_text.strip())
+                if st.button("🔄 Scan Lagi", key="opname_scan_again"):
+                    st.session_state.opname_scan_text = ""
+                    st.rerun()
+
+    # ═══════════ TAB 4: RAK ═══════════
+    with tab4:
         st.subheader("🗄️ Manajemen Rak & Posisi")
 
         # Add new rak
