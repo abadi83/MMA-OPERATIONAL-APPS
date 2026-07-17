@@ -484,6 +484,38 @@ class Database:
                 )
             """)
 
+            # ── Gudang Inventory ──
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS rak_gudang (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kode TEXT UNIQUE NOT NULL,
+                    nama TEXT NOT NULL,
+                    lokasi TEXT DEFAULT '',
+                    keterangan TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS stock_opname (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kode_sku TEXT NOT NULL,
+                    stok_sistem INTEGER NOT NULL,
+                    stok_fisik INTEGER NOT NULL,
+                    selisih INTEGER NOT NULL,
+                    keterangan TEXT DEFAULT '',
+                    operator TEXT DEFAULT '',
+                    tanggal TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # ── Migration: posisi_rak di SKU ──
+            try:
+                cursor.execute("ALTER TABLE sku ADD COLUMN posisi_rak TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
+
             # ── Seed COA default jika kosong ──
             try:
                 cursor.execute("SELECT COUNT(*) FROM coa")
@@ -855,7 +887,7 @@ def user_has_access(user_role: str, page: str) -> bool:
         return True
     # Check menu-level access
     menu_map = {
-        "Operasional": ["Dashboard", "Scan_Operasional", "Sales_Input", "Retur_Klaim", "AI_Supervisor",
+        "Operasional": ["Dashboard", "Scan_Operasional", "Gudang_Inventory", "Sales_Input", "Retur_Klaim", "AI_Supervisor",
                         "Handover", "Ekspedisi", "Reports"],
         "Penjualan": ["Sales_Dashboard", "Sales_History", "Sales_Archive"],
         "Pembelian": ["Purchase_Dashboard", "Purchase_Input",
@@ -9547,6 +9579,200 @@ def render_settlement_daily_import():
 def render_iklan_harian():
     """Input biaya iklan harian per marketplace - bisa di-update kapan saja."""
     st.subheader("📢 Biaya Iklan Harian Marketplace")
+
+
+# ═══════════════════════════════════════════
+# ── GUDANG INVENTORY ──
+# ═══════════════════════════════════════════
+
+def render_gudang_inventory():
+    """Halaman Gudang Inventory - Stok, Opname, Rak."""
+    st.title("📦 Gudang Inventory SKU")
+    db = st.session_state.db
+
+    tab1, tab2, tab3 = st.tabs(["📊 Stok & Persediaan", "🔍 Stock Opname", "🗄️ Rak & Posisi"])
+
+    # ═══════════ TAB 1: STOK ═══════════
+    with tab1:
+        st.subheader("📊 Monitoring Stok SKU")
+
+        # Filter
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            filter_kategori = st.selectbox("Kategori", ["Semua"] + _get_kategori_list(db), key="gudang_kat")
+        with col_f2:
+            filter_rak = st.selectbox("Rak", ["Semua"] + _get_rak_list(db), key="gudang_rak")
+        with col_f3:
+            search_sku = st.text_input("Cari SKU/Nama", key="gudang_search")
+
+        where = []
+        if filter_kategori != "Semua":
+            where.append(f"kategori = '{filter_kategori}'")
+        if filter_rak != "Semua":
+            where.append(f"posisi_rak = '{filter_rak}'")
+        if search_sku:
+            where.append(f"(kode_sku LIKE '%{search_sku}%' OR nama_barang LIKE '%{search_sku}%')")
+        where_clause = " AND ".join(where) if where else "1=1"
+
+        rows = db.fetch_all(
+            f"SELECT kode_sku, nama_barang, kategori, stok, satuan, harga_beli, harga_jual, posisi_rak FROM sku WHERE {where_clause} ORDER BY kategori, nama_barang"
+        )
+
+        if rows:
+            df = pd.DataFrame([dict(r) for r in rows])
+            # Color-code stock levels
+            def stok_color(val):
+                if val <= 0: return 'background-color: #3D0000; color: #FF453A'
+                elif val <= 5: return 'background-color: #3D2E00; color: #FF9F0A'
+                return ''
+            styled = df.style.applymap(stok_color, subset=['stok'])
+            st.dataframe(styled, width="stretch", height=500, hide_index=True,
+                         column_config={
+                             "kode_sku": "Kode SKU", "nama_barang": "Nama Barang",
+                             "kategori": "Kategori", "stok": st.column_config.NumberColumn("Stok"),
+                             "satuan": "Satuan", "harga_beli": st.column_config.NumberColumn("Modal", format="Rp %.0f"),
+                             "harga_jual": st.column_config.NumberColumn("Jual", format="Rp %.0f"),
+                             "posisi_rak": "Rak",
+                         })
+
+            # Quick stats
+            total_sku = len(df)
+            total_stok = df["stok"].sum()
+            total_value = (df["stok"] * df["harga_beli"]).sum()
+            low_stock = len(df[df["stok"] <= 5])
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Total SKU", total_sku)
+            c2.metric("Total Stok", f"{total_stok:,}")
+            c3.metric("Nilai Inventory", f"Rp {total_value:,.0f}")
+            c4.metric("Stok Menipis (≤5)", low_stock)
+        else:
+            st.info("Belum ada data SKU.")
+
+    # ═══════════ TAB 2: STOCK OPNAME ═══════════
+    with tab2:
+        st.subheader("🔍 Stock Opname")
+        st.caption("Hitung fisik stok & bandingkan dengan sistem. Selisih otomatis tercatat.")
+
+        opname_sku = st.selectbox("Pilih SKU", [r["kode_sku"] for r in db.fetch_all("SELECT kode_sku FROM sku ORDER BY kode_sku")], key="opname_sku")
+
+        if opname_sku:
+            sku_info = db.fetch_one("SELECT * FROM sku WHERE kode_sku = ?", (opname_sku,))
+            if sku_info:
+                stok_sistem = sku_info["stok"]
+                st.info(f"📦 **{sku_info['nama_barang']}** | Stok Sistem: **{stok_sistem}** | Rak: {sku_info['posisi_rak'] or '-'}")
+
+                col_o1, col_o2 = st.columns(2)
+                with col_o1:
+                    stok_fisik = st.number_input("Stok Fisik (hitung manual)", min_value=0, value=stok_sistem, key="opname_fisik")
+                with col_o2:
+                    selisih = stok_fisik - stok_sistem
+                    if selisih != 0:
+                        st.metric("Selisih", f"{selisih:+d}", delta=f"{'Surplus' if selisih > 0 else 'Defisit'}")
+                    else:
+                        st.success("✅ Stok cocok!")
+
+                ket = st.text_input("Keterangan", placeholder="Contoh: Rusak, Hilang, Salah hitung...", key="opname_ket")
+
+                if st.button("💾 Simpan Opname", type="primary", key="opname_save"):
+                    db.execute(
+                        "INSERT INTO stock_opname (kode_sku, stok_sistem, stok_fisik, selisih, keterangan, operator, tanggal) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (opname_sku, stok_sistem, stok_fisik, selisih, ket,
+                         st.session_state.user["username"], datetime.now().strftime("%d-%m-%Y %H:%M")),
+                    )
+                    # Update stok
+                    db.execute("UPDATE sku SET stok = ?, updated_at = CURRENT_TIMESTAMP WHERE kode_sku = ?",
+                               (stok_fisik, opname_sku))
+                    st.success(f"✅ Opname berhasil! Stok {opname_sku} diupdate: {stok_sistem} → {stok_fisik}")
+                    st.rerun()
+
+        # History opname
+        st.divider()
+        opname_history = db.fetch_all(
+            "SELECT * FROM stock_opname ORDER BY created_at DESC LIMIT 50"
+        )
+        if opname_history:
+            df_op = pd.DataFrame([dict(r) for r in opname_history])
+            st.dataframe(df_op, width="stretch", hide_index=True)
+
+    # ═══════════ TAB 3: RAK ═══════════
+    with tab3:
+        st.subheader("🗄️ Manajemen Rak & Posisi")
+
+        # Add new rak
+        col_r1, col_r2 = st.columns([2, 1])
+        with col_r1:
+            new_kode = st.text_input("Kode Rak", placeholder="A-01", key="rak_kode")
+            new_nama = st.text_input("Nama Rak", placeholder="Rak A - Elektronik", key="rak_nama")
+            new_lokasi = st.text_input("Lokasi", placeholder="Gudang Utama Lt.1", key="rak_lokasi")
+        with col_r2:
+            if st.button("➕ Tambah Rak", key="rak_add") and new_kode and new_nama:
+                try:
+                    db.execute("INSERT INTO rak_gudang (kode, nama, lokasi) VALUES (?, ?, ?)",
+                               (new_kode.upper(), new_nama, new_lokasi))
+                    st.success(f"✅ Rak {new_kode} ditambahkan!")
+                    st.rerun()
+                except:
+                    st.error("Kode rak sudah ada!")
+
+        # List rak
+        rak_list = db.fetch_all("SELECT * FROM rak_gudang ORDER BY kode")
+        if rak_list:
+            for rak in rak_list:
+                with st.expander(f"🗄️ {rak['kode']} - {rak['nama']} ({rak['lokasi']})"):
+                    # Show SKU in this rak
+                    sku_in_rak = db.fetch_all(
+                        "SELECT kode_sku, nama_barang, stok, kategori FROM sku WHERE posisi_rak = ? ORDER BY nama_barang",
+                        (rak["kode"],),
+                    )
+                    if sku_in_rak:
+                        df_rak = pd.DataFrame([dict(r) for r in sku_in_rak])
+                        st.dataframe(df_rak, width="stretch", hide_index=True)
+                    else:
+                        st.caption("Belum ada SKU di rak ini.")
+
+                    # Assign SKU to this rak
+                    sku_tanpa_rak = db.fetch_all(
+                        "SELECT kode_sku, nama_barang FROM sku WHERE posisi_rak != ? OR posisi_rak = '' OR posisi_rak IS NULL ORDER BY nama_barang LIMIT 50",
+                        (rak["kode"],),
+                    )
+                    if sku_tanpa_rak:
+                        pindah_sku = st.selectbox(
+                            f"Pindahkan SKU ke {rak['kode']}",
+                            ["-- Pilih SKU --"] + [f"{s['kode_sku']} - {s['nama_barang']}" for s in sku_tanpa_rak],
+                            key=f"pindah_{rak['id']}",
+                        )
+                        if pindah_sku != "-- Pilih SKU --" and st.button(f"✅ Pindahkan", key=f"btn_pindah_{rak['id']}"):
+                            kode = pindah_sku.split(" - ")[0]
+                            db.execute("UPDATE sku SET posisi_rak = ? WHERE kode_sku = ?", (rak["kode"], kode))
+                            st.success(f"✅ {kode} dipindahkan ke {rak['kode']}!")
+                            st.rerun()
+
+        # Quick assign: all unassigned SKU
+        st.divider()
+        unassigned = db.fetch_all(
+            "SELECT kode_sku, nama_barang, kategori FROM sku WHERE posisi_rak = '' OR posisi_rak IS NULL ORDER BY kategori, nama_barang"
+        )
+        if unassigned:
+            st.warning(f"⚠️ {len(unassigned)} SKU belum punya rak!")
+            df_un = pd.DataFrame([dict(r) for r in unassigned])
+            st.dataframe(df_un, width="stretch", hide_index=True)
+
+
+def _get_kategori_list(db):
+    rows = db.fetch_all("SELECT DISTINCT kategori FROM sku WHERE kategori != '' ORDER BY kategori")
+    return [r["kategori"] for r in rows]
+
+
+def _get_rak_list(db):
+    rows = db.fetch_all("SELECT kode FROM rak_gudang ORDER BY kode")
+    return [r["kode"] for r in rows]
+
+
+# ═══════════════════════════════════════════
+
+
+def render_iklan_harian():
+    """Input biaya iklan harian per marketplace - bisa di-update kapan saja."""
     st.caption("Input biaya iklan harian. Bisa upload sore (sebagian hari) & update lagi nanti. Sistem akan void jurnal lama & ganti baru.")
     db = st.session_state.db
 
@@ -10216,7 +10442,8 @@ def render_aset_modal():
 OPERATIONAL_SUB_MENUS = {
     "📊 Dashboard": "Dashboard",
     "📷 SCAN Operasional": "Scan_Operasional",
-    "📦 Input Resi & Pesanan": "Sales_Input",
+    "📦 Gudang Inventory": "Gudang_Inventory",
+    "📋 Input Resi & Pesanan": "Sales_Input",
     "🔄 Retur & Klaim": "Retur_Klaim",
     "🤖 AI Supervisor": "AI_Supervisor",
     "📋 Handover": "Handover",
@@ -11197,6 +11424,9 @@ def main():
                         st.success(f"✅ {filename}")
                     else:
                         st.warning("Tidak ada data PACKED.")
+
+    elif page == "Gudang_Inventory":
+        render_gudang_inventory()
 
     elif page == "Scan History":
         st.title("📋 Scan History")
