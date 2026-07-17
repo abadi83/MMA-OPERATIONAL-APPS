@@ -40,8 +40,17 @@ st.set_page_config(
 
 # ==================== PWA INJECTION ====================
 def inject_pwa():
-    """PWA injection disabled — stability first."""
-    pass
+    """Inject PWA manifest + meta tags. No Service Worker - stable & installable."""
+    st.html('''
+    <link rel="manifest" href="/app/static/manifest.json" crossorigin="use-credentials">
+    <meta name="theme-color" content="#0A84FF">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="iScan Pro">
+    <meta name="application-name" content="iScan Pro By MMA">
+    <link rel="apple-touch-icon" href="/app/static/icon-192.png">
+    ''')
 
 
 # ==================== DATABASE ====================
