@@ -1,32 +1,32 @@
-"""
-Dashboard - iScan Pro Multipage
-"""
+"""Dashboard - iScan Pro Multipage"""
 import streamlit as st
+st.set_page_config(page_title="📊 Dashboard", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
 
-st.set_page_config(page_title="iScan Pro - Dashboard", page_icon="📊", layout="wide")
+from app import init_session, inject_pwa, render_sidebar, _auto_amortisasi_bulanan, user_has_access, ROLES
+import pandas as pd
+from datetime import datetime
 
-# Pastikan user sudah login
+inject_pwa()
+init_session()
+
 if not st.session_state.get("authenticated"):
-    st.switch_page("app.py")
+    st.switch_page("app")
+    st.stop()
+
+db = st.session_state.db
+user = st.session_state.user
+
+_auto_amortisasi_bulanan(db)
+render_sidebar()
 
 st.title("📊 Dashboard Operasional")
-db = st.session_state.db
-cache = st.session_state.cache
+st.caption(f"Selamat datang, {user['nama_lengkap']} — {datetime.now().strftime('%d %B %Y, %H:%M')}")
 
-# Import shared helpers
-import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import Config, Theme
-from constants import APP_NAME, APP_VERSION
-
-# ── Stats Cards ──
-packed = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PACKED'")
-pending = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status = 'PENDING'")
-total_orders = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan")
-
+# Stats
 col1, col2, col3 = st.columns(3)
-col1.metric("✅ Packed", f"{packed['cnt']:,}" if packed else "0")
-col2.metric("⏳ Pending", f"{pending['cnt']:,}" if pending else "0")  
-col3.metric("📦 Total Orders", f"{total_orders['cnt']:,}" if total_orders else "0")
-
-st.caption(f"iScan Pro v{APP_VERSION} — Multipage Edition")
+p = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status='PACKED'")
+col1.metric("✅ Packed", f"{p['cnt']:,}" if p else "0")
+pe = db.fetch_one("SELECT COUNT(*) as cnt FROM scan_aktif WHERE status='PENDING'")
+col2.metric("⏳ Pending", f"{pe['cnt']:,}" if pe else "0")
+o = db.fetch_one("SELECT COUNT(DISTINCT no_pesanan) as cnt FROM penjualan")
+col3.metric("📦 Total Orders", f"{o['cnt']:,}" if o else "0")
