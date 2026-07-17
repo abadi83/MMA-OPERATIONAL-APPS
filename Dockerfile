@@ -53,4 +53,5 @@ CMD ["python", "-m", "streamlit", "run", "app.py", \
      "--browser.gatherUsageStats=false", \
      "--browser.serverPort=8501", \
      "--server.fileWatcherType=poll", \
+     "--server.scriptHealthCheckEnabled=false", \
      "--logger.level=info"]
