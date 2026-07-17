@@ -423,6 +423,113 @@ class Database:
                 )
             """)
 
+            # ═══════════════════════════════════════════
+            # ── AKUNTANSI AKRUAL: COA + Jurnal Umum ──
+            # ═══════════════════════════════════════════
+
+            # Chart of Accounts (COA)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS coa (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kode TEXT UNIQUE NOT NULL,
+                    nama TEXT NOT NULL,
+                    tipe TEXT NOT NULL DEFAULT 'BEBAN',
+                    kelompok TEXT DEFAULT '',
+                    saldo_normal TEXT DEFAULT 'DEBIT',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Jurnal Umum (Double-Entry)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS jurnal_umum (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tanggal TEXT NOT NULL,
+                    no_ref TEXT NOT NULL,
+                    kode_akun TEXT NOT NULL,
+                    nama_akun TEXT NOT NULL,
+                    deskripsi TEXT DEFAULT '',
+                    debit REAL DEFAULT 0,
+                    kredit REAL DEFAULT 0,
+                    sumber TEXT DEFAULT '',
+                    id_sumber INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Settlement harian marketplace
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS settlement_harian (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tanggal TEXT NOT NULL,
+                    marketplace TEXT NOT NULL,
+                    total_penjualan REAL DEFAULT 0,
+                    total_fee REAL DEFAULT 0,
+                    total_pencairan REAL DEFAULT 0,
+                    total_biaya_lain REAL DEFAULT 0,
+                    saldo_akhir REAL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # ── Seed COA default jika kosong ──
+            try:
+                cursor.execute("SELECT COUNT(*) FROM coa")
+                if cursor.fetchone()[0] == 0:
+                    default_coa = [
+                        ("1-1000", "Kas & Bank", "ASET", "ASET LANCAR", "DEBIT"),
+                        ("1-1100", "Piutang Usaha", "ASET", "ASET LANCAR", "DEBIT"),
+                        ("1-1200", "Persediaan Barang", "ASET", "ASET LANCAR", "DEBIT"),
+                        ("1-1300", "Biaya Dibayar di Muka", "ASET", "ASET LANCAR", "DEBIT"),
+                        ("1-2000", "Aset Tetap", "ASET", "ASET TETAP", "DEBIT"),
+                        ("1-2100", "Akumulasi Depresiasi", "ASET", "ASET TETAP", "KREDIT"),
+                        ("2-1000", "Hutang Usaha", "LIABILITAS", "LIABILITAS", "KREDIT"),
+                        ("2-1100", "Hutang Bank", "LIABILITAS", "LIABILITAS", "KREDIT"),
+                        ("2-1200", "PPN Keluaran", "LIABILITAS", "LIABILITAS", "KREDIT"),
+                        ("3-1000", "Modal Disetor", "EKUITAS", "EKUITAS", "KREDIT"),
+                        ("3-2000", "Laba Ditahan", "EKUITAS", "EKUITAS", "KREDIT"),
+                        ("4-1000", "Pendapatan Penjualan", "PENDAPATAN", "PENDAPATAN", "KREDIT"),
+                        ("4-1100", "Pendapatan Lainnya", "PENDAPATAN", "PENDAPATAN", "KREDIT"),
+                        ("5-1000", "Harga Pokok Penjualan", "BEBAN", "HPP", "DEBIT"),
+                        ("5-1100", "Beban Fee Marketplace", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                        ("5-1200", "Beban Packing Variable", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                        ("5-1300", "Beban Operasional Tetap", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                        ("5-1400", "Beban Gaji & Upah", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                        ("5-1500", "Beban Depresiasi", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                        ("5-1600", "Beban Bunga", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                        ("5-1700", "Beban Pajak", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                        ("5-1800", "Beban Transportasi", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                        ("5-1900", "Beban Listrik & Air", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                        ("5-2000", "Beban Internet", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                        ("5-2100", "Beban Sewa", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                        ("5-2200", "Beban Retur & Klaim", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                    ]
+                    for row in default_coa:
+                        cursor.execute(
+                            "INSERT INTO coa (kode, nama, tipe, kelompok, saldo_normal) VALUES (?,?,?,?,?)",
+                            row,
+                        )
+            except:
+                pass
+
+            # ── Migration: accrual fields ──
+            try:
+                cursor.execute("ALTER TABLE opex ADD COLUMN tanggal_akrual TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("ALTER TABLE pembelian ADD COLUMN tanggal_akrual TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("ALTER TABLE penjualan ADD COLUMN ppn REAL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("ALTER TABLE pembelian ADD COLUMN ppn REAL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
+
             # ── Users & Roles table ──
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -9100,6 +9207,63 @@ def render_laba_rugi_neraca():
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
         st.success(f"✅ Laporan tersimpan: {filename}")
+
+
+# ═══════════════════════════════════════════
+# ── AKUNTANSI AKRUAL: Jurnal & Auto-Posting ──
+# ═══════════════════════════════════════════
+
+def post_jurnal(db, tanggal, no_ref, deskripsi, entries, sumber="", id_sumber=0):
+    """Catat double-entry journal. entries = [(kode_akun, nama, debit, kredit), ...]"""
+    for kode, nama, deb, kred in entries:
+        db.execute(
+            "INSERT INTO jurnal_umum (tanggal, no_ref, kode_akun, nama_akun, deskripsi, debit, kredit, sumber, id_sumber) VALUES (?,?,?,?,?,?,?,?,?)",
+            (tanggal, no_ref, kode, nama, deskripsi, deb, kred, sumber, id_sumber),
+        )
+
+
+def auto_post_penjualan(db, penjualan_id, no_pesanan, tanggal, marketplace, total_harga, hpp, fee_mp, ppn=0):
+    """Auto-posting jurnal saat pesanan di-PACKED (akrual)."""
+    # Debit: Piutang Usaha / Kas, Kredit: Pendapatan Penjualan
+    post_jurnal(db, tanggal, f"INV-{no_pesanan}", f"Penjualan {marketplace}",
+        [("1-1100", "Piutang Usaha", total_harga, 0),
+         ("4-1000", "Pendapatan Penjualan", 0, total_harga)], "penjualan", penjualan_id)
+    # HPP
+    if hpp > 0:
+        post_jurnal(db, tanggal, f"INV-{no_pesanan}", f"HPP {marketplace}",
+            [("5-1000", "Harga Pokok Penjualan", hpp, 0),
+             ("1-1200", "Persediaan Barang", 0, hpp)], "penjualan", penjualan_id)
+    # Fee Marketplace
+    if fee_mp > 0:
+        post_jurnal(db, tanggal, f"INV-{no_pesanan}", f"Fee {marketplace}",
+            [("5-1100", "Beban Fee Marketplace", fee_mp, 0),
+             ("1-1100", "Piutang Usaha", 0, fee_mp)], "penjualan", penjualan_id)
+
+
+def auto_post_opex(db, opex_id, tanggal, kategori, total, tipe="VARIABLE"):
+    """Auto-posting jurnal untuk beban operasional (akrual)."""
+    akun_map = {
+        "Bubble Wrap": "5-1200", "Kardus": "5-1200", "Lakban / Selotip": "5-1200",
+        "Bensin / Transport Harian": "5-1800", "Packing Lainnya": "5-1200",
+        "Gaji / Upah": "5-1400", "Internet": "5-2000", "Listrik": "5-1900",
+        "Air": "5-1900", "Sewa Tempat": "5-2100", "Maintenance": "5-1300",
+        "ATK": "5-1300", "Depresiasi": "5-1500", "Beban Bunga": "5-1600",
+        "Amortisasi Sewa": "5-2100", "Lainnya": "5-1300",
+    }
+    kode = akun_map.get(kategori, "5-1300")
+    nama = f"Beban {kategori}"
+    post_jurnal(db, tanggal, f"OPEX-{opex_id}", f"{kategori} - {tipe}",
+        [(kode, nama, total, 0), ("1-1000", "Kas & Bank", 0, total)], "opex", opex_id)
+
+
+def auto_post_pembelian(db, pembelian_id, no_faktur, tanggal, supplier, total, ppn=0):
+    """Auto-posting jurnal untuk pembelian SKU (akrual)."""
+    post_jurnal(db, tanggal, f"PO-{no_faktur}", f"Pembelian dari {supplier}",
+        [("1-1200", "Persediaan Barang", total, 0),
+         ("2-1000", "Hutang Usaha", 0, total)], "pembelian", pembelian_id)
+
+
+# ═══════════════════════════════════════════
 
 
 def _auto_amortisasi_bulanan(db):
