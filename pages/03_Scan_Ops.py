@@ -2,7 +2,9 @@
 import streamlit as st
 st.set_page_config(page_title="ðŸ“· Scan Ops", page_icon="ðŸ“¦", layout="wide")
 
-import sys, os; sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))); from modules.shared import *
+import sys, os; sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from modules.shared import *
+from validators import Validator
 import pandas as pd
 from datetime import datetime
 
