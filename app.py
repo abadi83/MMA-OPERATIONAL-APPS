@@ -953,13 +953,7 @@ def init_session():
 
     # ── Auto-login from persistent auth token ──
     if not st.session_state.authenticated:
-        logging.info(f"[AUTH] Not authenticated, checking token sources...")
-        auth_token = None
-        # 1) Check query param (from fresh login with ?auth=TOKEN)
         auth_token = st.query_params.get("auth")
-        if auth_token:
-            logging.info(f"[AUTH] Found token in query params (len={len(auth_token)})")
-        # 2) Check Cookie header (from page refresh - browser sends cookie)
         if not auth_token:
             import re
             try:
@@ -974,10 +968,15 @@ def init_session():
             if user:
                 st.session_state.authenticated = True
                 st.session_state.user = user
+                if not st.session_state.get("_auto_login_done"):
+                    st.session_state._auto_login_done = True
+                    st.rerun()
             else:
                 if st.query_params.get("auth"):
                     st.query_params.clear()
-                    st.rerun()
+    else:
+        # Clear the one-shot flag when authenticated normally
+        st.session_state.pop("_auto_login_done", None)
 
     # ── Create default admin (once) ──
     if not st.session_state.get("_db_checked"):
@@ -6894,6 +6893,8 @@ def render_login():
                         token = generate_auth_token(db, user["id"])
                         st.session_state.authenticated = True
                         st.session_state.user = user
+                        st.query_params["auth"] = token
+                        logging.info(f"[AUTH] Login SUCCESS: {user['username']}")
                         st.rerun()
                     else:
                         st.error("❌ Username atau password salah, atau akun tidak aktif.")
