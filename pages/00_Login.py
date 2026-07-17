@@ -2,17 +2,17 @@
 import streamlit as st
 st.set_page_config(page_title="🔐 Login", page_icon="📦", layout="wide")
 
-from app import init_session, inject_pwa, authenticate_user, generate_auth_token
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from modules.shared import init_session, inject_pwa, authenticate_user, generate_auth_token
 
 inject_pwa()
 init_session()
 
-# Already logged in → dashboard
 if st.session_state.get("authenticated"):
     st.switch_page("pages/01_Dashboard.py")
     st.stop()
 
-# ── Login Form ──
 st.markdown("<br><br>", unsafe_allow_html=True)
 col = st.columns([1, 2, 1])
 with col[1]:

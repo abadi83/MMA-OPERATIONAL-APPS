@@ -2,7 +2,7 @@
 import streamlit as st
 st.set_page_config(page_title="ðŸ—„ï¸ Master Data", page_icon="ðŸ—„ï¸", layout="wide")
 
-from app import *
+import sys, os; sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))); from modules.shared import *
 import pandas as pd
 
 inject_pwa()

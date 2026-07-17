@@ -1,8 +1,8 @@
-"""Gudang Inventory Page"""
+﻿"""Gudang Inventory Page"""
 import streamlit as st
-st.set_page_config(page_title="📦 Gudang", page_icon="📦", layout="wide")
+st.set_page_config(page_title="ðŸ“¦ Gudang", page_icon="ðŸ“¦", layout="wide")
 
-from app import init_session, inject_pwa, render_sidebar, render_gudang_inventory
+import sys, os; sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))); from modules.shared import *
 
 inject_pwa()
 init_session()

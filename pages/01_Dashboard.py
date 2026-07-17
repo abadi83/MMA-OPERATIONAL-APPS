@@ -2,7 +2,7 @@
 import streamlit as st
 st.set_page_config(page_title="ðŸ“Š Dashboard", page_icon="ðŸ“¦", layout="wide", initial_sidebar_state="expanded")
 
-from app import init_session, inject_pwa, render_sidebar, auto_amortisasi_bulanan, user_has_access, ROLES
+import sys, os; sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))); from modules.shared import *
 import pandas as pd
 from datetime import datetime
 
