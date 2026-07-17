@@ -1,38 +1,27 @@
 [server]
-# ── VPS Production Settings ──
-# Run: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
-
-# Bind to all interfaces for VPS (0.0.0.0 = accessible from network)
 address = "0.0.0.0"
 port = 8501
-
-# Static file serving for PWA (manifest, icons, sw.js)
 enableStaticServing = true
-
-# Headless mode — no auto-open browser on VPS
 headless = true
-
-# Performance tuning
 maxUploadSize = 200
-maxMessageSize = 200
-
-# WebSocket stability
-browser.serverPort = 8501
-browser.gatherUsageStats = false
-server.runOnSave = false
-server.fileWatcherType = "poll"
-
-# Increase timeouts for large app
-server.maxMessageSize = 500
-browser.serverPort = 8501
-
-# Cross-origin — allow if behind reverse proxy
+maxMessageSize = 500
 enableCORS = true
 enableXsrfProtection = false
+fileWatcherType = "poll"
+runOnSave = false
 
 [browser]
 gatherUsageStats = false
 serverAddress = "localhost"
+serverPort = 8501
+
+[theme]
+base = "dark"
+primaryColor = "#0A84FF"
+backgroundColor = "#0A0A0A"
+secondaryBackgroundColor = "#1C1C1E"
+textColor = "#FFFFFF"
+font = "sans serif"
 
 [logger]
 level = "info"
