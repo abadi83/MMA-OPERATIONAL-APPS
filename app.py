@@ -472,6 +472,18 @@ class Database:
                 )
             """)
 
+            # Biaya Iklan harian per marketplace
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS iklan_harian (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tanggal TEXT NOT NULL,
+                    marketplace TEXT NOT NULL,
+                    biaya REAL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             # ── Seed COA default jika kosong ──
             try:
                 cursor.execute("SELECT COUNT(*) FROM coa")
@@ -503,6 +515,7 @@ class Database:
                         ("5-2000", "Beban Internet", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
                         ("5-2100", "Beban Sewa", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
                         ("5-2200", "Beban Retur & Klaim", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
+                        ("5-2300", "Beban Iklan", "BEBAN", "BEBAN OPERASIONAL", "DEBIT"),
                     ]
                     for row in default_coa:
                         cursor.execute(
@@ -849,7 +862,7 @@ def user_has_access(user_role: str, page: str) -> bool:
                       "Purchase_History", "Purchase_Archive"],
         "OPEX": ["Opex_Dashboard", "Opex_Input", "Opex_History"],
         "Finance": ["Finance_Dashboard", "Finance_SKU", "Finance_OPEX", "Finance_History", "Laba_Rugi", "Cashflow"],
-        "Akuntansi": ["Rekonsiliasi", "Laba_Rugi_Neraca", "Aset_Modal", "Settlement_Harian"],
+        "Akuntansi": ["Rekonsiliasi", "Laba_Rugi_Neraca", "Aset_Modal", "Settlement_Harian", "Iklan_Harian"],
         "Master_Data": ["Master_SKU", "Master_Supplier", "Master_Kategori", "Master_Toko", "Master_Barang_Besar", "Master_Gudang"],
         "Admin": ["Admin_Users"],
     }
@@ -9269,7 +9282,7 @@ def auto_post_opex(db, opex_id, tanggal, kategori, total, tipe="VARIABLE"):
         "Gaji / Upah": "5-1400", "Internet": "5-2000", "Listrik": "5-1900",
         "Air": "5-1900", "Sewa Tempat": "5-2100", "Maintenance": "5-1300",
         "ATK": "5-1300", "Depresiasi": "5-1500", "Beban Bunga": "5-1600",
-        "Amortisasi Sewa": "5-2100", "Lainnya": "5-1300",
+        "Amortisasi Sewa": "5-2100", "Iklan": "5-2300", "Lainnya": "5-1300",
     }
     kode = akun_map.get(kategori, "5-1300")
     nama = f"Beban {kategori}"
@@ -9529,6 +9542,70 @@ def render_settlement_daily_import():
     if rows:
         df_hist = pd.DataFrame([dict(r) for r in rows])
         st.dataframe(df_hist, width="stretch", hide_index=True)
+
+
+def render_iklan_harian():
+    """Input biaya iklan harian per marketplace - bisa di-update kapan saja."""
+    st.subheader("📢 Biaya Iklan Harian Marketplace")
+    st.caption("Input biaya iklan harian. Bisa upload sore (sebagian hari) & update lagi nanti. Sistem akan void jurnal lama & ganti baru.")
+    db = st.session_state.db
+
+    col1, col2, col3 = st.columns([2, 2, 1])
+    with col1:
+        mp_iklan = st.selectbox("Marketplace", ["Shopee", "TikTok", "Lazada", "Tokopedia"], key="iklan_mp")
+    with col2:
+        tgl_iklan = st.date_input("Tanggal Iklan", datetime.now(), key="iklan_tgl")
+    with col3:
+        st.write("")
+        st.write("")
+
+    biaya = st.number_input("Biaya Iklan (Rp)", min_value=0, step=10000, value=0, key="iklan_biaya",
+                            help="Masukkan total biaya iklan hari ini. Bisa sebagian — update lagi nanti kalau ada tambahan.")
+
+    if st.button("💾 Simpan Biaya Iklan", type="primary", key="iklan_save") and biaya > 0:
+        tgl_str = tgl_iklan.strftime("%d-%m-%Y")
+        ref = f"ADS-{mp_iklan}-{tgl_str}"
+
+        # Void jurnal iklan lama untuk tanggal & marketplace yang sama
+        db.execute(
+            "DELETE FROM jurnal_umum WHERE sumber = 'iklan' AND no_ref = ?",
+            (ref,),
+        )
+
+        # Post jurnal baru (replace)
+        post_jurnal(db, tgl_str, ref, f"Biaya Iklan {mp_iklan}",
+            [("5-1100", "Beban Fee Marketplace", biaya, 0),
+             ("1-1000", "Kas & Bank", 0, biaya)], "iklan", 0)
+
+        # Simpan/update di tabel ringkasan
+        existing = db.fetch_one(
+            "SELECT id FROM iklan_harian WHERE tanggal = ? AND marketplace = ?",
+            (tgl_str, mp_iklan),
+        )
+        if existing:
+            db.execute("UPDATE iklan_harian SET biaya = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                       (biaya, existing["id"]))
+        else:
+            db.execute("INSERT INTO iklan_harian (tanggal, marketplace, biaya) VALUES (?, ?, ?)",
+                       (tgl_str, mp_iklan, biaya))
+
+        st.success(f"✅ Biaya Iklan {mp_iklan} {tgl_str}: Rp {biaya:,.0f}")
+        st.rerun()
+
+    # History iklan
+    st.divider()
+    st.caption("Riwayat Biaya Iklan (30 hari terakhir)")
+    iklan_rows = db.fetch_all(
+        "SELECT tanggal, marketplace, biaya FROM iklan_harian ORDER BY tanggal DESC, marketplace LIMIT 60"
+    )
+    if iklan_rows:
+        df_iklan = pd.DataFrame([dict(r) for r in iklan_rows])
+        # Pivot: tanggal vs marketplace
+        pivot = df_iklan.pivot_table(
+            index="tanggal", columns="marketplace", values="biaya", aggfunc="sum", fill_value=0
+        )
+        pivot["Total"] = pivot.sum(axis=1)
+        st.dataframe(pivot, width="stretch")
 
 
 # ═══════════════════════════════════════════
@@ -10189,6 +10266,7 @@ AKUNTANSI_SUB_MENUS = {
     "📊 Laba Rugi & Neraca": "Laba_Rugi_Neraca",
     "🏗️ Aset & Modal": "Aset_Modal",
     "📥 Settlement Harian": "Settlement_Harian",
+    "📢 Biaya Iklan": "Iklan_Harian",
 }
 
 ADMIN_SUB_MENUS = {
@@ -11573,6 +11651,9 @@ def main():
 
     elif page == "Settlement_Harian":
         render_settlement_daily_import()
+
+    elif page == "Iklan_Harian":
+        render_iklan_harian()
 
     # ── Admin ──
     elif page == "Admin_Users":
