@@ -10,7 +10,7 @@ inject_pwa()
 init_session()
 
 if not st.session_state.get("authenticated"):
-    st.switch_page("app")
+    st.switch_page("pages/00_Login.py")
     st.stop()
 
 db = st.session_state.db
