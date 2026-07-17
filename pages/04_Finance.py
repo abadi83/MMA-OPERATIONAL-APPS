@@ -1,6 +1,6 @@
-"""Finance Page - Laba Rugi + Cashflow"""
+﻿"""Finance Page - Laba Rugi + Cashflow"""
 import streamlit as st
-st.set_page_config(page_title="💰 Finance", page_icon="💰", layout="wide")
+st.set_page_config(page_title="ðŸ’° Finance", page_icon="ðŸ’°", layout="wide")
 
 from app import *
 import pandas as pd
@@ -15,13 +15,13 @@ if not st.session_state.get("authenticated"):
 
 db = st.session_state.db
 user = st.session_state.user
-_auto_amortisasi_bulanan(db)
+auto_amortisasi_bulanan(db)
 render_sidebar()
 
-tab1, tab2 = st.tabs(["📊 Laba Rugi Harian", "💵 Cashflow"])
+tab1, tab2 = st.tabs(["ðŸ“Š Laba Rugi Harian", "ðŸ’µ Cashflow"])
 
 with tab1:
-    st.subheader("📊 Laba Rugi Harian")
+    st.subheader("ðŸ“Š Laba Rugi Harian")
     tgl = st.date_input("Tanggal", datetime.now(), key="laba_tgl")
     tgl_str = tgl.strftime("%d-%m-%Y")
 
@@ -46,7 +46,7 @@ with tab1:
         c2.metric("Fee MP", f"Rp {fee:,.0f}")
         c3.metric("HPP (est)", f"Rp {hpp:,.0f}")
         c4.metric("OPEX", f"Rp {opex_total:,.0f}")
-        c5.metric("Laba Bersih", f"Rp {final_net:,.0f}", delta=f"{'✅' if final_net > 0 else '❌'}")
+        c5.metric("Laba Bersih", f"Rp {final_net:,.0f}", delta=f"{'âœ…' if final_net > 0 else 'âŒ'}")
 
         # Per marketplace
         st.divider()
@@ -55,10 +55,10 @@ with tab1:
         per_mp["net"] = per_mp["total_harga"] - per_mp["potongan_marketplace"]
         st.dataframe(per_mp, width="stretch", hide_index=True)
     else:
-        st.info(f"📭 Belum ada data PACKED untuk {tgl_str}")
+        st.info(f"ðŸ“­ Belum ada data PACKED untuk {tgl_str}")
 
 with tab2:
-    st.subheader("💵 Cashflow 7 Hari")
+    st.subheader("ðŸ’µ Cashflow 7 Hari")
     dates = [(datetime.now() - timedelta(days=i)).strftime("%d-%m-%Y") for i in range(7)]
     data = []
     for d in dates:
