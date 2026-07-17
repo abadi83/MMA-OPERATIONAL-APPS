@@ -846,7 +846,7 @@ def user_has_access(user_role: str, page: str) -> bool:
                       "Purchase_History", "Purchase_Archive"],
         "OPEX": ["Opex_Dashboard", "Opex_Input", "Opex_History"],
         "Finance": ["Finance_Dashboard", "Finance_SKU", "Finance_OPEX", "Finance_History", "Laba_Rugi", "Cashflow"],
-        "Akuntansi": ["Rekonsiliasi", "Laba_Rugi_Neraca", "Aset_Modal"],
+        "Akuntansi": ["Rekonsiliasi", "Laba_Rugi_Neraca", "Aset_Modal", "Settlement_Harian"],
         "Master_Data": ["Master_SKU", "Master_Supplier", "Master_Kategori", "Master_Toko", "Master_Barang_Besar", "Master_Gudang"],
         "Admin": ["Admin_Users"],
     }
@@ -9263,7 +9263,186 @@ def auto_post_pembelian(db, pembelian_id, no_faktur, tanggal, supplier, total, p
          ("2-1000", "Hutang Usaha", 0, total)], "pembelian", pembelian_id)
 
 
+def post_packed_to_accounting(db, resi, tanggal=None):
+    """Auto-posting jurnal saat resi di-PACKED. Dipanggil setelah INSERT scan_aktif PACKED."""
+    if not tanggal:
+        tanggal = datetime.now().strftime("%d-%m-%Y")
+    # Cari data penjualan
+    orders = db.fetch_all(
+        "SELECT id, no_pesanan, marketplace, total_harga, nama_produk, qty, sku_terdeteksi, ppn "
+        "FROM penjualan WHERE no_resi = ?",
+        (resi,),
+    )
+    if not orders:
+        return
+    for o in orders:
+        # Cek jurnal sudah ada? Hindari double posting
+        existing = db.fetch_one(
+            "SELECT COUNT(*) as cnt FROM jurnal_umum WHERE sumber='penjualan' AND id_sumber=?",
+            (o["id"],),
+        )
+        if existing and existing["cnt"] > 0:
+            continue
+        # Hitung HPP
+        hpp = 0
+        if o["sku_terdeteksi"]:
+            sku_row = db.fetch_one("SELECT harga_beli FROM sku WHERE kode_sku = ?", (o["sku_terdeteksi"].split(",")[0].strip(),))
+            if sku_row and sku_row["harga_beli"]:
+                hpp = sku_row["harga_beli"] * (o["qty"] or 1)
+        if hpp == 0:
+            hpp = (o["total_harga"] or 0) * 0.4  # fallback 40%
+        # Fee marketplace (% dari pengaturan)
+        fee_pct = 0
+        mp = (o["marketplace"] or "").upper()
+        settings = db.fetch_one("SELECT fee_shopee, fee_tiktok, fee_lazada FROM pengaturan LIMIT 1")
+        if settings:
+            if "SHOPEE" in mp: fee_pct = settings["fee_shopee"] or 0
+            elif "TIKTOK" in mp: fee_pct = settings["fee_tiktok"] or 0
+            elif "LAZADA" in mp: fee_pct = settings["fee_lazada"] or 0
+        fee_mp = (o["total_harga"] or 0) * fee_pct / 100
+        total = o["total_harga"] or 0
+        ppn = o["ppn"] or 0
+        auto_post_penjualan(db, o["id"], o["no_pesanan"], tanggal, o["marketplace"] or "Unknown", total, hpp, fee_mp, ppn)
+
+
+def get_laba_rugi_akrual(db, tanggal=None, bulan=None):
+    """Laba Rugi berbasis akrual dari jurnal (bukan cash basis)."""
+    if bulan:
+        where = f"WHERE strftime('%Y-%m', tanggal) = '{bulan}'"
+    elif tanggal:
+        where = f"WHERE tanggal = '{tanggal}'"
+    else:
+        where = ""
+
+    # Pendapatan
+    pendapatan = db.fetch_one(
+        f"SELECT SUM(kredit) - SUM(debit) as total FROM jurnal_umum {where} AND kode_akun LIKE '4-%'"
+    )
+    # HPP
+    hpp = db.fetch_one(
+        f"SELECT SUM(debit) - SUM(kredit) as total FROM jurnal_umum {where} AND kode_akun = '5-1000'"
+    )
+    # Total Beban
+    beban = db.fetch_one(
+        f"SELECT SUM(debit) - SUM(kredit) as total FROM jurnal_umum {where} AND kode_akun LIKE '5-%' AND kode_akun != '5-1000'"
+    )
+
+    rev = (pendapatan["total"] or 0) if pendapatan else 0
+    cogs = (hpp["total"] or 0) if hpp else 0
+    opex = (beban["total"] or 0) if beban else 0
+
+    gross = rev - cogs
+    net = gross - opex
+    return {"pendapatan": rev, "hpp": cogs, "gross_profit": gross, "total_beban": opex, "net_profit": net}
+
+
+def get_neraca_akrual(db):
+    """Neraca berbasis akrual dari jurnal + data operasional."""
+    # Aset = SUM(debit) - SUM(kredit) untuk akun 1-xxxx
+    aset = db.fetch_one(
+        "SELECT SUM(debit) - SUM(kredit) as total FROM jurnal_umum WHERE kode_akun LIKE '1-%'"
+    )
+    # Liabilitas = SUM(kredit) - SUM(debit) untuk akun 2-xxxx
+    liab = db.fetch_one(
+        "SELECT SUM(kredit) - SUM(debit) as total FROM jurnal_umum WHERE kode_akun LIKE '2-%'"
+    )
+    # Ekuitas = SUM(kredit) - SUM(debit) untuk akun 3-xxxx + Laba Ditahan
+    ekuitas = db.fetch_one(
+        "SELECT SUM(kredit) - SUM(debit) as total FROM jurnal_umum WHERE kode_akun LIKE '3-%'"
+    )
+    # Laba dari jurnal (4-xxxx kredit - 5-xxxx debit)
+    laba = db.fetch_one("""
+        SELECT (SELECT SUM(kredit) - SUM(debit) FROM jurnal_umum WHERE kode_akun LIKE '4-%') -
+               (SELECT SUM(debit) - SUM(kredit) FROM jurnal_umum WHERE kode_akun LIKE '5-%') as total
+    """)
+
+    total_aset = (aset["total"] or 0) if aset else 0
+    total_liab = (liab["total"] or 0) if liab else 0
+    total_ekuitas = (ekuitas["total"] or 0) if ekuitas else 0
+    net_income = (laba["total"] or 0) if laba else 0
+
+    return {
+        "total_aset": total_aset,
+        "total_liabilitas": total_liab,
+        "total_ekuitas": total_ekuitas + net_income,
+        "laba_berjalan": net_income,
+        "balance": total_aset - (total_liab + total_ekuitas + net_income),
+    }
+
+
+def render_settlement_daily_import():
+    """Halaman import settlement harian marketplace."""
+    st.subheader("📥 Import Settlement Harian Marketplace")
+    db = st.session_state.db
+
+    mp = st.selectbox("Marketplace", ["Shopee", "TikTok", "Lazada", "Tokopedia"])
+    tgl = st.date_input("Tanggal Settlement", datetime.now())
+    uploaded = st.file_uploader("Upload CSV Settlement", type=["csv", "xlsx"])
+
+    if uploaded:
+        try:
+            if uploaded.name.endswith(".csv"):
+                df = pd.read_csv(uploaded)
+            else:
+                df = pd.read_excel(uploaded)
+
+            st.dataframe(df.head(10), width="stretch")
+
+            # Summary
+            total_sales = df["Total"].sum() if "Total" in df.columns else 0
+            total_fee = df["Fee"].sum() if "Fee" in df.columns else 0
+            pencairan = df["Pencairan"].sum() if "Pencairan" in df.columns else 0
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Total Penjualan", f"Rp {total_sales:,.0f}")
+            col2.metric("Total Fee", f"Rp {total_fee:,.0f}")
+            col3.metric("Pencairan", f"Rp {pencairan:,.0f}")
+
+            if st.button("💾 Simpan Settlement", type="primary"):
+                tanggal_str = tgl.strftime("%d-%m-%Y")
+                db.execute(
+                    "INSERT INTO settlement_harian (tanggal, marketplace, total_penjualan, total_fee, total_pencairan) VALUES (?,?,?,?,?)",
+                    (tanggal_str, mp, total_sales, total_fee, pencairan),
+                )
+                # Post to jurnal: penerimaan kas
+                if pencairan > 0:
+                    post_jurnal(db, tanggal_str, f"STL-{mp}-{tanggal_str}",
+                        f"Pencairan {mp}", [("1-1000", "Kas & Bank", pencairan, 0),
+                        ("1-1100", "Piutang Usaha", 0, pencairan)], "settlement", 0)
+                st.success(f"✅ Settlement {mp} {tanggal_str} tersimpan!")
+                st.rerun()
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+    # History
+    st.divider()
+    st.caption("Riwayat Settlement")
+    rows = db.fetch_all("SELECT * FROM settlement_harian ORDER BY tanggal DESC LIMIT 30")
+    if rows:
+        df_hist = pd.DataFrame([dict(r) for r in rows])
+        st.dataframe(df_hist, width="stretch", hide_index=True)
+
+
 # ═══════════════════════════════════════════
+
+
+def _post_amortisasi_to_jurnal(db, tgl_str, bln_ini):
+    """Post amortisasi entries to jurnal umum."""
+    rows = db.fetch_all(
+        "SELECT * FROM amortisasi WHERE periode_bulan = ? AND id NOT IN (SELECT id_sumber FROM jurnal_umum WHERE sumber='amortisasi')",
+        (bln_ini,),
+    )
+    for r in rows:
+        if r["jenis"] == "PINJAMAN":
+            # Debit: Beban Bunga, Kredit: Kas
+            post_jurnal(db, tgl_str, f"AMORT-{r['id']}", f"Amortisasi Bunga {bln_ini}",
+                [("5-1600", "Beban Bunga", r["jumlah"], 0),
+                 ("1-1000", "Kas & Bank", 0, r["jumlah"])], "amortisasi", r["id"])
+        elif r["jenis"] == "SEWA_DIMUKA":
+            # Debit: Beban Sewa, Kredit: Biaya Dibayar di Muka
+            post_jurnal(db, tgl_str, f"AMORT-{r['id']}", f"Amortisasi Sewa {bln_ini}",
+                [("5-2100", "Beban Sewa", r["jumlah"], 0),
+                 ("1-1300", "Biaya Dibayar di Muka", 0, r["jumlah"])], "amortisasi", r["id"])
 
 
 def _auto_amortisasi_bulanan(db):
@@ -9357,7 +9536,9 @@ def _auto_amortisasi_bulanan(db):
     _save_setting(db, "last_amortisasi", bln_ini)
 
     if processed_loans > 0 or processed_prepaid > 0:
-        # Log silently - user will see results in Laba Rugi & Neraca
+        logging.info(f"[AMORT] Processed {processed_loans} loans, {processed_prepaid} prepaid for {bln_ini}")
+        # Post to jurnal for accrual accounting
+        _post_amortisasi_to_jurnal(db, tgl_str, bln_ini)
         pass  # No toast needed on startup, just process
 
 
@@ -9899,6 +10080,7 @@ AKUNTANSI_SUB_MENUS = {
     "📋 Rekonsiliasi": "Rekonsiliasi",
     "📊 Laba Rugi & Neraca": "Laba_Rugi_Neraca",
     "🏗️ Aset & Modal": "Aset_Modal",
+    "📥 Settlement Harian": "Settlement_Harian",
 }
 
 ADMIN_SUB_MENUS = {
@@ -10642,11 +10824,13 @@ def main():
                                     "INSERT INTO scan_aktif (waktu, tanggal, resi, ekspedisi, toko, status, kategori, keterangan_barang, tipe_kiriman, marketplace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                     (waktu, tanggal, real_resi, match["kurir"] or "Unknown", scan_toko, "PACKED", kategori, keterangan_barang, tipe_kiriman, match["marketplace"] if "marketplace" in match.keys() else ""),
                                 )
-                                # Update penjualan - pakai no_resi DAN no_pesanan sekaligus untuk memastikan
+                                # Update penjualan
                                 db.execute(
                                     "UPDATE penjualan SET status_pesanan = 'PACKED' WHERE no_resi = ? OR no_pesanan = ?",
                                     (real_resi, match["no_pesanan"]),
                                 )
+                                # Auto-posting akuntansi akrual
+                                post_packed_to_accounting(db, real_resi, tanggal)
                                 # Verifikasi update berhasil
                                 verify = db.fetch_one(
                                     "SELECT COUNT(*) as cnt FROM penjualan WHERE (no_resi = ? OR no_pesanan = ?) AND status_pesanan = 'PACKED'",
@@ -11278,6 +11462,9 @@ def main():
 
     elif page == "Aset_Modal":
         render_aset_modal()
+
+    elif page == "Settlement_Harian":
+        render_settlement_daily_import()
 
     # ── Admin ──
     elif page == "Admin_Users":
