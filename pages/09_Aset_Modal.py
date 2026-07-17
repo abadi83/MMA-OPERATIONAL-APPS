@@ -15,8 +15,6 @@ if not st.session_state.get("authenticated"):
 
 db = st.session_state.db
 user = st.session_state.user
-render_sidebar()
-
 tab1, tab2 = st.tabs(["ðŸ—ï¸ Aset Tetap", "ðŸ’° Modal & Pinjaman"])
 
 with tab1:

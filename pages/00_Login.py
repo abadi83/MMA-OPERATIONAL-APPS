@@ -1,6 +1,6 @@
-"""Login Page"""
+﻿"""Login Page"""
 import streamlit as st
-st.set_page_config(page_title="🔐 Login", page_icon="📦", layout="wide")
+st.set_page_config(page_title="ðŸ” Login", page_icon="ðŸ“¦", layout="wide")
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,10 +21,10 @@ with col[1]:
         <span style="font-size:32px;font-weight:700;color:#0A84FF;">Pro</span>
     </div>""", unsafe_allow_html=True)
     with st.container(border=True):
-        st.markdown("### 🔐 Login")
+        st.markdown("### ðŸ” Login")
         u = st.text_input("Username", placeholder="Masukkan username", key="login_u")
         p = st.text_input("Password", type="password", placeholder="Masukkan password", key="login_p")
-        if st.button("🔓 Masuk", type="primary", width="stretch"):
+        if st.button("ðŸ”“ Masuk", type="primary", width="stretch"):
             if not u.strip() or not p.strip():
                 st.error("Username dan password harus diisi!")
             else:
@@ -36,5 +36,5 @@ with col[1]:
                     st.query_params["auth"] = token
                     st.switch_page("pages/01_Dashboard.py")
                 else:
-                    st.error("❌ Username atau password salah!")
+                    st.error("âŒ Username atau password salah!")
     st.caption("admin / admin123")

@@ -16,8 +16,6 @@ if not st.session_state.get("authenticated"):
 db = st.session_state.db
 user = st.session_state.user
 auto_amortisasi_bulanan(db)
-render_sidebar()
-
 tab1, tab2, tab3 = st.tabs(["ðŸ“¥ Settlement Harian", "ðŸ“Š Neraca Akrual", "ðŸ“¢ Biaya Iklan"])
 
 with tab1:

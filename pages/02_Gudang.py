@@ -11,5 +11,4 @@ if not st.session_state.get("authenticated"):
     st.switch_page("pages/00_Login.py")
     st.stop()
 
-render_sidebar()
 render_gudang_inventory()

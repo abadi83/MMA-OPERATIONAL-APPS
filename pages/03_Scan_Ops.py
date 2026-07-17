@@ -17,7 +17,6 @@ db = st.session_state.db
 cache = st.session_state.cache
 user = st.session_state.user
 auto_amortisasi_bulanan(db)
-render_sidebar()
 st.session_state.page = "Scan_Operasional"
 
 # â”€â”€ Scan Operational (compact version) â”€â”€

@@ -17,8 +17,6 @@ db = st.session_state.db
 user = st.session_state.user
 
 auto_amortisasi_bulanan(db)
-render_sidebar()
-
 st.title("ðŸ“Š Dashboard Operasional")
 st.caption(f"Selamat datang, {user['nama_lengkap']} â€” {datetime.now().strftime('%d %B %Y, %H:%M')}")
 

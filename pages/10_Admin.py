@@ -20,8 +20,6 @@ if user.get("role") != "admin":
     st.error("â›” Hanya admin yang bisa mengakses halaman ini.")
     st.stop()
 
-render_sidebar()
-
 st.title("âš™ï¸ Admin - Manajemen User")
 st.caption(f"Login sebagai: {user['username']} ({user['role']})")
 
