@@ -11174,6 +11174,8 @@ def main():
                             f"• Toko: {existing_scan['toko']}\n\n"
                             f"Gunakan mode ❌ CANCEL jika ingin membatalkan."
                         )
+                        st.session_state.scan_ops_resi = ""  # auto-clear even on error
+                        st.rerun()
                     else:
                         now = datetime.now()
                         waktu = now.strftime("%H:%M:%S")
@@ -11203,7 +11205,8 @@ def main():
                                 )
                                 extra = f" (No Pesanan: {match_cancel['no_pesanan']})" if match_cancel and cleaned != match_cancel["no_resi"] else ""
                                 st.error(f"❌ **CANCEL!** `{cleaned}`{extra} - nilai penjualan dikurangi.")
-                            st.rerun()
+                                st.session_state.scan_ops_resi = ""
+                                st.rerun()
 
                         # ── PACK mode: cari by no_resi ATAU no_pesanan ──
                         match = db.fetch_one(
@@ -11260,6 +11263,9 @@ def main():
                                     f"🛍️ {match['nama_produk'][:50]}\n"
                                     f"🏪 {match['nama_toko'] or '-'} | 🚚 {match['kurir'] or '-'} | SKU: {match['sku_terdeteksi'] or '?'}"
                                 )
+                                # Auto-clear scan input for barcode scanner continuous scanning
+                                st.session_state.scan_ops_resi = ""
+                                st.rerun()
 
                                 # ── Auto-save barang besar baru ke daftar ──
                                 if is_besar and keterangan_barang:
