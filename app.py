@@ -9625,7 +9625,7 @@ def render_gudang_inventory():
                 if val <= 0: return 'background-color: #3D0000; color: #FF453A'
                 elif val <= 5: return 'background-color: #3D2E00; color: #FF9F0A'
                 return ''
-            styled = df.style.applymap(stok_color, subset=['stok'])
+            styled = df.style.map(stok_color, subset=['stok'])
             st.dataframe(styled, width="stretch", height=500, hide_index=True,
                          column_config={
                              "kode_sku": "Kode SKU", "nama_barang": "Nama Barang",
