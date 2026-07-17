@@ -9928,7 +9928,7 @@ def _post_amortisasi_to_jurnal(db, tgl_str, bln_ini):
                  ("1-1300", "Biaya Dibayar di Muka", 0, r["jumlah"])], "amortisasi", r["id"])
 
 
-def auto_amortisasi_bulanan(db):
+def _auto_amortisasi_bulanan(db):
     """Auto-proses amortisasi pinjaman & biaya dibayar di muka setiap bulan baru.
     Dijalankan sekali saat app startup. Gunakan tabel pengaturan untuk tracking."""
     today = datetime.now()
@@ -10805,7 +10805,7 @@ def main():
     logging.info(f"[AUTH] main(): authenticated as {st.session_state.user.get('username','?') if st.session_state.user else '?'}")
 
     # ── Auto-amortisasi bulanan: pinjaman + biaya dibayar di muka ──
-    auto_amortisasi_bulanan(st.session_state.db)
+    _auto_amortisasi_bulanan(st.session_state.db)
 
     # ── Render sidebar FIRST (it updates st.session_state.page from widget clicks) ──
     render_sidebar()
