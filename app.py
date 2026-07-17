@@ -968,15 +968,7 @@ def init_session():
             if user:
                 st.session_state.authenticated = True
                 st.session_state.user = user
-                if not st.session_state.get("_auto_login_done"):
-                    st.session_state._auto_login_done = True
-                    st.rerun()
-            else:
-                if st.query_params.get("auth"):
-                    st.query_params.clear()
-    else:
-        # Clear the one-shot flag when authenticated normally
-        st.session_state.pop("_auto_login_done", None)
+            # No st.rerun() - natural flow handles rendering
 
     # ── Create default admin (once) ──
     if not st.session_state.get("_db_checked"):
