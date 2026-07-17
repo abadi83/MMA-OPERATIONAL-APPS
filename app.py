@@ -643,7 +643,10 @@ class Database:
                     ("fee_shopee", "5.0"),
                     ("fee_tiktok", "4.0"),
                     ("fee_lazada", "4.5"),
+                    ("fee_tokopedia", "4.0"),
                     ("biaya_per_resi", "1250"),
+                    ("pph_persen", "0.5"),
+                    ("ppn_persen", "11.0"),
                 ]
                 for k, v in defaults:
                     cursor.execute("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES (?, ?)", (k, v))
@@ -5175,11 +5178,29 @@ def render_laba_rugi():
                 step=100, key="laba_set_biaya_resi",
             )
 
+        tax_col1, tax_col2, _, _ = st.columns(4)
+        with tax_col1:
+            pph_persen = st.number_input(
+                "PPh Final UMKM (%)", min_value=0.0, max_value=10.0,
+                value=float(_get_setting(db, "pph_persen", "0.5")),
+                step=0.1, key="laba_set_pph",
+                help="PPh Final 0.5% dari gross omset (PP 23/2018). Otomatis dipotong marketplace."
+            )
+        with tax_col2:
+            ppn_persen = st.number_input(
+                "PPN (%)", min_value=0.0, max_value=20.0,
+                value=float(_get_setting(db, "ppn_persen", "11.0")),
+                step=0.1, key="laba_set_ppn",
+                help="PPN 11% untuk PKP. Set 0 jika non-PKP."
+            )
+
         if st.button("💾 Simpan Pengaturan", key="laba_save_settings"):
             _save_setting(db, "fee_shopee", str(fee_shopee))
             _save_setting(db, "fee_tiktok", str(fee_tiktok))
             _save_setting(db, "fee_lazada", str(fee_lazada))
             _save_setting(db, "biaya_per_resi", str(biaya_per_resi))
+            _save_setting(db, "pph_persen", str(pph_persen))
+            _save_setting(db, "ppn_persen", str(ppn_persen))
             st.success("✅ Pengaturan disimpan!")
             st.rerun()
 
@@ -9302,7 +9323,16 @@ def post_packed_to_accounting(db, resi, tanggal=None):
         fee_mp = (o["total_harga"] or 0) * fee_pct / 100
         total = o["total_harga"] or 0
         ppn = o["ppn"] or 0
+        # PPh Final 0.5% dari gross
+        pph_pct = float(_get_setting(db, "pph_persen", "0.5"))
+        pph = total * pph_pct / 100
+
         auto_post_penjualan(db, o["id"], o["no_pesanan"], tanggal, o["marketplace"] or "Unknown", total, hpp, fee_mp, ppn)
+        # Post PPh Final
+        if pph > 0:
+            post_jurnal(db, tanggal, f"INV-{o['no_pesanan']}", f"PPh Final {pph_pct}% {o['marketplace']}",
+                [("5-1700", "Beban Pajak", pph, 0),
+                 ("1-1100", "Piutang Usaha", 0, pph)], "penjualan", o["id"])
 
 
 def get_laba_rugi_akrual(db, tanggal=None, bulan=None):
