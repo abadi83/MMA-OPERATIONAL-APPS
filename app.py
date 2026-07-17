@@ -9401,12 +9401,27 @@ def get_neraca_akrual(db):
 
 
 def render_settlement_daily_import():
-    """Halaman import settlement harian marketplace."""
+    """Halaman import settlement harian marketplace - update jurnal dengan angka AKTUAL."""
     st.subheader("📥 Import Settlement Harian Marketplace")
+    st.caption("Upload CSV settlement dari marketplace. Sistem akan update jurnal estimasi → angka AKTUAL per pesanan.")
     db = st.session_state.db
 
     mp = st.selectbox("Marketplace", ["Shopee", "TikTok", "Lazada", "Tokopedia"])
     tgl = st.date_input("Tanggal Settlement", datetime.now())
+
+    # Column mapping
+    st.markdown("**Mapping Kolom CSV:** (sesuaikan dengan format settlement marketplace)")
+    map_col1, map_col2, map_col3 = st.columns(3)
+    with map_col1:
+        col_pesanan = st.text_input("Kolom No Pesanan", "No Pesanan")
+        col_gross = st.text_input("Kolom Gross (Rp)", "Total Penjualan")
+    with map_col2:
+        col_fee = st.text_input("Kolom Fee/Potongan (Rp)", "Total Fee")
+        col_pph = st.text_input("Kolom PPh (Rp)", "PPh")
+    with map_col3:
+        col_cair = st.text_input("Kolom Pencairan (Rp)", "Pencairan")
+        col_lain = st.text_input("Kolom Biaya Lain (Rp)", "Biaya Lain")
+
     uploaded = st.file_uploader("Upload CSV Settlement", type=["csv", "xlsx"])
 
     if uploaded:
@@ -9416,31 +9431,94 @@ def render_settlement_daily_import():
             else:
                 df = pd.read_excel(uploaded)
 
+            # Rename columns based on mapping
+            rename_map = {}
+            if col_pesanan in df.columns: rename_map[col_pesanan] = "no_pesanan"
+            if col_gross in df.columns: rename_map[col_gross] = "gross"
+            if col_fee in df.columns: rename_map[col_fee] = "fee"
+            if col_pph in df.columns: rename_map[col_pph] = "pph"
+            if col_cair in df.columns: rename_map[col_cair] = "pencairan"
+            if col_lain in df.columns: rename_map[col_lain] = "biaya_lain"
+            df = df.rename(columns=rename_map)
+
             st.dataframe(df.head(10), width="stretch")
 
             # Summary
-            total_sales = df["Total"].sum() if "Total" in df.columns else 0
-            total_fee = df["Fee"].sum() if "Fee" in df.columns else 0
-            pencairan = df["Pencairan"].sum() if "Pencairan" in df.columns else 0
+            total_gross = df["gross"].sum() if "gross" in df.columns else 0
+            total_fee = df["fee"].sum() if "fee" in df.columns else 0
+            total_pph = df["pph"].sum() if "pph" in df.columns else 0
+            total_biaya = df["biaya_lain"].sum() if "biaya_lain" in df.columns else 0
+            total_cair = df["pencairan"].sum() if "pencairan" in df.columns else 0
 
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Total Penjualan", f"Rp {total_sales:,.0f}")
-            col2.metric("Total Fee", f"Rp {total_fee:,.0f}")
-            col3.metric("Pencairan", f"Rp {pencairan:,.0f}")
+            c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric("Gross", f"Rp {total_gross:,.0f}")
+            c2.metric("Fee", f"Rp {total_fee:,.0f}")
+            c3.metric("PPh", f"Rp {total_pph:,.0f}")
+            c4.metric("Biaya Lain", f"Rp {total_biaya:,.0f}")
+            c5.metric("Pencairan", f"Rp {total_cair:,.0f}")
 
-            if st.button("💾 Simpan Settlement", type="primary"):
+            if st.button("💾 Import & Update Jurnal (AKTUAL)", type="primary"):
                 tanggal_str = tgl.strftime("%d-%m-%Y")
+                updated = 0
+                for _, row in df.iterrows():
+                    no_pes = str(row.get("no_pesanan", "")).strip()
+                    if not no_pes or no_pes == "nan":
+                        continue
+                    gross = float(row.get("gross", 0) or 0)
+                    fee = float(row.get("fee", 0) or 0)
+                    pph = float(row.get("pph", 0) or 0)
+                    biaya = float(row.get("biaya_lain", 0) or 0)
+
+                    # Update penjualan with actual fee
+                    db.execute(
+                        "UPDATE penjualan SET potongan_marketplace = ?, status_settlement = 'SETTLED' WHERE no_pesanan = ?",
+                        (fee, no_pes),
+                    )
+
+                    # Void old estimate jurnal for this order
+                    db.execute(
+                        "DELETE FROM jurnal_umum WHERE sumber = 'penjualan' AND no_ref LIKE ? AND deskripsi LIKE '%Fee%'",
+                        (f"INV-{no_pes}%",),
+                    )
+                    db.execute(
+                        "DELETE FROM jurnal_umum WHERE sumber = 'penjualan' AND no_ref LIKE ? AND deskripsi LIKE '%PPh%'",
+                        (f"INV-{no_pes}%",),
+                    )
+
+                    # Post ACTUAL fee
+                    if fee > 0:
+                        post_jurnal(db, tanggal_str, f"INV-{no_pes}-AKTUAL",
+                            f"Fee {mp} (AKTUAL)", [("5-1100", "Beban Fee Marketplace", fee, 0),
+                            ("1-1100", "Piutang Usaha", 0, fee)], "settlement", 0)
+
+                    # Post ACTUAL PPh
+                    if pph > 0:
+                        post_jurnal(db, tanggal_str, f"INV-{no_pes}-AKTUAL",
+                            f"PPh Final {mp} (AKTUAL)", [("5-1700", "Beban Pajak", pph, 0),
+                            ("1-1100", "Piutang Usaha", 0, pph)], "settlement", 0)
+
+                    # Post biaya lain
+                    if biaya > 0:
+                        post_jurnal(db, tanggal_str, f"INV-{no_pes}-AKTUAL",
+                            f"Biaya Lain {mp} (AKTUAL)", [("5-1300", "Beban Operasional Tetap", biaya, 0),
+                            ("1-1100", "Piutang Usaha", 0, biaya)], "settlement", 0)
+
+                    updated += 1
+
+                # Save settlement summary
                 db.execute(
-                    "INSERT INTO settlement_harian (tanggal, marketplace, total_penjualan, total_fee, total_pencairan) VALUES (?,?,?,?,?)",
-                    (tanggal_str, mp, total_sales, total_fee, pencairan),
+                    "INSERT INTO settlement_harian (tanggal, marketplace, total_penjualan, total_fee, total_pencairan, total_biaya_lain) VALUES (?,?,?,?,?,?)",
+                    (tanggal_str, mp, total_gross, total_fee, total_cair, total_biaya),
                 )
-                # Post to jurnal: penerimaan kas
-                if pencairan > 0:
+                # Post pencairan to jurnal
+                if total_cair > 0:
                     post_jurnal(db, tanggal_str, f"STL-{mp}-{tanggal_str}",
-                        f"Pencairan {mp}", [("1-1000", "Kas & Bank", pencairan, 0),
-                        ("1-1100", "Piutang Usaha", 0, pencairan)], "settlement", 0)
-                st.success(f"✅ Settlement {mp} {tanggal_str} tersimpan!")
+                        f"Pencairan {mp}", [("1-1000", "Kas & Bank", total_cair, 0),
+                        ("1-1100", "Piutang Usaha", 0, total_cair)], "settlement", 0)
+
+                st.success(f"✅ {updated} pesanan di-update dengan angka AKTUAL! Laba Rugi sekarang akurat.")
                 st.rerun()
+
         except Exception as e:
             st.error(f"Error: {e}")
 
