@@ -50,8 +50,9 @@ CMD ["python", "-m", "streamlit", "run", "app.py", \
      "--server.enableStaticServing=true", \
      "--server.maxUploadSize=200", \
      "--server.maxMessageSize=500", \
+     "--server.enableWebsocketCompression=true", \
      "--browser.gatherUsageStats=false", \
      "--browser.serverPort=8501", \
      "--server.fileWatcherType=poll", \
      "--server.scriptHealthCheckEnabled=false", \
-     "--logger.level=info"]
+     "--logger.level=warning"]
