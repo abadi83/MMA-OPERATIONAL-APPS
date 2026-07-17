@@ -939,13 +939,7 @@ class ExpeditionCache:
 
 # ==================== SESSION STATE INIT ====================
 def init_session():
-    """Initialize session state - fast path after first init."""
-    if st.session_state.get("_init_done"):
-        # Already fully initialized - just check auth
-        if not st.session_state.get("authenticated"):
-            _check_auto_login()
-        return
-
+    """Initialize session state."""
     if "db" not in st.session_state:
         st.session_state.db = Database()
     if "cache" not in st.session_state:
@@ -1003,29 +997,6 @@ def init_session():
         st.session_state.main_menu = "Operasional"
     if "page" not in st.session_state:
         st.session_state.page = "Dashboard"
-
-    st.session_state._init_done = True
-
-
-def _check_auto_login():
-    """Lightweight auth check for already-initialized sessions."""
-    auth_token = st.query_params.get("auth")
-    if not auth_token:
-        import re
-        try:
-            cookie_header = st.context.headers.get("Cookie", "")
-            match = re.search(r'(?:^|;\s*)iscan_sid=([^;]+)', cookie_header)
-            if match:
-                auth_token = match.group(1)
-        except Exception:
-            pass
-    if auth_token:
-        user = validate_auth_token(st.session_state.db, auth_token)
-        if user:
-            st.session_state.authenticated = True
-            st.session_state.user = user
-            return True
-    return False
 
 
 # ==================== HELPER FUNCTIONS ====================
