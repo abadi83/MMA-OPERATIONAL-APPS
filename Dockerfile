@@ -49,5 +49,8 @@ CMD ["python", "-m", "streamlit", "run", "app.py", \
      "--server.enableXsrfProtection=false", \
      "--server.enableStaticServing=true", \
      "--server.maxUploadSize=200", \
+     "--server.maxMessageSize=500", \
      "--browser.gatherUsageStats=false", \
+     "--browser.serverPort=8501", \
+     "--server.fileWatcherType=poll", \
      "--logger.level=info"]

@@ -16,8 +16,15 @@ headless = true
 maxUploadSize = 200
 maxMessageSize = 200
 
-# File watcher — disable on VPS for stability
-fileWatcherType = "poll"
+# WebSocket stability
+browser.serverPort = 8501
+browser.gatherUsageStats = false
+server.runOnSave = false
+server.fileWatcherType = "poll"
+
+# Increase timeouts for large app
+server.maxMessageSize = 500
+browser.serverPort = 8501
 
 # Cross-origin — allow if behind reverse proxy
 enableCORS = true
