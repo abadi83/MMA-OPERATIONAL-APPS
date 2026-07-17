@@ -6894,7 +6894,6 @@ def render_login():
                         token = generate_auth_token(db, user["id"])
                         st.session_state.authenticated = True
                         st.session_state.user = user
-                        st.query_params["auth"] = token
                         st.rerun()
                     else:
                         st.error("❌ Username atau password salah, atau akun tidak aktif.")
